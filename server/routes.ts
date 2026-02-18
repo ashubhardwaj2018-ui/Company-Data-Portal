@@ -1,16 +1,228 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { api, buildUrl } from "@shared/routes";
+import { z } from "zod";
+import multer from "multer";
+import * as xlsx from "xlsx";
+import { insertCompanySchema, companies, type InsertCompany } from "@shared/schema";
+import { db } from "./db";
+import { count } from "drizzle-orm";
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  // Auth Setup
+  await setupAuth(app);
+  registerAuthRoutes(app);
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Helper to check admin status
+  const requireAdmin = async (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    // For MVP, just allow any logged in user to be admin 
+    // OR uncomment below to enforce admin check
+    // const isAdmin = await storage.isAdmin(req.user.email);
+    // if (!isAdmin) {
+    //   return res.status(403).json({ message: "Forbidden" });
+    // }
+    next();
+  };
+
+  // --- API Routes ---
+
+  // List Companies
+  app.get(api.companies.list.path, async (req, res) => {
+    try {
+      const input = api.companies.list.input.parse(req.query);
+      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search);
+      res.json({
+        data,
+        total,
+        page: input.page,
+        limit: input.limit
+      });
+    } catch (error) {
+       console.error(error);
+       res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  // Get Company
+  app.get(api.companies.get.path, async (req, res) => {
+    const company = await storage.getCompany(Number(req.params.id));
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+    res.json(company);
+  });
+
+  // Admin: Create
+  app.post(api.companies.create.path, requireAdmin, async (req, res) => {
+    try {
+      const input = api.companies.create.input.parse(req.body);
+      const company = await storage.createCompany(input);
+      res.status(201).json(company);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  // Admin: Update
+  app.put(api.companies.update.path, requireAdmin, async (req, res) => {
+     try {
+      const input = api.companies.update.input.parse(req.body);
+      const company = await storage.updateCompany(Number(req.params.id), input);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      res.json(company);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  // Admin: Delete
+  app.delete(api.companies.delete.path, requireAdmin, async (req, res) => {
+    await storage.deleteCompany(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // Admin: Upload Excel
+  app.post(api.companies.upload.path, requireAdmin, upload.single('file'), async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    try {
+      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rawData = xlsx.utils.sheet_to_json(sheet);
+
+      // Map raw data to schema
+      const companiesToInsert = rawData.map((row: any) => {
+        // Basic mapping - assumes columns match or are similar
+        // Ideally we'd have a mapping UI or strict template
+        return {
+          cin: row['CIN'] || row['cin'] || row['Registration Number'],
+          name: row['Name'] || row['name'] || row['Company Name'],
+          email: row['Email'] || row['email'],
+          phone: row['Phone'] || row['phone'],
+          address: row['Address'] || row['address'] || row['Registered Address'],
+          status: row['Status'] || row['status'],
+          class: row['Class'] || row['class'],
+          category: row['Category'] || row['category'],
+          state: row['State'] || row['state'],
+          authorizedCapital: row['Authorized Capital'] ? Number(row['Authorized Capital']) : undefined,
+          paidUpCapital: row['Paid Up Capital'] ? Number(row['Paid Up Capital']) : undefined,
+          // Add more mappings as needed
+        };
+      }).filter((c: any) => c.name); // Ensure at least name exists
+
+      // Validate and clean data
+      const validCompanies = [];
+      for (const c of companiesToInsert) {
+        const parsed = insertCompanySchema.safeParse(c);
+        if (parsed.success) {
+          validCompanies.push(parsed.data);
+        } else {
+          // Log error or ignore? For now ignore invalid rows
+          console.log("Skipping invalid row:", c, parsed.error);
+        }
+      }
+
+      await storage.bulkCreateCompanies(validCompanies);
+
+      res.json({ message: "Upload successful", count: validCompanies.length });
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      res.status(500).json({ message: "Failed to process file" });
+    }
+  });
+
+  // Admin Check
+  app.get(api.admin.check.path, async (req, res) => {
+    const isAdmin = req.isAuthenticated(); // For now, all logged in users are admins
+    res.json({ isAdmin });
+  });
+
+  // Seed Data
+  if (process.env.NODE_ENV !== "production") {
+    const existingCount = await db.select({ count: count() }).from(companies);
+    if (existingCount[0].count === 0) {
+      console.log("Seeding companies...");
+      const dummyCompanies: InsertCompany[] = [
+        {
+          cin: "L17110MH1973PLC019786",
+          name: "Reliance Industries Limited",
+          status: "Active",
+          class: "Public",
+          category: "Company limited by shares",
+          subCategory: "Non-govt company",
+          authorizedCapital: 15000000000,
+          paidUpCapital: 6765000000,
+          state: "Maharashtra",
+          city: "Mumbai",
+          email: "investor.relations@ril.com",
+          phone: "+91-22-35555000",
+          address: "3rd Floor, Maker Chambers IV, 222, Nariman Point, Mumbai, Maharashtra, 400021",
+          incorporationDate: new Date("1973-05-08").toISOString(),
+          lastAgmDate: new Date("2023-08-28").toISOString(),
+          lastBalanceSheetDate: new Date("2023-03-31").toISOString(),
+        },
+        {
+          cin: "L65990MH1945PLC004558",
+          name: "Tata Motors Limited",
+          status: "Active",
+          class: "Public",
+          category: "Company limited by shares",
+          subCategory: "Non-govt company",
+          authorizedCapital: 4000000000,
+          paidUpCapital: 765000000,
+          state: "Maharashtra",
+          city: "Mumbai",
+          email: "inv_rel@tatamotors.com",
+          phone: "+91-22-66658282",
+          address: "Bombay House, 24 Homi Mody Street, Mumbai, Maharashtra, 400001",
+          incorporationDate: new Date("1945-09-01").toISOString(),
+          lastAgmDate: new Date("2023-07-05").toISOString(),
+          lastBalanceSheetDate: new Date("2023-03-31").toISOString(),
+        },
+        {
+          cin: "L72200KA1996PLC019635",
+          name: "Infosys Limited",
+          status: "Active",
+          class: "Public",
+          category: "Company limited by shares",
+          subCategory: "Non-govt company",
+          authorizedCapital: 2400000000,
+          paidUpCapital: 2074000000,
+          state: "Karnataka",
+          city: "Bengaluru",
+          email: "investors@infosys.com",
+          phone: "+91-80-28520261",
+          address: "Electronics City, Hosur Road, Bengaluru, Karnataka, 560100",
+          incorporationDate: new Date("1981-07-02").toISOString(),
+          lastAgmDate: new Date("2023-06-28").toISOString(),
+          lastBalanceSheetDate: new Date("2023-03-31").toISOString(),
+        }
+      ];
+      await storage.bulkCreateCompanies(dummyCompanies);
+      console.log("Seeding completed.");
+    }
+  }
 
   return httpServer;
 }
