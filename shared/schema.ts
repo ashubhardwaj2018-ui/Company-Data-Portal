@@ -56,8 +56,40 @@ export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 // API Schemas
 export const companyQuerySchema = z.object({
   search: z.string().optional(),
+  alphabet: z.string().length(1).optional(),
   page: z.coerce.number().default(1),
   limit: z.coerce.number().default(20),
 });
+
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"),
+  coverImage: text("cover_image"),
+  authorId: varchar("author_id"),
+  published: boolean("published").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const faqs = pgTable("faqs", {
+  id: serial("id").primaryKey(),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  category: text("category"),
+  order: integer("order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPostSchema = createInsertSchema(posts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFaqSchema = createInsertSchema(faqs).omit({ id: true, createdAt: true });
+
+export type Post = typeof posts.$inferSelect;
+export type InsertPost = z.infer<typeof insertPostSchema>;
+export type Faq = typeof faqs.$inferSelect;
+export type InsertFaq = z.infer<typeof insertFaqSchema>;
+
 
 export type CompanyQueryParams = z.infer<typeof companyQuerySchema>;

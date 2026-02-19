@@ -85,6 +85,32 @@ export const api = {
       },
     },
   },
+  posts: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/posts' as const,
+      responses: {
+        200: z.array(z.custom<any>()), // Post type
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/posts/:slug' as const,
+      responses: {
+        200: z.custom<any>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  faqs: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/faqs' as const,
+      responses: {
+        200: z.array(z.custom<any>()), // Faq type
+      },
+    },
+  },
   admin: {
     check: {
       method: 'GET' as const,

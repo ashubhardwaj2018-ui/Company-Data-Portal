@@ -41,7 +41,7 @@ export async function registerRoutes(
   app.get(api.companies.list.path, async (req, res) => {
     try {
       const input = api.companies.list.input.parse(req.query);
-      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search);
+      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search, input.alphabet);
       res.json({
         data,
         total,
@@ -52,6 +52,24 @@ export async function registerRoutes(
        console.error(error);
        res.status(500).json({ message: "Internal Server Error" });
     }
+  });
+
+  // Blog Posts
+  app.get(api.posts.list.path, async (req, res) => {
+    const posts = await storage.getPosts();
+    res.json(posts);
+  });
+
+  app.get(api.posts.get.path, async (req, res) => {
+    const post = await storage.getPostBySlug(req.params.slug);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    res.json(post);
+  });
+
+  // FAQs
+  app.get(api.faqs.list.path, async (req, res) => {
+    const faqs = await storage.getFaqs();
+    res.json(faqs);
   });
 
   // Get Company
@@ -158,11 +176,33 @@ export async function registerRoutes(
     res.json({ isAdmin });
   });
 
+  // Blog Admin
+  app.post("/api/admin/posts", requireAdmin, async (req, res) => {
+    try {
+      const input = insertPostSchema.parse(req.body);
+      const post = await storage.createPost(input);
+      res.status(201).json(post);
+    } catch (err) {
+      res.status(400).json({ message: "Invalid post data" });
+    }
+  });
+
+  // FAQ Admin
+  app.post("/api/admin/faqs", requireAdmin, async (req, res) => {
+    try {
+      const input = insertFaqSchema.parse(req.body);
+      const faq = await storage.createFaq(input);
+      res.status(201).json(faq);
+    } catch (err) {
+      res.status(400).json({ message: "Invalid FAQ data" });
+    }
+  });
+
   // Seed Data
   if (process.env.NODE_ENV !== "production") {
     const existingCount = await db.select({ count: count() }).from(companies);
     if (existingCount[0].count === 0) {
-      console.log("Seeding companies...");
+      console.log("Seeding data...");
       const dummyCompanies: InsertCompany[] = [
         {
           cin: "L17110MH1973PLC019786",
@@ -220,6 +260,24 @@ export async function registerRoutes(
         }
       ];
       await storage.bulkCreateCompanies(dummyCompanies);
+
+      // Seed FAQs
+      await storage.createFaq({
+        question: "How do I search for a company?",
+        answer: "You can use the search bar on the homepage or click on an alphabet to filter by name.",
+        category: "General",
+        order: 1
+      });
+
+      // Seed Post
+      await storage.createPost({
+        title: "Welcome to our Company Directory",
+        slug: "welcome",
+        content: "We are excited to launch our new directory service for Indian companies.",
+        excerpt: "Launch of our new directory service.",
+        published: true
+      });
+
       console.log("Seeding completed.");
     }
   }

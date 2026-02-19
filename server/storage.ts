@@ -4,27 +4,45 @@ import { eq, ilike, desc, count, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Companies
-  getCompanies(page: number, limit: number, search?: string): Promise<{ data: Company[]; total: number }>;
+  getCompanies(page: number, limit: number, search?: string, alphabet?: string): Promise<{ data: Company[]; total: number }>;
   getCompany(id: number): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
   deleteCompany(id: number): Promise<void>;
   bulkCreateCompanies(companiesData: InsertCompany[]): Promise<void>;
 
+  // Blogs & FAQs
+  getPosts(): Promise<Post[]>;
+  getPostBySlug(slug: string): Promise<Post | undefined>;
+  createPost(post: InsertPost): Promise<Post>;
+  getFaqs(): Promise<Faq[]>;
+  createFaq(faq: InsertFaq): Promise<Faq>;
+
   // Admin
   isAdmin(email: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getCompanies(page: number, limit: number, search?: string): Promise<{ data: Company[]; total: number }> {
+  async getCompanies(page: number, limit: number, search?: string, alphabet?: string): Promise<{ data: Company[]; total: number }> {
     const offset = (page - 1) * limit;
     
     let whereClause = undefined;
+    const conditions = [];
+
     if (search) {
-      whereClause = sql`
-        (${companies.name} ILIKE ${`%${search}%`} OR 
-         ${companies.cin} ILIKE ${`%${search}%`} OR 
-         ${companies.email} ILIKE ${`%${search}%`})`;
+      conditions.push(sql`(${companies.name} ILIKE ${`%${search}%`} OR ${companies.cin} ILIKE ${`%${search}%`} OR ${companies.email} ILIKE ${`%${search}%`})`);
+    }
+
+    if (alphabet) {
+      if (/^[0-9]$/.test(alphabet)) {
+        conditions.push(sql`${companies.name} ~ '^[0-9]'`);
+      } else {
+        conditions.push(ilike(companies.name, `${alphabet}%`));
+      }
+    }
+
+    if (conditions.length > 0) {
+      whereClause = sql`${sql.join(conditions, sql` AND `)}`;
     }
 
     const [totalResult] = await db
@@ -40,9 +58,32 @@ export class DatabaseStorage implements IStorage {
       .where(whereClause)
       .limit(limit)
       .offset(offset)
-      .orderBy(desc(companies.id)); // Default sort by ID desc (newest first)
+      .orderBy(desc(companies.id));
 
     return { data, total };
+  }
+
+  async getPostBySlug(slug: string): Promise<Post | undefined> {
+    const [post] = await db.select().from(posts).where(eq(posts.slug, slug));
+    return post;
+  }
+
+  async getPosts(): Promise<Post[]> {
+    return await db.select().from(posts).orderBy(desc(posts.createdAt));
+  }
+
+  async createPost(post: InsertPost): Promise<Post> {
+    const [newPost] = await db.insert(posts).values(post).returning();
+    return newPost;
+  }
+
+  async getFaqs(): Promise<Faq[]> {
+    return await db.select().from(faqs).orderBy(faqs.order);
+  }
+
+  async createFaq(faq: InsertFaq): Promise<Faq> {
+    const [newFaq] = await db.insert(faqs).values(faq).returning();
+    return newFaq;
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
