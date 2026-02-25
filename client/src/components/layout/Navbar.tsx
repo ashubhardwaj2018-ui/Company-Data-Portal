@@ -40,6 +40,14 @@ export function Navbar() {
             <Link href="/about" className="text-muted-foreground transition-colors hover:text-foreground">
               About
             </Link>
+            <a 
+              href="https://your-different-website.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary font-semibold transition-colors hover:text-primary/80"
+            >
+              Partner Site
+            </a>
           </nav>
         </div>
 

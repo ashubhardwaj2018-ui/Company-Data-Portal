@@ -178,6 +178,16 @@ export default function Home() {
         <div className="container-width text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} IndiaCorpDB. All rights reserved.</p>
           <p className="mt-2">Data sourced from Ministry of Corporate Affairs (MCA).</p>
+          <div className="mt-4">
+            <a 
+              href="https://your-different-website.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline font-medium"
+            >
+              Visit our partner website
+            </a>
+          </div>
         </div>
       </footer>
     </div>
