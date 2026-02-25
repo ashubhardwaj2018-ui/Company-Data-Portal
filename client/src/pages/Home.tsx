@@ -11,19 +11,36 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [alphabet, setAlphabet] = useState<string | undefined>();
+
+  const alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const numbers = "0123456789".split("");
 
   // Simple debounce
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
     const timeoutId = setTimeout(() => {
       setDebouncedSearch(e.target.value);
-      setPage(1); // Reset to page 1 on search
+      setAlphabet(undefined); // Clear alphabet filter when searching
+      setPage(1); 
     }, 500);
     return () => clearTimeout(timeoutId);
   };
 
+  const handleAlphabetClick = (letter: string) => {
+    if (alphabet === letter) {
+      setAlphabet(undefined);
+    } else {
+      setAlphabet(letter);
+      setSearch("");
+      setDebouncedSearch("");
+    }
+    setPage(1);
+  };
+
   const { data, isLoading, isError } = useCompanies({
     search: debouncedSearch,
+    alphabet,
     page,
     limit: 12,
   });
@@ -71,6 +88,25 @@ export default function Home() {
                 Search
               </Button>
             </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex flex-wrap justify-center gap-2 mt-8 max-w-4xl mx-auto"
+          >
+            {[...alphabets, ...numbers].map((char) => (
+              <Button
+                key={char}
+                variant={alphabet === char ? "default" : "outline"}
+                size="sm"
+                className="w-10 h-10 p-0 rounded-lg text-xs font-bold"
+                onClick={() => handleAlphabetClick(char)}
+              >
+                {char}
+              </Button>
+            ))}
           </motion.div>
         </div>
       </div>

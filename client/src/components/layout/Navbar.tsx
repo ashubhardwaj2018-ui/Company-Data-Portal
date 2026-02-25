@@ -31,6 +31,12 @@ export function Navbar() {
             <Link href="/" className="text-muted-foreground transition-colors hover:text-foreground">
               Directory
             </Link>
+            <Link href="/blog" className="text-muted-foreground transition-colors hover:text-foreground">
+              Blog
+            </Link>
+            <Link href="/faq" className="text-muted-foreground transition-colors hover:text-foreground">
+              FAQ
+            </Link>
             <Link href="/about" className="text-muted-foreground transition-colors hover:text-foreground">
               About
             </Link>

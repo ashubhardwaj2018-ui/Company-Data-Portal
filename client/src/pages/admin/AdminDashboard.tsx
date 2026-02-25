@@ -6,7 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { FileUpload } from "@/components/companies/FileUpload";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Upload, Users, ShieldAlert } from "lucide-react";
+import { BarChart3, Upload, Users, ShieldAlert, BookOpen } from "lucide-react";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -61,10 +61,36 @@ export default function AdminDashboard() {
             <TabsTrigger value="upload" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Upload className="h-4 w-4 mr-2" /> Data Import
             </TabsTrigger>
+            <TabsTrigger value="content" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BookOpen className="h-4 w-4 mr-2" /> Content Management
+            </TabsTrigger>
             <TabsTrigger value="users" disabled className="data-[state=active]:bg-muted">
               <Users className="h-4 w-4 mr-2" /> Users
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="content">
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Blog Posts</CardTitle>
+                  <CardDescription>Create and manage corporate insights.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full">Add New Post</Button>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>FAQs</CardTitle>
+                  <CardDescription>Manage frequently asked questions.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full">Add New FAQ</Button>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           <TabsContent value="overview">
             <Card>
