@@ -24,6 +24,7 @@ export const companies = pgTable("companies", {
   incorporationDate: date("incorporation_date"),
   lastAgmDate: date("last_agm_date"),
   lastBalanceSheetDate: date("last_balance_sheet_date"),
+  customQna: text("custom_qna"), // New field for company-specific Q&A
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

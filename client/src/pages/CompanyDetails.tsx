@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Building2, MapPin, Calendar, FileText, Globe, 
-  Mail, Phone, IndianRupee, ArrowLeft 
+  Mail, Phone, IndianRupee, ArrowLeft, HelpCircle 
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
@@ -117,6 +117,24 @@ export default function CompanyDetails() {
               />
             </CardContent>
           </Card>
+
+          {company.customQna && (
+            <Card className="shadow-lg border-0 overflow-hidden">
+              <CardHeader className="bg-primary/5 border-b border-primary/10">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <HelpCircle className="h-5 w-5 text-primary" />
+                  Frequently Asked Questions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 md:p-8">
+                <div className="prose prose-slate max-w-none">
+                  {company.customQna.split('\n').map((line, i) => (
+                    <p key={i}>{line}</p>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Sidebar Info */}
@@ -147,6 +165,27 @@ export default function CompanyDetails() {
                     {company.city}, {company.state} - {company.pincode}
                   </p>
                 </div>
+              </div>
+
+              <div className="pt-4 border-t">
+                 <a 
+                  href="https://your-different-website.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 group"
+                >
+                  <div className="w-10 h-10 rounded border overflow-hidden shrink-0">
+                    <img 
+                      src="https://via.placeholder.com/40" 
+                      alt="Partner" 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-primary uppercase tracking-wider">Partner Site</p>
+                    <p className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">Visit our different website</p>
+                  </div>
+                </a>
               </div>
             </CardContent>
           </Card>
