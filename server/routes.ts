@@ -41,7 +41,7 @@ export async function registerRoutes(
   app.get(api.companies.list.path, async (req, res) => {
     try {
       const input = api.companies.list.input.parse(req.query);
-      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search, input.alphabet);
+      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search, input.alphabet, input.country);
       res.json({
         data,
         total,

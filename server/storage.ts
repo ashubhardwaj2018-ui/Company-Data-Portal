@@ -4,7 +4,7 @@ import { eq, ilike, desc, count, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Companies
-  getCompanies(page: number, limit: number, search?: string, alphabet?: string): Promise<{ data: Company[]; total: number }>;
+  getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string): Promise<{ data: Company[]; total: number }>;
   getCompany(id: number): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
@@ -23,7 +23,7 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getCompanies(page: number, limit: number, search?: string, alphabet?: string): Promise<{ data: Company[]; total: number }> {
+  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string): Promise<{ data: Company[]; total: number }> {
     const offset = (page - 1) * limit;
     
     let whereClause = undefined;
@@ -39,6 +39,10 @@ export class DatabaseStorage implements IStorage {
       } else {
         conditions.push(ilike(companies.name, `${alphabet}%`));
       }
+    }
+
+    if (country) {
+      conditions.push(ilike(companies.country, country));
     }
 
     if (conditions.length > 0) {

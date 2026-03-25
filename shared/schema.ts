@@ -24,7 +24,8 @@ export const companies = pgTable("companies", {
   incorporationDate: date("incorporation_date"),
   lastAgmDate: date("last_agm_date"),
   lastBalanceSheetDate: date("last_balance_sheet_date"),
-  customQna: text("custom_qna"), // New field for company-specific Q&A
+  customQna: text("custom_qna"),
+  country: text("country").default("India"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -58,6 +59,7 @@ export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 export const companyQuerySchema = z.object({
   search: z.string().optional(),
   alphabet: z.string().length(1).optional(),
+  country: z.string().optional(),
   page: z.coerce.number().default(1),
   limit: z.coerce.number().default(20),
 });
