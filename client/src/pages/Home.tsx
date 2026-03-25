@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type Company } from "@shared/schema";
 import { Navbar } from "@/components/layout/Navbar";
+import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -440,6 +441,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* BACKLINK GRID */}
+      <BacklinkGrid />
 
       {/* FOOTER */}
       <footer className="bg-slate-900 text-white py-12">

@@ -1,6 +1,8 @@
 import { useRoute } from "wouter";
 import { useCompany } from "@/hooks/use-companies";
 import { Navbar } from "@/components/layout/Navbar";
+import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,23 +120,68 @@ export default function CompanyDetails() {
             </CardContent>
           </Card>
 
-          {company.customQna && (
-            <Card className="shadow-lg border-0 overflow-hidden">
-              <CardHeader className="bg-primary/5 border-b border-primary/10">
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <HelpCircle className="h-5 w-5 text-primary" />
-                  Frequently Asked Questions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 md:p-8">
-                <div className="prose prose-slate max-w-none">
-                  {company.customQna.split('\n').map((line, i) => (
-                    <p key={i}>{line}</p>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Company FAQ Accordion */}
+          <Card className="shadow-lg border-0 overflow-hidden">
+            <CardHeader className="bg-primary/5 border-b border-primary/10">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <HelpCircle className="h-5 w-5 text-primary" />
+                Company Information (FAQ Style)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6">
+              <Accordion type="multiple" className="w-full">
+                <AccordionItem value="overview">
+                  <AccordionTrigger className="font-semibold">What type of company is {company.name}?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground space-y-1 text-sm">
+                    <p><strong>Class:</strong> {company.class || 'N/A'}</p>
+                    <p><strong>Category:</strong> {company.category || 'N/A'}</p>
+                    <p><strong>Sub-Category:</strong> {company.subCategory || 'N/A'}</p>
+                    <p><strong>Status:</strong> {company.status || 'N/A'}</p>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="registration">
+                  <AccordionTrigger className="font-semibold">When was {company.name} incorporated?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground space-y-1 text-sm">
+                    <p><strong>CIN:</strong> {company.cin || 'N/A'}</p>
+                    <p><strong>Date of Incorporation:</strong> {company.incorporationDate ? new Date(company.incorporationDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                    <p><strong>ROC:</strong> {company.roc || 'N/A'}</p>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="capital">
+                  <AccordionTrigger className="font-semibold">What is the capital structure of {company.name}?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground space-y-1 text-sm">
+                    <p><strong>Authorised Capital:</strong> {company.authorizedCapital ? `₹ ${company.authorizedCapital.toLocaleString('en-IN')}` : 'N/A'}</p>
+                    <p><strong>Paid-up Capital:</strong> {company.paidUpCapital ? `₹ ${company.paidUpCapital.toLocaleString('en-IN')}` : 'N/A'}</p>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="location">
+                  <AccordionTrigger className="font-semibold">Where is {company.name} located?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground space-y-1 text-sm">
+                    <p><strong>Address:</strong> {company.address || 'N/A'}</p>
+                    <p><strong>City:</strong> {company.city || 'N/A'}</p>
+                    <p><strong>State:</strong> {company.state || 'N/A'}</p>
+                    <p><strong>Pincode:</strong> {company.pincode || 'N/A'}</p>
+                    <p><strong>Country:</strong> {company.country || 'India'}</p>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="compliance">
+                  <AccordionTrigger className="font-semibold">What is the compliance status of {company.name}?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground space-y-1 text-sm">
+                    <p><strong>Last AGM Date:</strong> {company.lastAgmDate ? new Date(company.lastAgmDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                    <p><strong>Last Balance Sheet Date:</strong> {company.lastBalanceSheetDate ? new Date(company.lastBalanceSheetDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                  </AccordionContent>
+                </AccordionItem>
+                {company.customQna && (
+                  <AccordionItem value="custom">
+                    <AccordionTrigger className="font-semibold">Additional Information about {company.name}</AccordionTrigger>
+                    <AccordionContent className="text-muted-foreground text-sm whitespace-pre-wrap">
+                      {company.customQna}
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+              </Accordion>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar Info */}
@@ -201,6 +248,7 @@ export default function CompanyDetails() {
           </div>
         </div>
       </div>
+      <BacklinkGrid />
     </div>
   );
 }
