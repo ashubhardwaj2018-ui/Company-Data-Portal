@@ -126,47 +126,65 @@ export async function registerRoutes(
       const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rawData = xlsx.utils.sheet_to_json(sheet);
+      const rawData: any[] = xlsx.utils.sheet_to_json(sheet);
 
-      // Map raw data to schema
-      const companiesToInsert = rawData.map((row: any) => {
-        // Basic mapping - assumes columns match or are similar
-        // Ideally we'd have a mapping UI or strict template
-        return {
-          cin: row['CIN'] || row['cin'] || row['Registration Number'],
-          name: row['Name'] || row['name'] || row['Company Name'],
-          email: row['Email'] || row['email'],
-          phone: row['Phone'] || row['phone'],
-          address: row['Address'] || row['address'] || row['Registered Address'],
-          status: row['Status'] || row['status'],
-          class: row['Class'] || row['class'],
-          category: row['Category'] || row['category'],
-          state: row['State'] || row['state'],
-          authorizedCapital: row['Authorized Capital'] ? Number(row['Authorized Capital']) : undefined,
-          paidUpCapital: row['Paid Up Capital'] ? Number(row['Paid Up Capital']) : undefined,
-          // Add more mappings as needed
+      const totalRows = rawData.length;
+      const validCompanies: InsertCompany[] = [];
+      const skippedRows: { row: number; reason: string }[] = [];
+
+      rawData.forEach((row: any, index: number) => {
+        const rowNum = index + 2; // 1-based, skip header
+
+        const mapped = {
+          cin:               row['CIN'] || row['cin'] || row['Registration Number'] || row['registration_number'] || undefined,
+          name:              row['Name'] || row['name'] || row['Company Name'] || row['company_name'],
+          status:            row['Status'] || row['status'],
+          class:             row['Class'] || row['class'] || row['Company Class'] || row['company_class'],
+          category:          row['Category'] || row['category'],
+          subCategory:       row['Sub Category'] || row['sub_category'] || row['SubCategory'],
+          state:             row['State'] || row['state'],
+          city:              row['City'] || row['city'],
+          pincode:           row['Pincode'] || row['pincode'] || row['Pin Code'],
+          email:             row['Email'] || row['email'],
+          phone:             row['Phone'] || row['phone'] || row['Mobile'],
+          address:           row['Address'] || row['address'] || row['Registered Address'],
+          roc:               row['ROC'] || row['roc'] || row['Registrar of Companies'],
+          country:           row['Country'] || row['country'] || 'India',
+          incorporationDate: row['Incorporation Date'] || row['incorporation_date'] || row['Date of Incorporation'] || undefined,
+          lastAgmDate:       row['Last AGM Date'] || row['last_agm_date'] || undefined,
+          lastBalanceSheetDate: row['Last Balance Sheet Date'] || row['last_balance_sheet_date'] || undefined,
+          authorizedCapital: row['Authorized Capital'] ? Number(String(row['Authorized Capital']).replace(/[^0-9.]/g, '')) : undefined,
+          paidUpCapital:     row['Paid Up Capital'] ? Number(String(row['Paid Up Capital']).replace(/[^0-9.]/g, '')) : undefined,
+          customQna:         row['Custom QnA'] || row['custom_qna'] || undefined,
         };
-      }).filter((c: any) => c.name); // Ensure at least name exists
 
-      // Validate and clean data
-      const validCompanies = [];
-      for (const c of companiesToInsert) {
-        const parsed = insertCompanySchema.safeParse(c);
+        if (!mapped.name) {
+          skippedRows.push({ row: rowNum, reason: "Missing Company Name" });
+          return;
+        }
+
+        const parsed = insertCompanySchema.safeParse(mapped);
         if (parsed.success) {
           validCompanies.push(parsed.data);
         } else {
-          // Log error or ignore? For now ignore invalid rows
-          console.log("Skipping invalid row:", c, parsed.error);
+          const firstError = parsed.error.errors[0];
+          skippedRows.push({ row: rowNum, reason: firstError ? `${firstError.path.join('.')}: ${firstError.message}` : "Validation failed" });
         }
-      }
+      });
 
-      await storage.bulkCreateCompanies(validCompanies);
+      const inserted = await storage.bulkCreateCompanies(validCompanies);
 
-      res.json({ message: "Upload successful", count: validCompanies.length });
+      res.json({
+        message: "Upload complete",
+        totalRows,
+        inserted: validCompanies.length,
+        skipped: skippedRows.length,
+        skippedDetails: skippedRows.slice(0, 20), // return at most 20 skipped rows
+      });
 
     } catch (error) {
       console.error("Upload error:", error);
-      res.status(500).json({ message: "Failed to process file" });
+      res.status(500).json({ message: "Failed to process file. Please check the file format and try again." });
     }
   });
 

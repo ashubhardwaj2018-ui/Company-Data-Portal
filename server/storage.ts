@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { companies, type InsertCompany, type Company, admins } from "@shared/schema";
+import { companies, type InsertCompany, type Company, admins, posts, faqs, type Post, type InsertPost, type Faq, type InsertFaq } from "@shared/schema";
 import { eq, ilike, desc, count, sql } from "drizzle-orm";
 
 export interface IStorage {

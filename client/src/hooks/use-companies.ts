@@ -171,13 +171,13 @@ export function useUploadCompanies() {
         const error = await res.json();
         throw new Error(error.message || "Failed to upload file");
       }
-      return (await res.json()) as { message: string, count: number };
+      return (await res.json()) as { message: string; totalRows: number; inserted: number; skipped: number; skippedDetails: { row: number; reason: string }[] };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [api.companies.list.path] });
       toast({ 
         title: "Import Successful", 
-        description: `Successfully processed ${data.count} records.` 
+        description: `${data.inserted} of ${data.totalRows} records imported. ${data.skipped > 0 ? `${data.skipped} skipped.` : ''}` 
       });
     },
     onError: (error: Error) => {

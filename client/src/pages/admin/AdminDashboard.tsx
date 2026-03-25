@@ -6,7 +6,8 @@ import { Navbar } from "@/components/layout/Navbar";
 import { FileUpload } from "@/components/companies/FileUpload";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Upload, Users, ShieldAlert, BookOpen } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { BarChart3, Upload, Users, ShieldAlert, BookOpen, CheckCircle2 } from "lucide-react";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -122,24 +123,53 @@ export default function AdminDashboard() {
                 </Card>
               </div>
 
-              <div>
-                <Card className="border-0 shadow-md h-full">
-                  <CardHeader className="bg-blue-50/50 border-b border-blue-100">
-                    <CardTitle className="text-blue-900 text-lg">Instructions</CardTitle>
+              <div className="space-y-4">
+                <Card className="border-0 shadow-md">
+                  <CardHeader className="bg-blue-50/50 border-b border-blue-100 pb-3">
+                    <CardTitle className="text-blue-900 text-base">Supported Columns</CardTitle>
+                    <CardDescription className="text-xs">Column names are flexible — the system auto-detects common variations.</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-6 text-sm space-y-4">
-                    <p className="font-medium text-slate-900">Required Columns:</p>
-                    <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
-                      <li>CIN (Unique Identifier)</li>
-                      <li>Company Name</li>
-                      <li>Status (Active/Strike Off)</li>
-                      <li>Class (Public/Private)</li>
-                      <li>Authorized Capital</li>
-                      <li>State, City, Pincode</li>
-                      <li>Incorporation Date (YYYY-MM-DD)</li>
-                    </ul>
-                    <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-xs text-yellow-800 mt-4">
-                      <strong>Note:</strong> Large files (over 10MB) may take a few minutes to process. Please do not close the window.
+                  <CardContent className="p-4 text-xs space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> Required
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {["Name", "Company Name"].map(c => <Badge key={c} variant="secondary" className="text-[10px]">{c}</Badge>)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-700 mb-1.5">Identification</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["CIN", "Registration Number"].map(c => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-700 mb-1.5">Company Info</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["Status", "Class", "Category", "Sub Category", "ROC", "Country"].map(c => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-700 mb-1.5">Financials</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["Authorized Capital", "Paid Up Capital"].map(c => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-700 mb-1.5">Location</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["State", "City", "Pincode", "Address"].map(c => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-700 mb-1.5">Dates (YYYY-MM-DD)</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["Incorporation Date", "Last AGM Date", "Last Balance Sheet Date"].map(c => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}
+                      </div>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-2.5 text-[11px] text-yellow-800">
+                      <strong>Tip:</strong> Use the "Download Sample Template" button in the upload area for a ready-to-fill CSV with all column names.
                     </div>
                   </CardContent>
                 </Card>
