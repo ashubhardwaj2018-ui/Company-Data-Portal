@@ -275,70 +275,116 @@ export default function Home() {
       </div>
 
       {/* ALPHABET FILTER */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-800 py-8 border-b border-slate-700">
+      <div className="py-10 border-b" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
         <div className="container-width">
-          {/* Section header */}
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-white font-bold text-lg tracking-wide flex items-center gap-2">
-              <span className="text-2xl">🔤</span> Browse by Letter or Number
-            </h2>
+
+          {/* Header row */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
+            <div>
+              <h2 className="text-white font-extrabold text-2xl tracking-tight">Browse by Letter or Number</h2>
+              <p className="text-slate-400 text-sm mt-0.5">Click any tile to filter companies instantly</p>
+            </div>
             <button
+              data-testid="filter-show-all"
               onClick={() => { setAlphabet(undefined); setSelectedCountry(undefined); setSearch(""); setDebouncedSearch(""); setPage(1); }}
-              className={`text-xs font-semibold px-4 py-1.5 rounded-full border transition-all ${
+              className={`self-start sm:self-auto px-6 py-2 rounded-full text-sm font-bold border-2 transition-all duration-200 ${
                 !alphabet && !selectedCountry
-                  ? "bg-white text-slate-900 border-white"
-                  : "text-slate-300 border-slate-600 hover:border-white hover:text-white"
+                  ? "bg-white text-slate-900 border-white shadow-lg"
+                  : "bg-transparent text-white border-white/30 hover:border-white hover:bg-white/10"
               }`}
             >
-              Show All
+              ✦ Show All
             </button>
           </div>
 
-          {/* A–Z row */}
-          <div className="mb-3">
-            <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-2 ml-1">A – Z</p>
-            <div className="flex flex-wrap gap-2">
-              {alphabets.map((char) => (
-                <button
-                  key={char}
-                  data-testid={`filter-letter-${char}`}
-                  onClick={() => handleAlphabetClick(char)}
-                  className={`
-                    w-11 h-11 rounded-xl text-sm font-extrabold transition-all duration-150 shadow-sm
-                    ${alphabet === char
-                      ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white scale-110 shadow-lg shadow-indigo-500/40 ring-2 ring-white/30"
-                      : "bg-slate-700/70 text-slate-200 hover:bg-gradient-to-br hover:from-blue-500 hover:to-indigo-600 hover:text-white hover:scale-105 hover:shadow-md hover:shadow-indigo-500/30"
-                    }
-                  `}
-                >
-                  {char}
-                </button>
-              ))}
+          {/* A–Z */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-white font-bold text-xs tracking-[0.2em] uppercase bg-blue-600/30 border border-blue-500/40 px-3 py-1 rounded-full">A – Z</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {alphabets.map((char, i) => {
+                const colors = [
+                  "from-blue-500 to-blue-700 shadow-blue-500/40",
+                  "from-violet-500 to-purple-700 shadow-violet-500/40",
+                  "from-pink-500 to-rose-700 shadow-pink-500/40",
+                  "from-orange-400 to-red-600 shadow-orange-500/40",
+                  "from-emerald-400 to-green-700 shadow-emerald-500/40",
+                  "from-cyan-400 to-sky-700 shadow-cyan-500/40",
+                  "from-yellow-400 to-amber-600 shadow-yellow-500/40",
+                  "from-teal-400 to-teal-700 shadow-teal-500/40",
+                ];
+                const color = colors[i % colors.length];
+                const isActive = alphabet === char;
+                return (
+                  <button
+                    key={char}
+                    data-testid={`filter-letter-${char}`}
+                    onClick={() => handleAlphabetClick(char)}
+                    className={`
+                      relative w-14 h-14 rounded-2xl text-lg font-black tracking-wide transition-all duration-200 select-none
+                      ${isActive
+                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-xl ring-2 ring-white/40`
+                        : "bg-white/[0.06] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.12] hover:text-white hover:border-white/30 hover:shadow-lg"
+                      }
+                    `}
+                  >
+                    {char}
+                    {isActive && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full shadow" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* 0–9 row */}
+          {/* 0–9 */}
           <div>
-            <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-2 ml-1">0 – 9</p>
-            <div className="flex flex-wrap gap-2">
-              {numbers.map((char) => (
-                <button
-                  key={char}
-                  data-testid={`filter-number-${char}`}
-                  onClick={() => handleAlphabetClick(char)}
-                  className={`
-                    w-11 h-11 rounded-xl text-sm font-extrabold transition-all duration-150 shadow-sm
-                    ${alphabet === char
-                      ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white scale-110 shadow-lg shadow-emerald-500/40 ring-2 ring-white/30"
-                      : "bg-slate-700/70 text-slate-200 hover:bg-gradient-to-br hover:from-emerald-500 hover:to-teal-600 hover:text-white hover:scale-105 hover:shadow-md hover:shadow-emerald-500/30"
-                    }
-                  `}
-                >
-                  {char}
-                </button>
-              ))}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-white font-bold text-xs tracking-[0.2em] uppercase bg-emerald-600/30 border border-emerald-500/40 px-3 py-1 rounded-full">0 – 9</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {numbers.map((char) => {
+                const numColors = [
+                  "from-emerald-400 to-teal-700 shadow-emerald-500/40",
+                  "from-cyan-400 to-blue-600 shadow-cyan-500/40",
+                  "from-violet-500 to-indigo-700 shadow-violet-500/40",
+                  "from-pink-400 to-rose-600 shadow-pink-500/40",
+                  "from-amber-400 to-orange-600 shadow-amber-500/40",
+                  "from-lime-400 to-green-600 shadow-lime-500/40",
+                  "from-sky-400 to-cyan-700 shadow-sky-500/40",
+                  "from-fuchsia-500 to-pink-700 shadow-fuchsia-500/40",
+                  "from-rose-500 to-red-700 shadow-rose-500/40",
+                  "from-indigo-400 to-blue-700 shadow-indigo-500/40",
+                ];
+                const color = numColors[Number(char)];
+                const isActive = alphabet === char;
+                return (
+                  <button
+                    key={char}
+                    data-testid={`filter-number-${char}`}
+                    onClick={() => handleAlphabetClick(char)}
+                    className={`
+                      relative w-14 h-14 rounded-2xl text-lg font-black tracking-wide transition-all duration-200 select-none
+                      ${isActive
+                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-xl ring-2 ring-white/40`
+                        : "bg-white/[0.06] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.12] hover:text-white hover:border-white/30 hover:shadow-lg"
+                      }
+                    `}
+                  >
+                    {char}
+                    {isActive && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full shadow" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
+
         </div>
       </div>
 
