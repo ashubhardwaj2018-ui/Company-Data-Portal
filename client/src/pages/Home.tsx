@@ -275,28 +275,69 @@ export default function Home() {
       </div>
 
       {/* ALPHABET FILTER */}
-      <div className="bg-slate-50 border-b py-4">
+      <div className="bg-gradient-to-b from-slate-900 to-slate-800 py-8 border-b border-slate-700">
         <div className="container-width">
-          <div className="flex flex-wrap justify-center gap-1.5">
-            <Button
-              variant={!alphabet && !selectedCountry ? "default" : "ghost"}
-              size="sm"
-              className="h-9 px-3 text-xs font-bold rounded-lg"
+          {/* Section header */}
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-white font-bold text-lg tracking-wide flex items-center gap-2">
+              <span className="text-2xl">🔤</span> Browse by Letter or Number
+            </h2>
+            <button
               onClick={() => { setAlphabet(undefined); setSelectedCountry(undefined); setSearch(""); setDebouncedSearch(""); setPage(1); }}
+              className={`text-xs font-semibold px-4 py-1.5 rounded-full border transition-all ${
+                !alphabet && !selectedCountry
+                  ? "bg-white text-slate-900 border-white"
+                  : "text-slate-300 border-slate-600 hover:border-white hover:text-white"
+              }`}
             >
-              All
-            </Button>
-            {[...alphabets, ...numbers].map((char) => (
-              <Button
-                key={char}
-                variant={alphabet === char ? "default" : "ghost"}
-                size="sm"
-                className={`w-9 h-9 p-0 rounded-lg text-xs font-bold ${alphabet === char ? "" : "hover:bg-primary/10"}`}
-                onClick={() => handleAlphabetClick(char)}
-              >
-                {char}
-              </Button>
-            ))}
+              Show All
+            </button>
+          </div>
+
+          {/* A–Z row */}
+          <div className="mb-3">
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-2 ml-1">A – Z</p>
+            <div className="flex flex-wrap gap-2">
+              {alphabets.map((char) => (
+                <button
+                  key={char}
+                  data-testid={`filter-letter-${char}`}
+                  onClick={() => handleAlphabetClick(char)}
+                  className={`
+                    w-11 h-11 rounded-xl text-sm font-extrabold transition-all duration-150 shadow-sm
+                    ${alphabet === char
+                      ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white scale-110 shadow-lg shadow-indigo-500/40 ring-2 ring-white/30"
+                      : "bg-slate-700/70 text-slate-200 hover:bg-gradient-to-br hover:from-blue-500 hover:to-indigo-600 hover:text-white hover:scale-105 hover:shadow-md hover:shadow-indigo-500/30"
+                    }
+                  `}
+                >
+                  {char}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 0–9 row */}
+          <div>
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-2 ml-1">0 – 9</p>
+            <div className="flex flex-wrap gap-2">
+              {numbers.map((char) => (
+                <button
+                  key={char}
+                  data-testid={`filter-number-${char}`}
+                  onClick={() => handleAlphabetClick(char)}
+                  className={`
+                    w-11 h-11 rounded-xl text-sm font-extrabold transition-all duration-150 shadow-sm
+                    ${alphabet === char
+                      ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white scale-110 shadow-lg shadow-emerald-500/40 ring-2 ring-white/30"
+                      : "bg-slate-700/70 text-slate-200 hover:bg-gradient-to-br hover:from-emerald-500 hover:to-teal-600 hover:text-white hover:scale-105 hover:shadow-md hover:shadow-emerald-500/30"
+                    }
+                  `}
+                >
+                  {char}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
