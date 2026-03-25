@@ -10,6 +10,7 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import BlogList from "@/pages/BlogList";
 import BlogPost from "@/pages/BlogPost";
 import FAQ from "@/pages/FAQ";
+import ImportData from "@/pages/ImportData";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/company/:id" component={CompanyDetails} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/import" component={ImportData} />
       <Route path="/blog" component={BlogList} />
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/faq" component={FAQ} />

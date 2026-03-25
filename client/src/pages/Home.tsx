@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type Company } from "@shared/schema";
+import { Link } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
 import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
 import { CompanyCard } from "@/components/companies/CompanyCard";
@@ -9,10 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Search, Loader2, ChevronLeft, ChevronRight, Building,
-  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users
+  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, FileSpreadsheet
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { Link } from "wouter";
 
 const COUNTRIES = [
   {
@@ -385,6 +385,30 @@ export default function Home() {
             </div>
           </div>
 
+        </div>
+      </div>
+
+      {/* IMPORT BANNER */}
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 py-5">
+        <div className="container-width flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+              <FileSpreadsheet className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-base leading-tight">Have company data in Excel or CSV?</p>
+              <p className="text-emerald-100 text-sm">Bulk-import thousands of records into the database in one click.</p>
+            </div>
+          </div>
+          <Link href="/import">
+            <button
+              data-testid="button-goto-import"
+              className="flex-shrink-0 bg-white text-emerald-700 font-bold text-sm px-6 py-2.5 rounded-xl shadow-lg hover:shadow-xl hover:bg-emerald-50 transition-all duration-200 flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Import Excel / CSV
+            </button>
+          </Link>
         </div>
       </div>
 
