@@ -41,17 +41,13 @@ export function Navbar() {
               About
             </Link>
             <a 
-              href="https://your-different-website.com" 
+              href="https://startupcaservices.com" 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center gap-2 group"
             >
-              <img 
-                src="https://via.placeholder.com/24" 
-                alt="Partner" 
-                className="w-6 h-6 rounded border group-hover:opacity-80 transition-opacity"
-              />
-              <span className="text-primary font-semibold group-hover:text-primary/80 transition-colors">Partner Site</span>
+              <div className="w-6 h-6 rounded bg-orange-500 flex items-center justify-center text-white text-[10px] font-black group-hover:opacity-80 transition-opacity">CA</div>
+              <span className="text-primary font-semibold group-hover:text-primary/80 transition-colors">StartupCA</span>
             </a>
           </nav>
         </div>
