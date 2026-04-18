@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Search, Loader2, ChevronLeft, ChevronRight, Building,
-  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, FileSpreadsheet
+  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, ExternalLink
 } from "lucide-react";
+import type { Service } from "@shared/schema";
 import { motion } from "framer-motion";
 
 const COUNTRIES = [
@@ -169,6 +170,16 @@ export default function Home() {
 
   const activeCountry = COUNTRIES.find(c => c.name === selectedCountry);
 
+  const { data: servicesList } = useQuery<Service[]>({
+    queryKey: ["/api/services"],
+    queryFn: async () => {
+      const res = await fetch("/api/services");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+  const activeServices = (servicesList || []).filter(s => s.isActive);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -275,21 +286,21 @@ export default function Home() {
       </div>
 
       {/* ALPHABET FILTER */}
-      <div className="py-10 border-b" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
+      <div className="py-14 border-b" style={{ background: "linear-gradient(135deg, #0a0f1e 0%, #0f172a 40%, #1a1f3a 70%, #0a0f1e 100%)" }}>
         <div className="container-width">
 
           {/* Header row */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-10">
             <div>
-              <h2 className="text-white font-extrabold text-2xl tracking-tight">Browse by Letter or Number</h2>
-              <p className="text-slate-400 text-sm mt-0.5">Click any tile to filter companies instantly</p>
+              <h2 className="text-white font-extrabold text-3xl tracking-tight">Browse by Letter or Number</h2>
+              <p className="text-slate-400 text-sm mt-1">Click any tile to instantly filter companies</p>
             </div>
             <button
               data-testid="filter-show-all"
               onClick={() => { setAlphabet(undefined); setSelectedCountry(undefined); setSearch(""); setDebouncedSearch(""); setPage(1); }}
-              className={`self-start sm:self-auto px-6 py-2 rounded-full text-sm font-bold border-2 transition-all duration-200 ${
+              className={`self-start sm:self-auto px-8 py-3 rounded-full text-sm font-bold border-2 transition-all duration-200 ${
                 !alphabet && !selectedCountry
-                  ? "bg-white text-slate-900 border-white shadow-lg"
+                  ? "bg-white text-slate-900 border-white shadow-lg shadow-white/20"
                   : "bg-transparent text-white border-white/30 hover:border-white hover:bg-white/10"
               }`}
             >
@@ -298,22 +309,23 @@ export default function Home() {
           </div>
 
           {/* A–Z */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-white font-bold text-xs tracking-[0.2em] uppercase bg-blue-600/30 border border-blue-500/40 px-3 py-1 rounded-full">A – Z</span>
+          <div className="mb-10">
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-white font-bold text-sm tracking-[0.2em] uppercase bg-blue-600/30 border border-blue-500/40 px-4 py-1.5 rounded-full">A – Z</span>
               <div className="flex-1 h-px bg-white/10" />
+              <span className="text-slate-500 text-xs">26 letters</span>
             </div>
             <div className="flex flex-wrap gap-3">
               {alphabets.map((char, i) => {
                 const colors = [
-                  "from-blue-500 to-blue-700 shadow-blue-500/40",
-                  "from-violet-500 to-purple-700 shadow-violet-500/40",
-                  "from-pink-500 to-rose-700 shadow-pink-500/40",
-                  "from-orange-400 to-red-600 shadow-orange-500/40",
-                  "from-emerald-400 to-green-700 shadow-emerald-500/40",
-                  "from-cyan-400 to-sky-700 shadow-cyan-500/40",
-                  "from-yellow-400 to-amber-600 shadow-yellow-500/40",
-                  "from-teal-400 to-teal-700 shadow-teal-500/40",
+                  "from-blue-400 to-blue-700 shadow-blue-600/50",
+                  "from-violet-400 to-purple-700 shadow-violet-600/50",
+                  "from-pink-400 to-rose-700 shadow-pink-600/50",
+                  "from-orange-400 to-red-600 shadow-orange-600/50",
+                  "from-emerald-400 to-green-700 shadow-emerald-600/50",
+                  "from-cyan-400 to-sky-700 shadow-cyan-600/50",
+                  "from-yellow-300 to-amber-600 shadow-yellow-600/50",
+                  "from-teal-400 to-teal-700 shadow-teal-600/50",
                 ];
                 const color = colors[i % colors.length];
                 const isActive = alphabet === char;
@@ -323,16 +335,18 @@ export default function Home() {
                     data-testid={`filter-letter-${char}`}
                     onClick={() => handleAlphabetClick(char)}
                     className={`
-                      relative w-14 h-14 rounded-2xl text-lg font-black tracking-wide transition-all duration-200 select-none
+                      relative flex flex-col items-center justify-center w-[72px] h-[72px] rounded-2xl font-black transition-all duration-200 select-none
                       ${isActive
-                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-xl ring-2 ring-white/40`
-                        : "bg-white/[0.06] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.12] hover:text-white hover:border-white/30 hover:shadow-lg"
+                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-2xl ring-2 ring-white/50`
+                        : "bg-white/[0.07] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.14] hover:text-white hover:border-white/30 hover:shadow-xl"
                       }
                     `}
                   >
-                    {char}
+                    <span className="text-2xl leading-none">{char}</span>
                     {isActive && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full shadow" />
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white rounded-full shadow-lg flex items-center justify-center">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full" />
+                      </span>
                     )}
                   </button>
                 );
@@ -342,23 +356,24 @@ export default function Home() {
 
           {/* 0–9 */}
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-white font-bold text-xs tracking-[0.2em] uppercase bg-emerald-600/30 border border-emerald-500/40 px-3 py-1 rounded-full">0 – 9</span>
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-white font-bold text-sm tracking-[0.2em] uppercase bg-emerald-600/30 border border-emerald-500/40 px-4 py-1.5 rounded-full">0 – 9</span>
               <div className="flex-1 h-px bg-white/10" />
+              <span className="text-slate-500 text-xs">10 digits</span>
             </div>
             <div className="flex flex-wrap gap-3">
               {numbers.map((char) => {
                 const numColors = [
-                  "from-emerald-400 to-teal-700 shadow-emerald-500/40",
-                  "from-cyan-400 to-blue-600 shadow-cyan-500/40",
-                  "from-violet-500 to-indigo-700 shadow-violet-500/40",
-                  "from-pink-400 to-rose-600 shadow-pink-500/40",
-                  "from-amber-400 to-orange-600 shadow-amber-500/40",
-                  "from-lime-400 to-green-600 shadow-lime-500/40",
-                  "from-sky-400 to-cyan-700 shadow-sky-500/40",
-                  "from-fuchsia-500 to-pink-700 shadow-fuchsia-500/40",
-                  "from-rose-500 to-red-700 shadow-rose-500/40",
-                  "from-indigo-400 to-blue-700 shadow-indigo-500/40",
+                  "from-emerald-400 to-teal-700 shadow-emerald-600/50",
+                  "from-cyan-400 to-blue-600 shadow-cyan-600/50",
+                  "from-violet-400 to-indigo-700 shadow-violet-600/50",
+                  "from-pink-400 to-rose-600 shadow-pink-600/50",
+                  "from-amber-400 to-orange-600 shadow-amber-600/50",
+                  "from-lime-400 to-green-600 shadow-lime-600/50",
+                  "from-sky-400 to-cyan-700 shadow-sky-600/50",
+                  "from-fuchsia-400 to-pink-700 shadow-fuchsia-600/50",
+                  "from-rose-400 to-red-700 shadow-rose-600/50",
+                  "from-indigo-400 to-blue-700 shadow-indigo-600/50",
                 ];
                 const color = numColors[Number(char)];
                 const isActive = alphabet === char;
@@ -368,16 +383,18 @@ export default function Home() {
                     data-testid={`filter-number-${char}`}
                     onClick={() => handleAlphabetClick(char)}
                     className={`
-                      relative w-14 h-14 rounded-2xl text-lg font-black tracking-wide transition-all duration-200 select-none
+                      relative flex flex-col items-center justify-center w-[72px] h-[72px] rounded-2xl font-black transition-all duration-200 select-none
                       ${isActive
-                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-xl ring-2 ring-white/40`
-                        : "bg-white/[0.06] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.12] hover:text-white hover:border-white/30 hover:shadow-lg"
+                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-2xl ring-2 ring-white/50`
+                        : "bg-white/[0.07] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.14] hover:text-white hover:border-white/30 hover:shadow-xl"
                       }
                     `}
                   >
-                    {char}
+                    <span className="text-2xl leading-none">{char}</span>
                     {isActive && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full shadow" />
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white rounded-full shadow-lg flex items-center justify-center">
+                        <span className="w-2 h-2 bg-emerald-600 rounded-full" />
+                      </span>
                     )}
                   </button>
                 );
@@ -385,30 +402,6 @@ export default function Home() {
             </div>
           </div>
 
-        </div>
-      </div>
-
-      {/* IMPORT BANNER */}
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 py-5">
-        <div className="container-width flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-              <FileSpreadsheet className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-white font-bold text-base leading-tight">Have company data in Excel or CSV?</p>
-              <p className="text-emerald-100 text-sm">Bulk-import thousands of records into the database in one click.</p>
-            </div>
-          </div>
-          <Link href="/import">
-            <button
-              data-testid="button-goto-import"
-              className="flex-shrink-0 bg-white text-emerald-700 font-bold text-sm px-6 py-2.5 rounded-xl shadow-lg hover:shadow-xl hover:bg-emerald-50 transition-all duration-200 flex items-center gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Import Excel / CSV
-            </button>
-          </Link>
         </div>
       </div>
 
@@ -501,6 +494,45 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* SERVICES SECTION — only shown when services exist */}
+      {activeServices.length > 0 && (
+        <section className="py-14 border-t bg-gradient-to-br from-orange-50 via-white to-amber-50">
+          <div className="container-width">
+            <div className="text-center mb-10">
+              <div className="inline-flex items-center gap-2 bg-orange-100 text-orange-700 text-xs font-bold px-4 py-1.5 rounded-full mb-3 uppercase tracking-widest">
+                <span className="w-4 h-4 rounded bg-orange-500 text-white text-[9px] flex items-center justify-center font-black">CA</span>
+                StartupCA Services
+              </div>
+              <h2 className="text-3xl font-bold font-display text-slate-900">Recommended Services</h2>
+              <p className="text-muted-foreground mt-2 max-w-lg mx-auto text-sm">Expert business services from our partner <a href="https://startupcaservices.com" target="_blank" rel="noopener noreferrer" className="text-orange-600 font-semibold hover:underline">startupcaservices.com</a></p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {activeServices.map((svc) => (
+                <a
+                  key={svc.id}
+                  href={svc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid={`service-card-${svc.id}`}
+                  className="group flex items-start gap-4 p-5 bg-white rounded-2xl border border-orange-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center text-2xl flex-shrink-0 shadow-md">
+                    {svc.icon || "🔗"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-slate-900 text-sm leading-tight group-hover:text-orange-600 transition-colors">{svc.title}</h3>
+                    {svc.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{svc.description}</p>}
+                    <div className="flex items-center gap-1 mt-2 text-xs text-orange-500 font-semibold">
+                      Visit <ExternalLink className="h-3 w-3" />
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* FEATURES SECTION */}
       <section className="py-16 bg-gradient-to-br from-slate-50 to-blue-50 border-t">

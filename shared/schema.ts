@@ -96,3 +96,18 @@ export type InsertFaq = z.infer<typeof insertFaqSchema>;
 
 
 export type CompanyQueryParams = z.infer<typeof companyQuerySchema>;
+
+export const services = pgTable("services", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  url: text("url").notNull(),
+  icon: text("icon").default("🔗"),
+  order: integer("order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
+export type Service = typeof services.$inferSelect;
+export type InsertService = z.infer<typeof insertServiceSchema>;

@@ -6,7 +6,7 @@ import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import * as xlsx from "xlsx";
-import { insertCompanySchema, companies, type InsertCompany } from "@shared/schema";
+import { insertCompanySchema, insertServiceSchema, companies, type InsertCompany } from "@shared/schema";
 import { db } from "./db";
 import { count } from "drizzle-orm";
 
@@ -186,6 +186,28 @@ export async function registerRoutes(
       console.error("Upload error:", error);
       res.status(500).json({ message: "Failed to process file. Please check the file format and try again." });
     }
+  });
+
+  // Services (public read)
+  app.get("/api/services", async (req, res) => {
+    const svcList = await storage.getServices();
+    res.json(svcList);
+  });
+
+  // Services (admin write)
+  app.post("/api/admin/services", requireAdmin, async (req, res) => {
+    try {
+      const input = insertServiceSchema.parse(req.body);
+      const svc = await storage.createService(input);
+      res.status(201).json(svc);
+    } catch (err) {
+      res.status(400).json({ message: "Invalid service data" });
+    }
+  });
+
+  app.delete("/api/admin/services/:id", requireAdmin, async (req, res) => {
+    await storage.deleteService(Number(req.params.id));
+    res.status(204).send();
   });
 
   // Admin Check

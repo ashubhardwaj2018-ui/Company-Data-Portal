@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { companies, type InsertCompany, type Company, admins, posts, faqs, type Post, type InsertPost, type Faq, type InsertFaq } from "@shared/schema";
-import { eq, ilike, desc, count, sql } from "drizzle-orm";
+import { companies, type InsertCompany, type Company, admins, posts, faqs, type Post, type InsertPost, type Faq, type InsertFaq, services, type Service, type InsertService } from "@shared/schema";
+import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Companies
@@ -17,6 +17,11 @@ export interface IStorage {
   createPost(post: InsertPost): Promise<Post>;
   getFaqs(): Promise<Faq[]>;
   createFaq(faq: InsertFaq): Promise<Faq>;
+
+  // Services
+  getServices(): Promise<Service[]>;
+  createService(service: InsertService): Promise<Service>;
+  deleteService(id: number): Promise<void>;
 
   // Admin
   isAdmin(email: string): Promise<boolean>;
@@ -88,6 +93,19 @@ export class DatabaseStorage implements IStorage {
   async createFaq(faq: InsertFaq): Promise<Faq> {
     const [newFaq] = await db.insert(faqs).values(faq).returning();
     return newFaq;
+  }
+
+  async getServices(): Promise<Service[]> {
+    return await db.select().from(services).orderBy(asc(services.order), asc(services.id));
+  }
+
+  async createService(service: InsertService): Promise<Service> {
+    const [newService] = await db.insert(services).values(service).returning();
+    return newService;
+  }
+
+  async deleteService(id: number): Promise<void> {
+    await db.delete(services).where(eq(services.id, id));
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
