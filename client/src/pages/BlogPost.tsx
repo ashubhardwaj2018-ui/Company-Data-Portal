@@ -5,6 +5,7 @@ import { useParams, Link } from "wouter";
 import { format } from "date-fns";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ShareBar } from "@/components/layout/ShareBar";
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
@@ -56,8 +57,14 @@ export default function BlogPost() {
             <h1 className="text-4xl md:text-5xl font-bold font-display tracking-tight text-slate-900">
               {post.title}
             </h1>
-            <div className="text-muted-foreground flex items-center gap-4">
-               {post.createdAt && <span>{format(new Date(post.createdAt), "MMMM dd, yyyy")}</span>}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b">
+              <div className="text-muted-foreground flex items-center gap-4">
+                {post.createdAt && <span>{format(new Date(post.createdAt), "MMMM dd, yyyy")}</span>}
+              </div>
+              <ShareBar
+                title={`${post.title} | IndiaCorpDB Blog`}
+                description={post.excerpt || post.title}
+              />
             </div>
           </div>
 

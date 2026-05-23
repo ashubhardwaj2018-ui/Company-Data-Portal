@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Building2, MapPin, Calendar, FileText, Globe, 
-  Mail, Phone, IndianRupee, ArrowLeft, HelpCircle 
+  Building2, MapPin, Calendar, FileText,
+  Mail, IndianRupee, ArrowLeft, HelpCircle 
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
+import { ShareBar } from "@/components/layout/ShareBar";
 
 export default function CompanyDetails() {
   const [, params] = useRoute("/company/:id");
@@ -59,10 +60,16 @@ export default function CompanyDetails() {
               </div>
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex flex-col items-start md:items-end gap-3">
               <Button size="lg" className="bg-white text-slate-900 hover:bg-white/90">
                 Track Company
               </Button>
+              <div className="bg-white/10 rounded-xl px-4 py-2.5">
+                <ShareBar
+                  title={`${company.name} — Company Details | IndiaCorpDB`}
+                  description={`View CIN, capital, incorporation date and full details for ${company.name} on IndiaCorpDB.`}
+                />
+              </div>
             </div>
           </div>
         </div>
