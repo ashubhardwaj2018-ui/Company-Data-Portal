@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShareBar } from "@/components/layout/ShareBar";
+import { ServiceAside } from "@/components/layout/ServiceAside";
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
@@ -40,7 +41,9 @@ export default function BlogPost() {
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       <main className="flex-1 py-12 container-width">
-        <article className="max-w-3xl mx-auto space-y-8">
+        <div className="flex gap-8">
+          <ServiceAside side="left" />
+          <article className="flex-1 min-w-0 max-w-3xl mx-auto space-y-8">
           <Link href="/blog">
             <Button variant="ghost" className="gap-2 -ml-4">
               <ArrowLeft className="h-4 w-4" /> Back to Blog
@@ -73,7 +76,9 @@ export default function BlogPost() {
               <p key={i}>{para}</p>
             ))}
           </div>
-        </article>
+          </article>
+          <ServiceAside side="right" />
+        </div>
       </main>
       <BacklinkGrid />
     </div>

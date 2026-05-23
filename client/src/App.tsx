@@ -11,6 +11,8 @@ import BlogList from "@/pages/BlogList";
 import BlogPost from "@/pages/BlogPost";
 import FAQ from "@/pages/FAQ";
 import ImportData from "@/pages/ImportData";
+import ArticleList from "@/pages/ArticleList";
+import ArticleDetail from "@/pages/ArticleDetail";
 
 function Router() {
   return (
@@ -21,6 +23,8 @@ function Router() {
       <Route path="/import" component={ImportData} />
       <Route path="/blog" component={BlogList} />
       <Route path="/blog/:slug" component={BlogPost} />
+      <Route path="/articles" component={ArticleList} />
+      <Route path="/articles/:slug" component={ArticleDetail} />
       <Route path="/faq" component={FAQ} />
       <Route component={NotFound} />
     </Switch>

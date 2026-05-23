@@ -2,325 +2,315 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
-import { api, buildUrl } from "@shared/routes";
+import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import * as xlsx from "xlsx";
-import { insertCompanySchema, insertServiceSchema, companies, type InsertCompany } from "@shared/schema";
+import {
+  insertCompanySchema, insertServiceSchema, insertPostSchema, insertFaqSchema,
+  insertArticleSchema, companies, type InsertCompany,
+} from "@shared/schema";
 import { db } from "./db";
 import { count } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
-  // Auth Setup
+export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  // Helper to check admin status
+  // ── Middleware ─────────────────────────────────────────────────────────────
   const requireAdmin = async (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    // For MVP, just allow any logged in user to be admin 
-    // OR uncomment below to enforce admin check
-    // const isAdmin = await storage.isAdmin(req.user.email);
-    // if (!isAdmin) {
-    //   return res.status(403).json({ message: "Forbidden" });
-    // }
-    next();
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    // Check admins table — if empty (first run), allow any authenticated user
+    const email = req.user?.email || req.user?.emails?.[0]?.value || "";
+    const isAdmin = await storage.isAdmin(email);
+    const [{ count: adminCount }] = await db.select({ count: count() }).from((await import("@shared/schema")).admins);
+    if (adminCount === 0 || isAdmin) return next();
+    return res.status(403).json({ message: "Forbidden" });
   };
 
-  // --- API Routes ---
-
-  // List Companies
+  // ── Companies ──────────────────────────────────────────────────────────────
   app.get(api.companies.list.path, async (req, res) => {
     try {
       const input = api.companies.list.input.parse(req.query);
       const { data, total } = await storage.getCompanies(input.page, input.limit, input.search, input.alphabet, input.country);
-      res.json({
-        data,
-        total,
-        page: input.page,
-        limit: input.limit
-      });
-    } catch (error) {
-       console.error(error);
-       res.status(500).json({ message: "Internal Server Error" });
-    }
+      res.json({ data, total, page: input.page, limit: input.limit });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
   });
 
-  // Blog Posts
-  app.get(api.posts.list.path, async (req, res) => {
-    const posts = await storage.getPosts();
-    res.json(posts);
-  });
-
-  app.get(api.posts.get.path, async (req, res) => {
-    const post = await storage.getPostBySlug(req.params.slug);
-    if (!post) return res.status(404).json({ message: "Post not found" });
-    res.json(post);
-  });
-
-  // FAQs
-  app.get(api.faqs.list.path, async (req, res) => {
-    const faqs = await storage.getFaqs();
-    res.json(faqs);
-  });
-
-  // Get Company
   app.get(api.companies.get.path, async (req, res) => {
     const company = await storage.getCompany(Number(req.params.id));
-    if (!company) {
-      return res.status(404).json({ message: "Company not found" });
-    }
+    if (!company) return res.status(404).json({ message: "Company not found" });
     res.json(company);
   });
 
-  // Admin: Create
   app.post(api.companies.create.path, requireAdmin, async (req, res) => {
     try {
       const input = api.companies.create.input.parse(req.body);
-      const company = await storage.createCompany(input);
-      res.status(201).json(company);
+      res.status(201).json(await storage.createCompany(input));
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "Internal Server Error" });
     }
   });
 
-  // Admin: Update
   app.put(api.companies.update.path, requireAdmin, async (req, res) => {
-     try {
+    try {
       const input = api.companies.update.input.parse(req.body);
       const company = await storage.updateCompany(Number(req.params.id), input);
       if (!company) return res.status(404).json({ message: "Company not found" });
       res.json(company);
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "Internal Server Error" });
     }
   });
 
-  // Admin: Delete
   app.delete(api.companies.delete.path, requireAdmin, async (req, res) => {
     await storage.deleteCompany(Number(req.params.id));
     res.status(204).send();
   });
 
-  // Admin: Upload Excel
-  app.post(api.companies.upload.path, requireAdmin, upload.single('file'), async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-
+  app.post(api.companies.upload.path, requireAdmin, upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     try {
-      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
+      const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawData: any[] = xlsx.utils.sheet_to_json(sheet);
-
-      const totalRows = rawData.length;
       const validCompanies: InsertCompany[] = [];
       const skippedRows: { row: number; reason: string }[] = [];
 
       rawData.forEach((row: any, index: number) => {
-        const rowNum = index + 2; // 1-based, skip header
-
         const mapped = {
-          cin:               row['CIN'] || row['cin'] || row['Registration Number'] || row['registration_number'] || undefined,
-          name:              row['Name'] || row['name'] || row['Company Name'] || row['company_name'],
-          status:            row['Status'] || row['status'],
-          class:             row['Class'] || row['class'] || row['Company Class'] || row['company_class'],
-          category:          row['Category'] || row['category'],
-          subCategory:       row['Sub Category'] || row['sub_category'] || row['SubCategory'],
-          state:             row['State'] || row['state'],
-          city:              row['City'] || row['city'],
-          pincode:           row['Pincode'] || row['pincode'] || row['Pin Code'],
-          email:             row['Email'] || row['email'],
-          phone:             row['Phone'] || row['phone'] || row['Mobile'],
-          address:           row['Address'] || row['address'] || row['Registered Address'],
-          roc:               row['ROC'] || row['roc'] || row['Registrar of Companies'],
-          country:           row['Country'] || row['country'] || 'India',
-          incorporationDate: row['Incorporation Date'] || row['incorporation_date'] || row['Date of Incorporation'] || undefined,
-          lastAgmDate:       row['Last AGM Date'] || row['last_agm_date'] || undefined,
-          lastBalanceSheetDate: row['Last Balance Sheet Date'] || row['last_balance_sheet_date'] || undefined,
-          authorizedCapital: row['Authorized Capital'] ? Number(String(row['Authorized Capital']).replace(/[^0-9.]/g, '')) : undefined,
-          paidUpCapital:     row['Paid Up Capital'] ? Number(String(row['Paid Up Capital']).replace(/[^0-9.]/g, '')) : undefined,
-          customQna:         row['Custom QnA'] || row['custom_qna'] || undefined,
+          cin: row.CIN || row.cin || row["Registration Number"] || undefined,
+          name: row.Name || row.name || row["Company Name"] || row.company_name,
+          status: row.Status || row.status,
+          class: row.Class || row.class || row["Company Class"],
+          category: row.Category || row.category,
+          subCategory: row["Sub Category"] || row.sub_category || row.SubCategory,
+          state: row.State || row.state,
+          city: row.City || row.city,
+          pincode: row.Pincode || row.pincode || row["Pin Code"],
+          email: row.Email || row.email,
+          phone: row.Phone || row.phone || row.Mobile,
+          address: row.Address || row.address || row["Registered Address"],
+          roc: row.ROC || row.roc || row["Registrar of Companies"],
+          country: row.Country || row.country || "India",
+          incorporationDate: row["Incorporation Date"] || row.incorporation_date || row["Date of Incorporation"] || undefined,
+          lastAgmDate: row["Last AGM Date"] || row.last_agm_date || undefined,
+          lastBalanceSheetDate: row["Last Balance Sheet Date"] || row.last_balance_sheet_date || undefined,
+          authorizedCapital: row["Authorized Capital"] ? Number(String(row["Authorized Capital"]).replace(/[^0-9.]/g, "")) : undefined,
+          paidUpCapital: row["Paid Up Capital"] ? Number(String(row["Paid Up Capital"]).replace(/[^0-9.]/g, "")) : undefined,
+          customQna: row["Custom QnA"] || row.custom_qna || undefined,
         };
-
-        if (!mapped.name) {
-          skippedRows.push({ row: rowNum, reason: "Missing Company Name" });
-          return;
-        }
-
+        if (!mapped.name) { skippedRows.push({ row: index + 2, reason: "Missing Company Name" }); return; }
         const parsed = insertCompanySchema.safeParse(mapped);
-        if (parsed.success) {
-          validCompanies.push(parsed.data);
-        } else {
-          const firstError = parsed.error.errors[0];
-          skippedRows.push({ row: rowNum, reason: firstError ? `${firstError.path.join('.')}: ${firstError.message}` : "Validation failed" });
-        }
+        if (parsed.success) validCompanies.push(parsed.data);
+        else skippedRows.push({ row: index + 2, reason: parsed.error.errors[0]?.message || "Validation failed" });
       });
 
-      const inserted = await storage.bulkCreateCompanies(validCompanies);
-
-      res.json({
-        message: "Upload complete",
-        totalRows,
-        inserted: validCompanies.length,
-        skipped: skippedRows.length,
-        skippedDetails: skippedRows.slice(0, 20), // return at most 20 skipped rows
-      });
-
-    } catch (error) {
-      console.error("Upload error:", error);
-      res.status(500).json({ message: "Failed to process file. Please check the file format and try again." });
+      await storage.bulkCreateCompanies(validCompanies);
+      res.json({ message: "Upload complete", totalRows: rawData.length, inserted: validCompanies.length, skipped: skippedRows.length, skippedDetails: skippedRows.slice(0, 20) });
+    } catch (e) {
+      console.error("Upload error:", e);
+      res.status(500).json({ message: "Failed to process file." });
     }
   });
 
-  // Services (public read)
-  app.get("/api/services", async (req, res) => {
-    const svcList = await storage.getServices();
-    res.json(svcList);
+  // ── Blog Posts ─────────────────────────────────────────────────────────────
+  app.get(api.posts.list.path, async (req, res) => res.json(await storage.getPosts()));
+  app.get(api.posts.get.path, async (req, res) => {
+    const post = await storage.getPostBySlug(req.params.slug);
+    if (!post) return res.status(404).json({ message: "Not found" });
+    res.json(post);
+  });
+  app.post("/api/admin/posts", requireAdmin, async (req, res) => {
+    try { res.status(201).json(await storage.createPost(insertPostSchema.parse(req.body))); }
+    catch { res.status(400).json({ message: "Invalid post data" }); }
+  });
+  app.put("/api/admin/posts/:id", requireAdmin, async (req, res) => {
+    const post = await storage.updatePost(Number(req.params.id), req.body);
+    if (!post) return res.status(404).json({ message: "Not found" });
+    res.json(post);
+  });
+  app.delete("/api/admin/posts/:id", requireAdmin, async (req, res) => {
+    await storage.deletePost(Number(req.params.id));
+    res.status(204).send();
   });
 
-  // Services (admin write)
+  // ── Articles ───────────────────────────────────────────────────────────────
+  app.get("/api/articles", async (req, res) => res.json(await storage.getArticles()));
+  app.get("/api/articles/:slug", async (req, res) => {
+    const article = await storage.getArticleBySlug(req.params.slug);
+    if (!article) return res.status(404).json({ message: "Not found" });
+    res.json(article);
+  });
+  app.post("/api/admin/articles", requireAdmin, async (req, res) => {
+    try { res.status(201).json(await storage.createArticle(insertArticleSchema.parse(req.body))); }
+    catch (err) { console.error(err); res.status(400).json({ message: "Invalid article data" }); }
+  });
+  app.put("/api/admin/articles/:id", requireAdmin, async (req, res) => {
+    const article = await storage.updateArticle(Number(req.params.id), req.body);
+    if (!article) return res.status(404).json({ message: "Not found" });
+    res.json(article);
+  });
+  app.delete("/api/admin/articles/:id", requireAdmin, async (req, res) => {
+    await storage.deleteArticle(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // ── FAQs ───────────────────────────────────────────────────────────────────
+  app.get(api.faqs.list.path, async (req, res) => res.json(await storage.getFaqs()));
+  app.post("/api/admin/faqs", requireAdmin, async (req, res) => {
+    try { res.status(201).json(await storage.createFaq(insertFaqSchema.parse(req.body))); }
+    catch { res.status(400).json({ message: "Invalid FAQ data" }); }
+  });
+
+  // ── Services ───────────────────────────────────────────────────────────────
+  app.get("/api/services", async (req, res) => res.json(await storage.getServices()));
   app.post("/api/admin/services", requireAdmin, async (req, res) => {
-    try {
-      const input = insertServiceSchema.parse(req.body);
-      const svc = await storage.createService(input);
-      res.status(201).json(svc);
-    } catch (err) {
-      res.status(400).json({ message: "Invalid service data" });
-    }
+    try { res.status(201).json(await storage.createService(insertServiceSchema.parse(req.body))); }
+    catch { res.status(400).json({ message: "Invalid service data" }); }
   });
-
   app.delete("/api/admin/services/:id", requireAdmin, async (req, res) => {
     await storage.deleteService(Number(req.params.id));
     res.status(204).send();
   });
 
-  // Admin Check
+  // ── Site Settings (SEO) ────────────────────────────────────────────────────
+  app.get("/api/settings", async (req, res) => {
+    const keys = ["site_title", "site_description", "site_keywords", "og_image", "robots_txt", "openai_key"];
+    res.json(await storage.getSettings(keys));
+  });
+  app.post("/api/admin/settings", requireAdmin, async (req, res) => {
+    try {
+      const { key, value } = z.object({ key: z.string(), value: z.string() }).parse(req.body);
+      await storage.setSetting(key, value);
+      res.json({ success: true });
+    } catch { res.status(400).json({ message: "Invalid settings data" }); }
+  });
+  app.post("/api/admin/settings/bulk", requireAdmin, async (req, res) => {
+    try {
+      const data = z.record(z.string()).parse(req.body);
+      for (const [key, value] of Object.entries(data)) await storage.setSetting(key, value);
+      res.json({ success: true });
+    } catch { res.status(400).json({ message: "Invalid settings data" }); }
+  });
+
+  // ── Admin Management ───────────────────────────────────────────────────────
   app.get(api.admin.check.path, async (req, res) => {
-    const isAdmin = req.isAuthenticated(); // For now, all logged in users are admins
-    res.json({ isAdmin });
+    if (!req.isAuthenticated()) return res.json({ isAdmin: false });
+    const email = (req.user as any)?.email || (req.user as any)?.emails?.[0]?.value || "";
+    const isAdmin = await storage.isAdmin(email);
+    const [{ count: adminCount }] = await db.select({ count: count() }).from((await import("@shared/schema")).admins);
+    res.json({ isAdmin: adminCount === 0 || isAdmin });
   });
 
-  // Blog Admin
-  app.post("/api/admin/posts", requireAdmin, async (req, res) => {
+  app.post("/api/admin/add-admin", requireAdmin, async (req, res) => {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    await storage.addAdmin(email);
+    res.json({ success: true });
+  });
+
+  // ── AI Content Generation ──────────────────────────────────────────────────
+  app.post("/api/admin/ai/generate", requireAdmin, async (req, res) => {
     try {
-      const input = insertPostSchema.parse(req.body);
-      const post = await storage.createPost(input);
-      res.status(201).json(post);
-    } catch (err) {
-      res.status(400).json({ message: "Invalid post data" });
+      const { prompt, type } = z.object({
+        prompt: z.string().min(10),
+        type: z.enum(["blog", "article"]).default("blog"),
+      }).parse(req.body);
+
+      const openaiKey = await storage.getSetting("openai_key");
+      if (!openaiKey) return res.status(400).json({ message: "OpenAI API key not configured. Set it in Admin → SEO & Settings → AI Key." });
+
+      const systemPrompt = `You are an expert content writer for IndiaCorpDB, a directory of Indian companies. Write high-quality, SEO-friendly ${type} content for Indian entrepreneurs, business owners, and professionals. Return JSON with fields: title, slug, content (markdown), excerpt (1-2 sentences), metaTitle, metaDescription, metaKeywords (comma separated), category.`;
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        return res.status(502).json({ message: `OpenAI error: ${(err as any).error?.message || "Unknown error"}` });
+      }
+
+      const data: any = await response.json();
+      const generated = JSON.parse(data.choices[0].message.content);
+      res.json(generated);
+    } catch (err: any) {
+      console.error("AI generate error:", err);
+      res.status(500).json({ message: err.message || "AI generation failed" });
     }
   });
 
-  // FAQ Admin
-  app.post("/api/admin/faqs", requireAdmin, async (req, res) => {
+  // ── Sitemap ────────────────────────────────────────────────────────────────
+  app.get("/sitemap.xml", async (req, res) => {
     try {
-      const input = insertFaqSchema.parse(req.body);
-      const faq = await storage.createFaq(input);
-      res.status(201).json(faq);
-    } catch (err) {
-      res.status(400).json({ message: "Invalid FAQ data" });
-    }
-  });
+      const baseUrl = `https://${req.headers.host}`;
+      const now = new Date().toISOString().split("T")[0];
 
-  // Seed Data
-  if (process.env.NODE_ENV !== "production") {
-    const existingCount = await db.select({ count: count() }).from(companies);
-    if (existingCount[0].count === 0) {
-      console.log("Seeding data...");
-      const dummyCompanies: InsertCompany[] = [
-        {
-          cin: "L17110MH1973PLC019786",
-          name: "Reliance Industries Limited",
-          status: "Active",
-          class: "Public",
-          category: "Company limited by shares",
-          subCategory: "Non-govt company",
-          authorizedCapital: 15000000000,
-          paidUpCapital: 6765000000,
-          state: "Maharashtra",
-          city: "Mumbai",
-          email: "investor.relations@ril.com",
-          phone: "+91-22-35555000",
-          address: "3rd Floor, Maker Chambers IV, 222, Nariman Point, Mumbai, Maharashtra, 400021",
-          incorporationDate: new Date("1973-05-08").toISOString(),
-          lastAgmDate: new Date("2023-08-28").toISOString(),
-          lastBalanceSheetDate: new Date("2023-03-31").toISOString(),
-        },
-        {
-          cin: "L65990MH1945PLC004558",
-          name: "Tata Motors Limited",
-          status: "Active",
-          class: "Public",
-          category: "Company limited by shares",
-          subCategory: "Non-govt company",
-          authorizedCapital: 4000000000,
-          paidUpCapital: 765000000,
-          state: "Maharashtra",
-          city: "Mumbai",
-          email: "inv_rel@tatamotors.com",
-          phone: "+91-22-66658282",
-          address: "Bombay House, 24 Homi Mody Street, Mumbai, Maharashtra, 400001",
-          incorporationDate: new Date("1945-09-01").toISOString(),
-          lastAgmDate: new Date("2023-07-05").toISOString(),
-          lastBalanceSheetDate: new Date("2023-03-31").toISOString(),
-        },
-        {
-          cin: "L72200KA1996PLC019635",
-          name: "Infosys Limited",
-          status: "Active",
-          class: "Public",
-          category: "Company limited by shares",
-          subCategory: "Non-govt company",
-          authorizedCapital: 2400000000,
-          paidUpCapital: 2074000000,
-          state: "Karnataka",
-          city: "Bengaluru",
-          email: "investors@infosys.com",
-          phone: "+91-80-28520261",
-          address: "Electronics City, Hosur Road, Bengaluru, Karnataka, 560100",
-          incorporationDate: new Date("1981-07-02").toISOString(),
-          lastAgmDate: new Date("2023-06-28").toISOString(),
-          lastBalanceSheetDate: new Date("2023-03-31").toISOString(),
-        }
+      const [allPosts, allArticles, { data: topCompanies }] = await Promise.all([
+        storage.getPosts(),
+        storage.getArticles(),
+        storage.getCompanies(1, 1000),
+      ]);
+
+      const staticPages = [
+        { loc: "/", priority: "1.0", changefreq: "daily" },
+        { loc: "/blog", priority: "0.8", changefreq: "weekly" },
+        { loc: "/articles", priority: "0.8", changefreq: "weekly" },
+        { loc: "/faq", priority: "0.6", changefreq: "monthly" },
+        { loc: "/about", priority: "0.5", changefreq: "monthly" },
       ];
-      await storage.bulkCreateCompanies(dummyCompanies);
 
-      // Seed FAQs
-      await storage.createFaq({
-        question: "How do I search for a company?",
-        answer: "You can use the search bar on the homepage or click on an alphabet to filter by name.",
-        category: "General",
-        order: 1
-      });
+      const urlEntries = [
+        ...staticPages.map(p => `<url><loc>${baseUrl}${p.loc}</loc><lastmod>${now}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`),
+        ...topCompanies.map((c: any) => `<url><loc>${baseUrl}/company/${c.id}</loc><lastmod>${now}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+        ...allPosts.filter((p: any) => p.published).map((p: any) => `<url><loc>${baseUrl}/blog/${p.slug}</loc><lastmod>${(p.updatedAt || p.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+        ...allArticles.filter((a: any) => a.published).map((a: any) => `<url><loc>${baseUrl}/articles/${a.slug}</loc><lastmod>${(a.updatedAt || a.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+      ];
 
-      // Seed Post
-      await storage.createPost({
-        title: "Welcome to our Company Directory",
-        slug: "welcome",
-        content: "We are excited to launch our new directory service for Indian companies.",
-        excerpt: "Launch of our new directory service.",
-        published: true
-      });
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlEntries.join("\n")}\n</urlset>`;
+      res.header("Content-Type", "application/xml").send(xml);
+    } catch (e) {
+      res.status(500).send("Error generating sitemap");
+    }
+  });
 
-      console.log("Seeding completed.");
+  app.get("/robots.txt", async (req, res) => {
+    const custom = await storage.getSetting("robots_txt");
+    const baseUrl = `https://${req.headers.host}`;
+    const content = custom || `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${baseUrl}/sitemap.xml`;
+    res.header("Content-Type", "text/plain").send(content);
+  });
+
+  // ── Seed Data ──────────────────────────────────────────────────────────────
+  if (process.env.NODE_ENV !== "production") {
+    const [{ count: companyCount }] = await db.select({ count: count() }).from(companies);
+    if (companyCount === 0) {
+      await storage.bulkCreateCompanies([
+        { cin: "L17110MH1973PLC019786", name: "Reliance Industries Limited", status: "Active", class: "Public", category: "Company limited by shares", subCategory: "Non-govt company", authorizedCapital: 15000000000, paidUpCapital: 6765000000, state: "Maharashtra", city: "Mumbai", email: "investor.relations@ril.com", phone: "+91-22-35555000", address: "3rd Floor, Maker Chambers IV, 222, Nariman Point, Mumbai, Maharashtra, 400021", incorporationDate: "1973-05-08", lastAgmDate: "2023-08-28", lastBalanceSheetDate: "2023-03-31" },
+        { cin: "L65990MH1945PLC004558", name: "Tata Motors Limited", status: "Active", class: "Public", category: "Company limited by shares", subCategory: "Non-govt company", authorizedCapital: 4000000000, paidUpCapital: 765000000, state: "Maharashtra", city: "Mumbai", email: "inv_rel@tatamotors.com", phone: "+91-22-66658282", address: "Bombay House, 24 Homi Mody Street, Mumbai, Maharashtra, 400001", incorporationDate: "1945-09-01", lastAgmDate: "2023-07-05", lastBalanceSheetDate: "2023-03-31" },
+        { cin: "L72200KA1996PLC019635", name: "Infosys Limited", status: "Active", class: "Public", category: "Company limited by shares", subCategory: "Non-govt company", authorizedCapital: 2400000000, paidUpCapital: 2074000000, state: "Karnataka", city: "Bengaluru", email: "investors@infosys.com", phone: "+91-80-28520261", address: "Electronics City, Hosur Road, Bengaluru, Karnataka, 560100", incorporationDate: "1981-07-02", lastAgmDate: "2023-06-28", lastBalanceSheetDate: "2023-03-31" },
+      ]);
+      await storage.createFaq({ question: "How do I search for a company?", answer: "Use the search bar on the homepage or click an alphabet to filter by name.", category: "General", order: 1 });
+      await storage.createPost({ title: "Welcome to IndiaCorpDB", slug: "welcome", content: "We are excited to launch our new company directory service for India.", excerpt: "Launch of IndiaCorpDB.", published: true });
     }
   }
+
+  // Seed admin email on every startup
+  await storage.addAdmin("ashubhardwaj2018@gmail.com");
 
   return httpServer;
 }

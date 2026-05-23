@@ -34,6 +34,9 @@ export function Navbar() {
             <Link href="/blog" className="text-muted-foreground transition-colors hover:text-foreground">
               Blog
             </Link>
+            <Link href="/articles" className="text-muted-foreground transition-colors hover:text-foreground">
+              Articles
+            </Link>
             <Link href="/faq" className="text-muted-foreground transition-colors hover:text-foreground">
               FAQ
             </Link>

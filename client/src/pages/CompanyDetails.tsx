@@ -14,6 +14,7 @@ import {
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { ShareBar } from "@/components/layout/ShareBar";
+import { ServiceAside } from "@/components/layout/ServiceAside";
 
 export default function CompanyDetails() {
   const [, params] = useRoute("/company/:id");
@@ -75,7 +76,9 @@ export default function CompanyDetails() {
         </div>
       </div>
 
-      <div className="container-width -mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="container-width -mt-8 flex gap-6">
+        <ServiceAside side="left" />
+        <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Info */}
         <div className="lg:col-span-2 space-y-8">
           <Card className="shadow-lg border-0 overflow-hidden">
@@ -254,6 +257,8 @@ export default function CompanyDetails() {
             </Button>
           </div>
         </div>
+        </div>
+        <ServiceAside side="right" />
       </div>
       <BacklinkGrid />
     </div>

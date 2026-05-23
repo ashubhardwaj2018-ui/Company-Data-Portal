@@ -6,12 +6,12 @@ export * from "./models/auth";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
-  cin: varchar("cin", { length: 21 }).unique(), // Corporate Identification Number
+  cin: varchar("cin", { length: 21 }).unique(),
   name: text("name").notNull(),
-  status: text("status"), // Active, Strike Off, etc.
-  class: text("class"), // Public, Private
-  category: text("category"), // Company limited by shares
-  subCategory: text("sub_category"), // Non-govt company
+  status: text("status"),
+  class: text("class"),
+  category: text("category"),
+  subCategory: text("sub_category"),
   authorizedCapital: bigint("authorized_capital", { mode: "number" }),
   paidUpCapital: bigint("paid_up_capital", { mode: "number" }),
   state: text("state"),
@@ -20,7 +20,7 @@ export const companies = pgTable("companies", {
   email: text("email"),
   phone: text("phone"),
   address: text("address"),
-  roc: text("roc"), // Registrar of Companies
+  roc: text("roc"),
   incorporationDate: date("incorporation_date"),
   lastAgmDate: date("last_agm_date"),
   lastBalanceSheetDate: date("last_balance_sheet_date"),
@@ -30,32 +30,23 @@ export const companies = pgTable("companies", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertCompanySchema = createInsertSchema(companies).omit({ 
-  id: true, 
-  createdAt: true, 
-  updatedAt: true 
+export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
-
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
-
-// Admin configuration
-// In a real app, you'd have a roles table or column. 
-// For simplicity, we'll check against a list of admin emails in the backend or add an isAdmin column if we could modify auth easily.
-// Let's stick to a simple "is_admin" flag in a separate table or just use the user's email to verify admin status.
-// Or better, let's create an 'admins' table to whitelist admin emails.
 
 export const admins = pgTable("admins", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
 export const insertAdminSchema = createInsertSchema(admins).omit({ id: true, createdAt: true });
 export type Admin = typeof admins.$inferSelect;
 export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 
-// API Schemas
 export const companyQuerySchema = z.object({
   search: z.string().optional(),
   alphabet: z.string().length(1).optional(),
@@ -63,7 +54,9 @@ export const companyQuerySchema = z.object({
   page: z.coerce.number().default(1),
   limit: z.coerce.number().default(20),
 });
+export type CompanyQueryParams = z.infer<typeof companyQuerySchema>;
 
+// ─── Blog Posts ───────────────────────────────────────────────────────────────
 export const posts = pgTable("posts", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -71,12 +64,40 @@ export const posts = pgTable("posts", {
   content: text("content").notNull(),
   excerpt: text("excerpt"),
   coverImage: text("cover_image"),
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
+  metaKeywords: text("meta_keywords"),
   authorId: varchar("author_id"),
   published: boolean("published").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+export const insertPostSchema = createInsertSchema(posts).omit({ id: true, createdAt: true, updatedAt: true });
+export type Post = typeof posts.$inferSelect;
+export type InsertPost = z.infer<typeof insertPostSchema>;
 
+// ─── Articles (separate content type) ────────────────────────────────────────
+export const articles = pgTable("articles", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"),
+  coverImage: text("cover_image"),
+  category: text("category"),
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
+  metaKeywords: text("meta_keywords"),
+  authorId: varchar("author_id"),
+  published: boolean("published").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertArticleSchema = createInsertSchema(articles).omit({ id: true, createdAt: true, updatedAt: true });
+export type Article = typeof articles.$inferSelect;
+export type InsertArticle = z.infer<typeof insertArticleSchema>;
+
+// ─── FAQs ─────────────────────────────────────────────────────────────────────
 export const faqs = pgTable("faqs", {
   id: serial("id").primaryKey(),
   question: text("question").notNull(),
@@ -85,29 +106,33 @@ export const faqs = pgTable("faqs", {
   order: integer("order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-export const insertPostSchema = createInsertSchema(posts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFaqSchema = createInsertSchema(faqs).omit({ id: true, createdAt: true });
-
-export type Post = typeof posts.$inferSelect;
-export type InsertPost = z.infer<typeof insertPostSchema>;
 export type Faq = typeof faqs.$inferSelect;
 export type InsertFaq = z.infer<typeof insertFaqSchema>;
 
-
-export type CompanyQueryParams = z.infer<typeof companyQuerySchema>;
-
+// ─── Services (partner links) ─────────────────────────────────────────────────
 export const services = pgTable("services", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
   url: text("url").notNull(),
   icon: text("icon").default("🔗"),
+  imageUrl: text("image_url"),
   order: integer("order").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
 export type Service = typeof services.$inferSelect;
 export type InsertService = z.infer<typeof insertServiceSchema>;
+
+// ─── Site Settings (SEO, API keys, etc.) ─────────────────────────────────────
+export const siteSettings = pgTable("site_settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertSiteSettingSchema = createInsertSchema(siteSettings).omit({ id: true, updatedAt: true });
+export type SiteSetting = typeof siteSettings.$inferSelect;
+export type InsertSiteSetting = z.infer<typeof insertSiteSettingSchema>;

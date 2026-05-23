@@ -1,5 +1,13 @@
 import { db } from "./db";
-import { companies, type InsertCompany, type Company, admins, posts, faqs, type Post, type InsertPost, type Faq, type InsertFaq, services, type Service, type InsertService } from "@shared/schema";
+import {
+  companies, type InsertCompany, type Company,
+  admins,
+  posts, type Post, type InsertPost,
+  articles, type Article, type InsertArticle,
+  faqs, type Faq, type InsertFaq,
+  services, type Service, type InsertService,
+  siteSettings, type SiteSetting,
+} from "@shared/schema";
 import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
 
 export interface IStorage {
@@ -11,10 +19,21 @@ export interface IStorage {
   deleteCompany(id: number): Promise<void>;
   bulkCreateCompanies(companiesData: InsertCompany[]): Promise<void>;
 
-  // Blogs & FAQs
+  // Posts (blog)
   getPosts(): Promise<Post[]>;
   getPostBySlug(slug: string): Promise<Post | undefined>;
   createPost(post: InsertPost): Promise<Post>;
+  updatePost(id: number, post: Partial<InsertPost>): Promise<Post | undefined>;
+  deletePost(id: number): Promise<void>;
+
+  // Articles
+  getArticles(): Promise<Article[]>;
+  getArticleBySlug(slug: string): Promise<Article | undefined>;
+  createArticle(article: InsertArticle): Promise<Article>;
+  updateArticle(id: number, article: Partial<InsertArticle>): Promise<Article | undefined>;
+  deleteArticle(id: number): Promise<void>;
+
+  // FAQs
   getFaqs(): Promise<Faq[]>;
   createFaq(faq: InsertFaq): Promise<Faq>;
 
@@ -23,133 +42,119 @@ export interface IStorage {
   createService(service: InsertService): Promise<Service>;
   deleteService(id: number): Promise<void>;
 
+  // Site Settings
+  getSetting(key: string): Promise<string | null>;
+  getSettings(keys: string[]): Promise<Record<string, string>>;
+  setSetting(key: string, value: string): Promise<void>;
+
   // Admin
   isAdmin(email: string): Promise<boolean>;
+  addAdmin(email: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string): Promise<{ data: Company[]; total: number }> {
+  // ── Companies ──────────────────────────────────────────────────────────────
+  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string) {
     const offset = (page - 1) * limit;
-    
-    let whereClause = undefined;
-    const conditions = [];
+    const conditions: any[] = [];
 
-    if (search) {
-      conditions.push(sql`(${companies.name} ILIKE ${`%${search}%`} OR ${companies.cin} ILIKE ${`%${search}%`} OR ${companies.email} ILIKE ${`%${search}%`})`);
-    }
-
+    if (search) conditions.push(sql`(${companies.name} ILIKE ${`%${search}%`} OR ${companies.cin} ILIKE ${`%${search}%`} OR ${companies.email} ILIKE ${`%${search}%`})`);
     if (alphabet) {
-      if (/^[0-9]$/.test(alphabet)) {
-        conditions.push(sql`${companies.name} ~ '^[0-9]'`);
-      } else {
-        conditions.push(ilike(companies.name, `${alphabet}%`));
-      }
+      if (/^[0-9]$/.test(alphabet)) conditions.push(sql`${companies.name} ~ '^[0-9]'`);
+      else conditions.push(ilike(companies.name, `${alphabet}%`));
     }
+    if (country) conditions.push(ilike(companies.country, country));
 
-    if (country) {
-      conditions.push(ilike(companies.country, country));
-    }
+    const whereClause = conditions.length > 0 ? sql`${sql.join(conditions, sql` AND `)}` : undefined;
 
-    if (conditions.length > 0) {
-      whereClause = sql`${sql.join(conditions, sql` AND `)}`;
-    }
-
-    const [totalResult] = await db
-      .select({ count: count() })
-      .from(companies)
-      .where(whereClause);
-      
-    const total = totalResult.count;
-
-    const data = await db
-      .select()
-      .from(companies)
-      .where(whereClause)
-      .limit(limit)
-      .offset(offset)
-      .orderBy(desc(companies.id));
-
+    const [{ count: total }] = await db.select({ count: count() }).from(companies).where(whereClause);
+    const data = await db.select().from(companies).where(whereClause).limit(limit).offset(offset).orderBy(desc(companies.id));
     return { data, total };
   }
 
-  async getPostBySlug(slug: string): Promise<Post | undefined> {
-    const [post] = await db.select().from(posts).where(eq(posts.slug, slug));
-    return post;
+  async getCompany(id: number) {
+    const [c] = await db.select().from(companies).where(eq(companies.id, id));
+    return c;
   }
 
-  async getPosts(): Promise<Post[]> {
-    return await db.select().from(posts).orderBy(desc(posts.createdAt));
+  async createCompany(company: InsertCompany) {
+    const [c] = await db.insert(companies).values(company).returning();
+    return c;
   }
 
-  async createPost(post: InsertPost): Promise<Post> {
-    const [newPost] = await db.insert(posts).values(post).returning();
-    return newPost;
+  async updateCompany(id: number, company: Partial<InsertCompany>) {
+    const [c] = await db.update(companies).set({ ...company, updatedAt: new Date() }).where(eq(companies.id, id)).returning();
+    return c;
   }
 
-  async getFaqs(): Promise<Faq[]> {
-    return await db.select().from(faqs).orderBy(faqs.order);
-  }
-
-  async createFaq(faq: InsertFaq): Promise<Faq> {
-    const [newFaq] = await db.insert(faqs).values(faq).returning();
-    return newFaq;
-  }
-
-  async getServices(): Promise<Service[]> {
-    return await db.select().from(services).orderBy(asc(services.order), asc(services.id));
-  }
-
-  async createService(service: InsertService): Promise<Service> {
-    const [newService] = await db.insert(services).values(service).returning();
-    return newService;
-  }
-
-  async deleteService(id: number): Promise<void> {
-    await db.delete(services).where(eq(services.id, id));
-  }
-
-  async getCompany(id: number): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(eq(companies.id, id));
-    return company;
-  }
-
-  async createCompany(company: InsertCompany): Promise<Company> {
-    const [newCompany] = await db.insert(companies).values(company).returning();
-    return newCompany;
-  }
-
-  async updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined> {
-    const [updatedCompany] = await db
-      .update(companies)
-      .set({ ...company, updatedAt: new Date() })
-      .where(eq(companies.id, id))
-      .returning();
-    return updatedCompany;
-  }
-
-  async deleteCompany(id: number): Promise<void> {
+  async deleteCompany(id: number) {
     await db.delete(companies).where(eq(companies.id, id));
   }
 
-  async bulkCreateCompanies(companiesData: InsertCompany[]): Promise<void> {
-    if (companiesData.length === 0) return;
-    
-    // Process in chunks of 1000 to avoid query size limits
+  async bulkCreateCompanies(companiesData: InsertCompany[]) {
+    if (!companiesData.length) return;
     const chunkSize = 1000;
     for (let i = 0; i < companiesData.length; i += chunkSize) {
-      const chunk = companiesData.slice(i, i + chunkSize);
-      await db.insert(companies).values(chunk).onConflictDoNothing().execute();
+      await db.insert(companies).values(companiesData.slice(i, i + chunkSize)).onConflictDoNothing().execute();
     }
   }
 
+  // ── Blog Posts ─────────────────────────────────────────────────────────────
+  async getPosts() { return db.select().from(posts).orderBy(desc(posts.createdAt)); }
+  async getPostBySlug(slug: string) { const [p] = await db.select().from(posts).where(eq(posts.slug, slug)); return p; }
+  async createPost(post: InsertPost) { const [p] = await db.insert(posts).values(post).returning(); return p; }
+  async updatePost(id: number, post: Partial<InsertPost>) {
+    const [p] = await db.update(posts).set({ ...post, updatedAt: new Date() }).where(eq(posts.id, id)).returning();
+    return p;
+  }
+  async deletePost(id: number) { await db.delete(posts).where(eq(posts.id, id)); }
+
+  // ── Articles ───────────────────────────────────────────────────────────────
+  async getArticles() { return db.select().from(articles).orderBy(desc(articles.createdAt)); }
+  async getArticleBySlug(slug: string) { const [a] = await db.select().from(articles).where(eq(articles.slug, slug)); return a; }
+  async createArticle(article: InsertArticle) { const [a] = await db.insert(articles).values(article).returning(); return a; }
+  async updateArticle(id: number, article: Partial<InsertArticle>) {
+    const [a] = await db.update(articles).set({ ...article, updatedAt: new Date() }).where(eq(articles.id, id)).returning();
+    return a;
+  }
+  async deleteArticle(id: number) { await db.delete(articles).where(eq(articles.id, id)); }
+
+  // ── FAQs ───────────────────────────────────────────────────────────────────
+  async getFaqs() { return db.select().from(faqs).orderBy(faqs.order); }
+  async createFaq(faq: InsertFaq) { const [f] = await db.insert(faqs).values(faq).returning(); return f; }
+
+  // ── Services ───────────────────────────────────────────────────────────────
+  async getServices() { return db.select().from(services).orderBy(asc(services.order), asc(services.id)); }
+  async createService(service: InsertService) { const [s] = await db.insert(services).values(service).returning(); return s; }
+  async deleteService(id: number) { await db.delete(services).where(eq(services.id, id)); }
+
+  // ── Site Settings ──────────────────────────────────────────────────────────
+  async getSetting(key: string): Promise<string | null> {
+    const [row] = await db.select().from(siteSettings).where(eq(siteSettings.key, key));
+    return row?.value ?? null;
+  }
+
+  async getSettings(keys: string[]): Promise<Record<string, string>> {
+    const rows = await db.select().from(siteSettings).where(sql`${siteSettings.key} = ANY(${keys})`);
+    return Object.fromEntries(rows.map(r => [r.key, r.value ?? ""]));
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    await db.insert(siteSettings).values({ key, value }).onConflictDoUpdate({
+      target: siteSettings.key,
+      set: { value, updatedAt: new Date() },
+    });
+  }
+
+  // ── Admin ──────────────────────────────────────────────────────────────────
   async isAdmin(email: string): Promise<boolean> {
-    // For now, let's just return true if the user is authenticated 
-    // OR check against the admins table.
-    // If admins table is empty, maybe allow the first user?
-    // Let's implement a strict check against admins table + a hardcoded fallback for the owner.
-    
+    if (!email) return false;
     const [admin] = await db.select().from(admins).where(eq(admins.email, email));
     return !!admin;
+  }
+
+  async addAdmin(email: string): Promise<void> {
+    await db.insert(admins).values({ email }).onConflictDoNothing();
   }
 }
 
