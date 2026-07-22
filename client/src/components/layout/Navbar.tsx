@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-admin";
 import { Button } from "@/components/ui/button";
-import { Building2, LayoutDashboard, LogOut, User } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, User, Upload } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +60,12 @@ export function Navbar() {
             <div className="flex items-center gap-4">
               {adminCheck?.isAdmin && (
                 <div className="hidden md:flex items-center gap-2">
+                  <Link href="/admin?tab=upload">
+                    <Button size="sm" className="gap-2 bg-orange-500 hover:bg-orange-600 text-white shadow shadow-orange-200" data-testid="button-upload-db">
+                      <Upload className="h-4 w-4" />
+                      Upload DB
+                    </Button>
+                  </Link>
                   <Link href="/admin">
                     <Button variant="outline" size="sm" className="gap-2">
                       <LayoutDashboard className="h-4 w-4" />
@@ -89,12 +95,20 @@ export function Navbar() {
                   </div>
                   <DropdownMenuSeparator />
                   {adminCheck?.isAdmin && (
-                    <DropdownMenuItem asChild className="md:hidden">
-                      <Link href="/admin">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        Admin Panel
-                      </Link>
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin?tab=upload">
+                          <Upload className="mr-2 h-4 w-4 text-orange-500" />
+                          Upload Database
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin">
+                          <LayoutDashboard className="mr-2 h-4 w-4" />
+                          Admin Panel
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
                   )}
                   <DropdownMenuItem onClick={() => logout()} className="text-destructive focus:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-admin";
 import { Navbar } from "@/components/layout/Navbar";
@@ -606,6 +606,8 @@ function SeoTab() {
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const defaultTab = new URLSearchParams(search).get("tab") || "upload";
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { data: adminCheck, isLoading: adminLoading } = useIsAdmin();
 
@@ -641,7 +643,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <Tabs defaultValue="upload" className="space-y-8">
+        <Tabs defaultValue={defaultTab} className="space-y-8">
           <TabsList className="bg-background border p-1 rounded-xl shadow-sm flex-wrap h-auto gap-1">
             <TabsTrigger value="upload" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Upload className="h-4 w-4 mr-2" /> Data Import
