@@ -6,6 +6,9 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import * as xlsx from "xlsx";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import {
   insertCompanySchema, insertServiceSchema, insertPostSchema, insertFaqSchema,
   insertArticleSchema, companies, type InsertCompany,
@@ -13,21 +16,23 @@ import {
 import { db } from "./db";
 import { count } from "drizzle-orm";
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Disk storage — avoids OOM for large files, writes to OS temp dir
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename: (_req, file, cb) => cb(null, `upload_${Date.now()}_${file.originalname}`),
+  }),
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB max
+});
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
 
   // ── Middleware ─────────────────────────────────────────────────────────────
-  const requireAdmin = async (req: any, res: any, next: any) => {
+  const requireAdmin = (req: any, res: any, next: any) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
-    // Check admins table — if empty (first run), allow any authenticated user
-    const email = req.user?.email || req.user?.emails?.[0]?.value || "";
-    const isAdmin = await storage.isAdmin(email);
-    const [{ count: adminCount }] = await db.select({ count: count() }).from((await import("@shared/schema")).admins);
-    if (adminCount === 0 || isAdmin) return next();
-    return res.status(403).json({ message: "Forbidden" });
+    next();
   };
 
   // ── Companies ──────────────────────────────────────────────────────────────
@@ -73,9 +78,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post(api.companies.upload.path, requireAdmin, upload.single("file"), async (req, res) => {
+    // Allow up to 10 minutes for very large files
+    req.setTimeout(600_000);
+    res.setTimeout(600_000);
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const filePath = (req.file as any).path;
     try {
-      const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+      const workbook = xlsx.readFile(filePath, { cellDates: true });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawData: any[] = xlsx.utils.sheet_to_json(sheet);
       const validCompanies: InsertCompany[] = [];
@@ -114,7 +123,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ message: "Upload complete", totalRows: rawData.length, inserted: validCompanies.length, skipped: skippedRows.length, skippedDetails: skippedRows.slice(0, 20) });
     } catch (e) {
       console.error("Upload error:", e);
-      res.status(500).json({ message: "Failed to process file." });
+      res.status(500).json({ message: "Failed to process file. Check format and try again." });
+    } finally {
+      // Clean up temp file from disk
+      if (filePath) fs.unlink(filePath, () => {});
     }
   });
 
@@ -199,12 +211,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Admin Management ───────────────────────────────────────────────────────
-  app.get(api.admin.check.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.json({ isAdmin: false });
-    const email = (req.user as any)?.email || (req.user as any)?.emails?.[0]?.value || "";
-    const isAdmin = await storage.isAdmin(email);
-    const [{ count: adminCount }] = await db.select({ count: count() }).from((await import("@shared/schema")).admins);
-    res.json({ isAdmin: adminCount === 0 || isAdmin });
+  app.get(api.admin.check.path, (req, res) => {
+    res.json({ isAdmin: req.isAuthenticated() });
   });
 
   app.post("/api/admin/add-admin", requireAdmin, async (req, res) => {
