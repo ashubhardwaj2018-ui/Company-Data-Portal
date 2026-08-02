@@ -9,6 +9,7 @@ import * as xlsx from "xlsx";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { parseStringPromise } from "xml2js";
 import {
   insertCompanySchema, insertServiceSchema, insertPostSchema, insertFaqSchema,
   insertArticleSchema, companies, type InsertCompany,
@@ -22,7 +23,7 @@ const upload = multer({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
     filename: (_req, file, cb) => cb(null, `upload_${Date.now()}_${file.originalname}`),
   }),
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB max
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB max
 });
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
@@ -78,45 +79,82 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post(api.companies.upload.path, requireAdmin, upload.single("file"), async (req, res) => {
-    // Allow up to 10 minutes for very large files
-    req.setTimeout(600_000);
-    res.setTimeout(600_000);
+    // Allow up to 30 minutes for very large files
+    req.setTimeout(1_800_000);
+    res.setTimeout(1_800_000);
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     const filePath = (req.file as any).path;
+    const originalName: string = (req.file as any).originalname || "";
+    const isXml = originalName.toLowerCase().endsWith(".xml");
     try {
-      const workbook = xlsx.readFile(filePath, { cellDates: true });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawData: any[] = xlsx.utils.sheet_to_json(sheet);
+      let rawData: any[] = [];
+
+      if (isXml) {
+        // Parse XML — supports MCA / any flat-record XML
+        const xmlContent = fs.readFileSync(filePath, "utf8");
+        const parsed = await parseStringPromise(xmlContent, { explicitArray: false, mergeAttrs: true });
+        // Walk the parsed tree to find the array of records
+        const findArray = (obj: any): any[] => {
+          if (Array.isArray(obj)) return obj;
+          if (typeof obj === "object" && obj !== null) {
+            for (const key of Object.keys(obj)) {
+              const found = findArray(obj[key]);
+              if (found.length > 0) return found;
+            }
+          }
+          return [];
+        };
+        rawData = findArray(parsed);
+      } else {
+        const workbook = xlsx.readFile(filePath, { cellDates: true });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        rawData = xlsx.utils.sheet_to_json(sheet);
+      }
+
       const validCompanies: InsertCompany[] = [];
       const skippedRows: { row: number; reason: string }[] = [];
 
       rawData.forEach((row: any, index: number) => {
+        // Flatten any single-value objects (xml2js wraps text nodes)
+        const g = (keys: string[]): string | undefined => {
+          for (const k of keys) {
+            const v = row[k];
+            if (v !== undefined && v !== null && v !== "") return typeof v === "object" ? v._ || v["#text"] || undefined : String(v);
+          }
+          return undefined;
+        };
+        const gNum = (keys: string[]): number | undefined => {
+          const v = g(keys);
+          if (!v) return undefined;
+          const n = Number(String(v).replace(/[^0-9.]/g, ""));
+          return isNaN(n) ? undefined : n;
+        };
         const mapped = {
-          cin: row.CIN || row.cin || row["Registration Number"] || undefined,
-          name: row.Name || row.name || row["Company Name"] || row.company_name,
-          status: row.Status || row.status,
-          class: row.Class || row.class || row["Company Class"],
-          category: row.Category || row.category,
-          subCategory: row["Sub Category"] || row.sub_category || row.SubCategory,
-          state: row.State || row.state,
-          city: row.City || row.city,
-          pincode: row.Pincode || row.pincode || row["Pin Code"],
-          email: row.Email || row.email,
-          phone: row.Phone || row.phone || row.Mobile,
-          address: row.Address || row.address || row["Registered Address"],
-          roc: row.ROC || row.roc || row["Registrar of Companies"],
-          country: row.Country || row.country || "India",
-          incorporationDate: row["Incorporation Date"] || row.incorporation_date || row["Date of Incorporation"] || undefined,
-          lastAgmDate: row["Last AGM Date"] || row.last_agm_date || undefined,
-          lastBalanceSheetDate: row["Last Balance Sheet Date"] || row.last_balance_sheet_date || undefined,
-          authorizedCapital: row["Authorized Capital"] ? Number(String(row["Authorized Capital"]).replace(/[^0-9.]/g, "")) : undefined,
-          paidUpCapital: row["Paid Up Capital"] ? Number(String(row["Paid Up Capital"]).replace(/[^0-9.]/g, "")) : undefined,
-          customQna: row["Custom QnA"] || row.custom_qna || undefined,
+          cin: g(["CIN", "cin", "Registration Number", "RegistrationNumber", "CORP_REG_NO"]),
+          name: g(["Name", "name", "Company Name", "company_name", "CORP_NAME", "CompanyName"]),
+          status: g(["Status", "status", "CORP_STATUS", "CompanyStatus"]),
+          class: g(["Class", "class", "Company Class", "CompanyClass", "CORP_CLASS"]),
+          category: g(["Category", "category", "CORP_CATEGORY"]),
+          subCategory: g(["Sub Category", "sub_category", "SubCategory", "SUB_CATEGORY"]),
+          state: g(["State", "state", "CORP_STATE"]),
+          city: g(["City", "city", "CORP_CITY"]),
+          pincode: g(["Pincode", "pincode", "Pin Code", "PIN_CODE"]),
+          email: g(["Email", "email", "EMAIL"]),
+          phone: g(["Phone", "phone", "Mobile", "MOBILE", "PHONE"]),
+          address: g(["Address", "address", "Registered Address", "REG_ADDRESS"]),
+          roc: g(["ROC", "roc", "Registrar of Companies", "ROC_CODE"]),
+          country: g(["Country", "country", "COUNTRY"]) || "India",
+          incorporationDate: g(["Incorporation Date", "incorporation_date", "Date of Incorporation", "DATE_OF_INC"]) || undefined,
+          lastAgmDate: g(["Last AGM Date", "last_agm_date", "LAST_AGM_DATE"]) || undefined,
+          lastBalanceSheetDate: g(["Last Balance Sheet Date", "last_balance_sheet_date", "LAST_BS_DATE"]) || undefined,
+          authorizedCapital: gNum(["Authorized Capital", "authorized_capital", "AUTH_CAP"]),
+          paidUpCapital: gNum(["Paid Up Capital", "paid_up_capital", "PAIDUP_CAP"]),
+          customQna: g(["Custom QnA", "custom_qna"]),
         };
         if (!mapped.name) { skippedRows.push({ row: index + 2, reason: "Missing Company Name" }); return; }
-        const parsed = insertCompanySchema.safeParse(mapped);
-        if (parsed.success) validCompanies.push(parsed.data);
-        else skippedRows.push({ row: index + 2, reason: parsed.error.errors[0]?.message || "Validation failed" });
+        const parsedRow = insertCompanySchema.safeParse(mapped);
+        if (parsedRow.success) validCompanies.push(parsedRow.data);
+        else skippedRows.push({ row: index + 2, reason: parsedRow.error.errors[0]?.message || "Validation failed" });
       });
 
       await storage.bulkCreateCompanies(validCompanies);

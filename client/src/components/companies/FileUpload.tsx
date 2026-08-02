@@ -58,9 +58,11 @@ export function FileUpload() {
       "text/csv": [".csv"],
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
       "application/vnd.ms-excel": [".xls"],
+      "text/xml": [".xml"],
+      "application/xml": [".xml"],
     },
     maxFiles: 1,
-    maxSize: 500 * 1024 * 1024, // 500 MB
+    maxSize: 2 * 1024 * 1024 * 1024, // 2 GB
     disabled: uploading,
   });
 
@@ -126,7 +128,7 @@ export function FileUpload() {
     });
 
     xhr.open("POST", api.companies.upload.path);
-    xhr.timeout = 600_000; // 10 min
+    xhr.timeout = 1_800_000; // 30 min
     xhr.withCredentials = true;
     xhr.send(formData);
   };
@@ -200,7 +202,7 @@ export function FileUpload() {
     <div className="w-full max-w-xl mx-auto space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-          <Info className="h-3.5 w-3.5" /> Supports .xlsx, .xls, .csv up to 500 MB
+          <Info className="h-3.5 w-3.5" /> Supports .xlsx, .xls, .csv, .xml up to 2 GB
         </p>
         <Button variant="ghost" size="sm" onClick={downloadSampleTemplate} className="text-primary hover:text-primary/80 text-xs gap-1.5" data-testid="button-download-template">
           <Download className="h-3.5 w-3.5" /> Download Sample Template
@@ -225,8 +227,8 @@ export function FileUpload() {
             <Upload className="h-8 w-8 text-primary" />
           </div>
           <h3 className="text-lg font-semibold mb-1">Drag & drop your file here</h3>
-          <p className="text-sm text-muted-foreground mb-1">or click to select an Excel (.xlsx, .xls) or CSV file</p>
-          <p className="text-xs text-muted-foreground mb-4">Supports files up to 500 MB — for 20L+ records</p>
+          <p className="text-sm text-muted-foreground mb-1">or click to select an Excel (.xlsx, .xls), CSV, or XML file</p>
+          <p className="text-xs text-muted-foreground mb-4">Supports files up to 2 GB — for 20L+ records</p>
           <Button variant="secondary" size="sm">Select File</Button>
         </div>
       ) : (
