@@ -1,4 +1,5 @@
 import { useRoute, Link } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
 import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
@@ -72,8 +73,26 @@ export default function CountryPage() {
   const namedStates = (stats?.byState || []).filter(s => s.state);
   const totalPages = Math.max(1, Math.ceil((data?.total || 0) / LIMIT));
 
+  const pageTitle = `${meta.name} Company Directory — Search Registered Businesses`;
+  const pageDesc = `Search and browse all ${meta.name} companies registered with ${meta.registrar}. View registration details, addresses, and contact information.`;
+  const canonicalFull = typeof window !== "undefined"
+    ? `${window.location.origin}/countries/${countryCode.toLowerCase()}`
+    : `/countries/${countryCode.toLowerCase()}`;
+
   return (
     <div className="min-h-screen bg-background pb-20">
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDesc} />
+        <link rel="canonical" href={canonicalFull} />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDesc} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={canonicalFull} />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDesc} />
+      </Helmet>
       <Navbar />
 
       {/* Header */}

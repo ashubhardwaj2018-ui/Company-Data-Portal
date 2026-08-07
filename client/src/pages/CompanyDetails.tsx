@@ -1,4 +1,5 @@
 import { useRoute, Link } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { useCompany, useCompanyBySlug, useRelatedCompanies } from "@/hooks/use-companies";
 import { Navbar } from "@/components/layout/Navbar";
 import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
@@ -285,9 +286,57 @@ export default function CompanyDetails() {
     company.countryCode === "SG" ? "UEN" : "Reg. No.";
 
   const pageCanonical = canonicalUrl(company);
+  const countryName = COUNTRY_NAMES[company.countryCode || "IN"] || "India";
+  const siteOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonicalFull = `${siteOrigin}${pageCanonical}`;
+
+  const pageTitle = `${company.name}${regId ? ` — ${regLabel}: ${regId}` : ""} | ${countryName} Company Details`;
+  const pageDesc = [
+    `${company.name} is a ${company.status || "registered"} ${company.class?.toLowerCase() || "company"} in ${countryName}`,
+    company.city ? ` based in ${company.city}` : "",
+    company.state ? `, ${company.state}` : "",
+    ". ",
+    company.incorporationDate
+      ? `Incorporated ${new Date(company.incorporationDate).getFullYear()}. `
+      : "",
+    regId ? `${regLabel}: ${regId}.` : "",
+  ].join("").trim();
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: company.name,
+    url: canonicalFull,
+    ...(company.email && { email: company.email }),
+    ...(company.phone && { telephone: company.phone }),
+    address: {
+      "@type": "PostalAddress",
+      ...(company.address && { streetAddress: company.address }),
+      ...(company.city && { addressLocality: company.city }),
+      ...(company.state && { addressRegion: company.state }),
+      ...(company.pincode && { postalCode: company.pincode }),
+      addressCountry: company.countryCode || "IN",
+    },
+    ...(company.incorporationDate && {
+      foundingDate: company.incorporationDate.toString().split("T")[0],
+    }),
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDesc} />
+        <link rel="canonical" href={canonicalFull} />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDesc} />
+        <meta property="og:type" content="profile" />
+        <meta property="og:url" content={canonicalFull} />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDesc} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      </Helmet>
       <Navbar />
 
       {/* Header Banner */}

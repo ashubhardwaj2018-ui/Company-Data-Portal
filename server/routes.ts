@@ -326,11 +326,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const baseUrl = `https://${req.headers.host}`;
       const now = new Date().toISOString().split("T")[0];
 
-      const [allPosts, allArticles, { data: topCompanies }] = await Promise.all([
+      const SUPPORTED_COUNTRIES = ["in", "au", "gb", "sg"];
+
+      const [allPosts, allArticles, { data: topCompanies }, globalStats] = await Promise.all([
         storage.getPosts(),
         storage.getArticles(),
-        storage.getCompanies(1, 1000),
+        storage.getCompanies(1, 5000),
+        storage.getDirectoryStats(),
       ]);
+
+      function stateSlug(s: string) {
+        return s.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      }
 
       const staticPages = [
         { loc: "/", priority: "1.0", changefreq: "daily" },
@@ -340,14 +347,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         { loc: "/about", priority: "0.5", changefreq: "monthly" },
       ];
 
+      // Country landing pages
+      const countryPages = SUPPORTED_COUNTRIES.map(cc =>
+        `<url><loc>${baseUrl}/countries/${cc}</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>`
+      );
+
+      // State pages — derived from live directory stats
+      const statePages = (globalStats.byState || [])
+        .filter((s: any) => s.state && s.count > 0)
+        .map((s: any) => {
+          // Find which country this state belongs to by checking per-country stats
+          // Default to IN since current data is India-only
+          const cc = "in";
+          return `<url><loc>${baseUrl}/countries/${cc}/${stateSlug(s.state)}</loc><lastmod>${now}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`;
+        });
+
       const urlEntries = [
         ...staticPages.map(p => `<url><loc>${baseUrl}${p.loc}</loc><lastmod>${now}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`),
+        ...countryPages,
+        ...statePages,
         ...topCompanies.map((c: any) => {
-          // Prefer slug-based country-aware URL; fall back to legacy ID URL
           const loc = c.slug && c.countryCode
             ? `${baseUrl}/${c.countryCode.toLowerCase()}/company/${c.slug}`
             : `${baseUrl}/company/${c.id}`;
-          return `<url><loc>${loc}</loc><lastmod>${now}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`;
+          const lastmod = c.updatedAt
+            ? new Date(c.updatedAt).toISOString().split("T")[0]
+            : now;
+          return `<url><loc>${loc}</loc><lastmod>${lastmod}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`;
         }),
         ...allPosts.filter((p: any) => p.published).map((p: any) => `<url><loc>${baseUrl}/blog/${p.slug}</loc><lastmod>${(p.updatedAt || p.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
         ...allArticles.filter((a: any) => a.published).map((a: any) => `<url><loc>${baseUrl}/articles/${a.slug}</loc><lastmod>${(a.updatedAt || a.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),

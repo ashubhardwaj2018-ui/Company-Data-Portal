@@ -83,6 +83,18 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "production") {
+    // Server-side SEO meta injection for key URL patterns (for crawlers)
+    const { createSeoMiddleware } = await import("./seoMiddleware");
+    const { readFileSync } = await import("fs");
+    const { join } = await import("path");
+    let cachedHtml = "";
+    const getHtml = async () => {
+      if (!cachedHtml) {
+        cachedHtml = readFileSync(join(process.cwd(), "dist", "public", "index.html"), "utf-8");
+      }
+      return cachedHtml;
+    };
+    app.use(createSeoMiddleware(getHtml));
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");

@@ -25,6 +25,8 @@ export default defineConfig({
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
+    // Deduplicate React so react-helmet-async shares the same copy
+    dedupe: ["react", "react-dom"],
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {

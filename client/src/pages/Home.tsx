@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { type Company } from "@shared/schema";
 import { Link } from "wouter";
@@ -185,8 +186,26 @@ export default function Home() {
   });
   const activeServices = (servicesList || []).filter(s => s.isActive);
 
+  const homeTitle = selectedCountry
+    ? `${activeCountry?.name} Companies — Global Corporate Directory`
+    : "AddressBay — Global Corporate Directory | Search India, Australia, UK & Singapore Companies";
+  const homeDesc = selectedCountry
+    ? `Browse registered ${activeCountry?.name} companies. Find CIN, registration details, addresses, and contact information.`
+    : "Search over 20 lakh registered companies in India and millions more across Australia, Singapore, and the UK. Official government registration data.";
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <Helmet>
+        <title>{homeTitle}</title>
+        <meta name="description" content={homeDesc} />
+        <link rel="canonical" href={typeof window !== "undefined" ? window.location.origin + "/" : "/"} />
+        <meta property="og:title" content={homeTitle} />
+        <meta property="og:description" content={homeDesc} />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={homeTitle} />
+        <meta name="twitter:description" content={homeDesc} />
+      </Helmet>
       <Navbar />
 
       {/* HERO SECTION */}
