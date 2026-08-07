@@ -656,7 +656,7 @@ export default function Home() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
                 {data!.data.map(company => (
                   <CompanyCard key={company.id} company={company} />
                 ))}
@@ -711,7 +711,7 @@ export default function Home() {
               <TrendingUp className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-bold text-slate-900">Trending Companies</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
               {trendingCompanies.slice(0, 6).map(company => (
                 <CompanyCard key={company.id} company={company} />
               ))}

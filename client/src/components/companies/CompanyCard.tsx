@@ -67,8 +67,8 @@ export function CompanyCard({ company }: { company: Company }) {
   };
 
   return (
-    <Link href={companyUrl(company)} className="block h-full group">
-      <div className="ab-card h-full flex flex-col hover:-translate-y-0.5 transition-transform duration-200">
+    <Link href={companyUrl(company)} className="flex flex-col group">
+      <div className="ab-card flex-1 flex flex-col hover:-translate-y-0.5 transition-transform duration-200">
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-slate-100">
           <div className="flex items-start justify-between gap-3">

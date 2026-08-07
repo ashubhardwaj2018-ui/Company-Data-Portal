@@ -152,7 +152,7 @@ export default function ProfilePage() {
                 <Link href="/"><Button variant="outline" size="sm">Browse Directory</Button></Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
                 {watchlist.data.map(c => <CompanyCard key={c.id} company={c} />)}
               </div>
             )}
