@@ -17,6 +17,8 @@ import { format } from "date-fns";
 import { ShareBar } from "@/components/layout/ShareBar";
 import { ServiceAside } from "@/components/layout/ServiceAside";
 import { ClaimModal } from "@/components/companies/ClaimModal";
+import { WatchlistButton } from "@/components/companies/WatchlistButton";
+import { SuggestCorrectionModal } from "@/components/companies/SuggestCorrectionModal";
 import type { Company } from "@shared/schema";
 
 // ── Country code → display name ───────────────────────────────────────────────
@@ -380,11 +382,29 @@ export default function CompanyDetails() {
                   description={`View registration details and information for ${company.name}.`}
                 />
               </div>
+              {/* Phase 11 — Watchlist */}
+              <WatchlistButton companyId={company.id} isLoggedIn={!!user} />
               {/* Phase 7 — Claim button */}
               <ClaimModal
                 companyId={company.id}
                 companyName={company.name}
                 isLoggedIn={!!user}
+              />
+              {/* Phase 14 — Suggest Correction */}
+              <SuggestCorrectionModal
+                companyId={company.id}
+                companyName={company.name}
+                isLoggedIn={!!user}
+                currentValues={{
+                  email: company.email,
+                  phone: company.phone,
+                  address: company.address,
+                  city: company.city,
+                  state: company.state,
+                  pincode: company.pincode,
+                  status: company.status,
+                  name: company.name,
+                }}
               />
               {/* Phase 8 — View count */}
               {(company.viewCount ?? 0) > 0 && (

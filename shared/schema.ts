@@ -207,3 +207,31 @@ export const companyClaims = pgTable("company_claims", {
 export const insertClaimSchema = createInsertSchema(companyClaims).omit({ id: true, createdAt: true, reviewedAt: true });
 export type CompanyClaim = typeof companyClaims.$inferSelect;
 export type InsertClaim = z.infer<typeof insertClaimSchema>;
+
+// ─── User Watchlist (Phase 11) ────────────────────────────────────────────────
+export const userWatchlist = pgTable("user_watchlist", {
+  id: serial("id").primaryKey(),
+  userEmail: text("user_email").notNull(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type UserWatchlistItem = typeof userWatchlist.$inferSelect;
+
+// ─── Data Correction Suggestions (Phase 14) ───────────────────────────────────
+// Users flag stale / incorrect company data for admin review.
+export const companySuggestions = pgTable("company_suggestions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  userEmail: text("user_email").notNull(),
+  fieldName: text("field_name").notNull(),   // e.g. "email", "phone", "address"
+  currentValue: text("current_value"),
+  suggestedValue: text("suggested_value").notNull(),
+  reason: text("reason"),
+  status: text("status").notNull().default("pending"), // pending | applied | dismissed
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSuggestionSchema = createInsertSchema(companySuggestions).omit({ id: true, createdAt: true, reviewedAt: true });
+export type CompanySuggestion = typeof companySuggestions.$inferSelect;
+export type InsertSuggestion = z.infer<typeof insertSuggestionSchema>;

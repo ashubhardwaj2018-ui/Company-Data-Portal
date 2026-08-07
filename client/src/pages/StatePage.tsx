@@ -107,6 +107,27 @@ export default function StatePage() {
           <span className="text-foreground font-medium">{stateName}</span>
         </div>
 
+        {/* City quick-links derived from current page results */}
+        {!isLoading && data?.data && data.data.length > 0 && (() => {
+          const cities = Array.from(new Set(data.data.map((c: Company) => c.city).filter(Boolean))) as string[];
+          if (!cities.length) return null;
+          const citySlug = (c: string) => c.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+          return (
+            <div className="mb-8">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Browse by City</p>
+              <div className="flex flex-wrap gap-2">
+                {cities.slice(0, 20).map(city => (
+                  <Link key={city} href={`/countries/${countryCode.toLowerCase()}/${stateSlug}/${citySlug(city)}`}>
+                    <span className="px-3 py-1.5 text-sm rounded-full border bg-background hover:bg-primary hover:text-white hover:border-primary transition-all cursor-pointer">
+                      {city}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, i) => (

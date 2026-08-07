@@ -10,6 +10,8 @@ import {
   importJobs, type ImportJob, type InsertImportJob,
   importErrors,
   companyClaims, type CompanyClaim, type InsertClaim,
+  userWatchlist, type UserWatchlistItem,
+  companySuggestions, type CompanySuggestion,
 } from "@shared/schema";
 import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
 import { cache, TTL } from "./cache";
@@ -81,6 +83,17 @@ export interface IStorage {
   // Phase 8 — View tracking
   incrementViewCount(companyId: number): Promise<void>;
   getTrendingCompanies(limit?: number, countryCode?: string): Promise<Company[]>;
+
+  // Phase 11 — Watchlist
+  addToWatchlist(userEmail: string, companyId: number): Promise<UserWatchlistItem>;
+  removeFromWatchlist(userEmail: string, companyId: number): Promise<void>;
+  getUserWatchlist(userEmail: string, page?: number, limit?: number): Promise<{ data: Company[]; total: number }>;
+  isInWatchlist(userEmail: string, companyId: number): Promise<boolean>;
+
+  // Phase 14 — Data correction suggestions
+  createSuggestion(suggestion: Omit<InsertSuggestion, "status" | "reviewedBy">): Promise<CompanySuggestion>;
+  listSuggestions(status?: string): Promise<(CompanySuggestion & { companyName: string | null })[]>;
+  updateSuggestionStatus(id: number, status: "applied" | "dismissed", reviewedBy: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -355,6 +368,73 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
     cache.set(cacheKey, results, 5 * 60_000); // 5 min
     return results;
+  }
+
+  // ── Phase 11: Watchlist ────────────────────────────────────────────────────
+  async addToWatchlist(userEmail: string, companyId: number): Promise<UserWatchlistItem> {
+    const existing = await db.select().from(userWatchlist)
+      .where(sql`${userWatchlist.userEmail} = ${userEmail} AND ${userWatchlist.companyId} = ${companyId}`)
+      .limit(1);
+    if (existing.length) return existing[0];
+    const [item] = await db.insert(userWatchlist).values({ userEmail, companyId }).returning();
+    return item;
+  }
+
+  async removeFromWatchlist(userEmail: string, companyId: number): Promise<void> {
+    await db.delete(userWatchlist)
+      .where(sql`${userWatchlist.userEmail} = ${userEmail} AND ${userWatchlist.companyId} = ${companyId}`);
+  }
+
+  async getUserWatchlist(userEmail: string, page = 1, limit = 12): Promise<{ data: Company[]; total: number }> {
+    const offset = (page - 1) * limit;
+    const [{ total }] = await db.select({ total: count() }).from(userWatchlist)
+      .where(eq(userWatchlist.userEmail, userEmail));
+    const rows = await db.select({ company: companies }).from(userWatchlist)
+      .innerJoin(companies, eq(userWatchlist.companyId, companies.id))
+      .where(eq(userWatchlist.userEmail, userEmail))
+      .orderBy(desc(userWatchlist.createdAt))
+      .limit(limit).offset(offset);
+    return { data: rows.map(r => r.company), total };
+  }
+
+  async isInWatchlist(userEmail: string, companyId: number): Promise<boolean> {
+    const [row] = await db.select({ id: userWatchlist.id }).from(userWatchlist)
+      .where(sql`${userWatchlist.userEmail} = ${userEmail} AND ${userWatchlist.companyId} = ${companyId}`)
+      .limit(1);
+    return !!row;
+  }
+
+  // ── Phase 14: Data Correction Suggestions ─────────────────────────────────
+  async createSuggestion(suggestion: Omit<InsertSuggestion, "status" | "reviewedBy">): Promise<CompanySuggestion> {
+    const [s] = await db.insert(companySuggestions).values({ ...suggestion, status: "pending" }).returning();
+    return s;
+  }
+
+  async listSuggestions(status?: string): Promise<(CompanySuggestion & { companyName: string | null })[]> {
+    const rows = await db.select({
+      id: companySuggestions.id,
+      companyId: companySuggestions.companyId,
+      userEmail: companySuggestions.userEmail,
+      fieldName: companySuggestions.fieldName,
+      currentValue: companySuggestions.currentValue,
+      suggestedValue: companySuggestions.suggestedValue,
+      reason: companySuggestions.reason,
+      status: companySuggestions.status,
+      reviewedBy: companySuggestions.reviewedBy,
+      reviewedAt: companySuggestions.reviewedAt,
+      createdAt: companySuggestions.createdAt,
+      companyName: companies.name,
+    }).from(companySuggestions)
+      .leftJoin(companies, eq(companySuggestions.companyId, companies.id))
+      .where(status ? eq(companySuggestions.status, status) : undefined)
+      .orderBy(desc(companySuggestions.createdAt));
+    return rows as any;
+  }
+
+  async updateSuggestionStatus(id: number, status: "applied" | "dismissed", reviewedBy: string): Promise<void> {
+    await db.update(companySuggestions)
+      .set({ status, reviewedBy, reviewedAt: new Date() })
+      .where(eq(companySuggestions.id, id));
   }
 
   // ── Admin ──────────────────────────────────────────────────────────────────

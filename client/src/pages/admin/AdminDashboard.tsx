@@ -141,6 +141,112 @@ function ImportJobsTab() {
   );
 }
 
+// ─── Suggestions Tab (Phase 14) ───────────────────────────────────────────────
+const SUGGESTION_STATUS_STYLE: Record<string, string> = {
+  pending:   "bg-yellow-100 text-yellow-800",
+  applied:   "bg-green-100 text-green-800",
+  dismissed: "bg-gray-100 text-gray-600",
+};
+
+function SuggestionsTab() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  const { data: suggestions = [], isLoading, refetch } = useQuery<any[]>({
+    queryKey: ["/api/admin/suggestions", statusFilter],
+    queryFn: async () => {
+      const p = statusFilter ? `?status=${statusFilter}` : "";
+      const res = await fetch(`/api/admin/suggestions${p}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const res = await fetch(`/api/admin/suggestions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/suggestions"] });
+      toast({ title: "Suggestion updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardHeader className="bg-white border-b flex-row items-center justify-between space-y-0 gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertCircle className="h-5 w-5 text-orange-500" /> Data Correction Suggestions
+            </CardTitle>
+            <CardDescription className="mt-1">User-flagged corrections to company data. Apply accurate ones, dismiss the rest.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {["", "pending", "applied", "dismissed"].map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                  statusFilter === s ? "bg-slate-900 text-white border-slate-900" : "border-slate-300 text-slate-600 hover:border-slate-500"
+                }`}>{s || "All"}</button>
+            ))}
+            <Button size="sm" variant="outline" onClick={() => refetch()}>Refresh</Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : suggestions.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">
+              <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No suggestions{statusFilter ? ` with status "${statusFilter}"` : ""} yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {suggestions.map((s: any) => (
+                <div key={s.id} className="px-6 py-4 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-semibold text-sm">{s.companyName || `Company #${s.companyId}`}</span>
+                        <Badge className={`text-[10px] border-0 ${SUGGESTION_STATUS_STYLE[s.status] || "bg-gray-100"}`}>{s.status}</Badge>
+                        <Badge variant="outline" className="text-[10px]">field: {s.fieldName}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-0.5">
+                        {s.currentValue && <p><strong>Current:</strong> {s.currentValue}</p>}
+                        <p><strong>Suggested:</strong> <span className="text-green-700 font-medium">{s.suggestedValue}</span></p>
+                        {s.reason && <p><strong>Reason:</strong> {s.reason}</p>}
+                        <p><strong>From:</strong> {s.userEmail}</p>
+                        <p className="text-[10px] opacity-60">{new Date(s.createdAt).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    {s.status === "pending" && (
+                      <div className="flex gap-2 shrink-0">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                          onClick={() => reviewMutation.mutate({ id: s.id, status: "applied" })}
+                          disabled={reviewMutation.isPending}>Apply</Button>
+                        <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 text-xs"
+                          onClick={() => reviewMutation.mutate({ id: s.id, status: "dismissed" })}
+                          disabled={reviewMutation.isPending}>Dismiss</Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Claims Tab (Phase 7) ─────────────────────────────────────────────────────
 const CLAIM_STATUS_STYLE: Record<string, string> = {
   pending:  "bg-yellow-100 text-yellow-800",
@@ -883,6 +989,9 @@ export default function AdminDashboard() {
             <TabsTrigger value="claims" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white">
               <ShieldAlert className="h-4 w-4 mr-2" /> Claims
             </TabsTrigger>
+            <TabsTrigger value="suggestions" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+              <AlertCircle className="h-4 w-4 mr-2" /> Corrections
+            </TabsTrigger>
             <TabsTrigger value="services" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white">
               <Link2 className="h-4 w-4 mr-2" /> Service Links
             </TabsTrigger>
@@ -932,6 +1041,7 @@ export default function AdminDashboard() {
 
           <TabsContent value="import-jobs"><ImportJobsTab /></TabsContent>
           <TabsContent value="claims"><ClaimsTab /></TabsContent>
+          <TabsContent value="suggestions"><SuggestionsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
           <TabsContent value="articles"><ArticlesTab /></TabsContent>
           <TabsContent value="blog"><BlogTab /></TabsContent>

@@ -8,6 +8,8 @@ import Home from "@/pages/Home";
 import CompanyDetails from "@/pages/CompanyDetails";
 import CountryPage from "@/pages/CountryPage";
 import StatePage from "@/pages/StatePage";
+import CityPage from "@/pages/CityPage";
+import WatchlistPage from "@/pages/WatchlistPage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import BlogList from "@/pages/BlogList";
 import BlogPost from "@/pages/BlogPost";
@@ -24,9 +26,11 @@ function Router() {
       <Route path="/company/:id" component={CompanyDetails} />
       {/* Country-aware slug routes: /in/company/reliance-industries-limited */}
       <Route path="/:countryCode/company/:slug" component={CompanyDetails} />
-      {/* Geographic directory pages */}
+      {/* Geographic directory pages — city must be before state */}
+      <Route path="/countries/:countryCode/:state/:city" component={CityPage} />
       <Route path="/countries/:countryCode/:state" component={StatePage} />
       <Route path="/countries/:countryCode" component={CountryPage} />
+      <Route path="/watchlist" component={WatchlistPage} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/import" component={ImportData} />
       <Route path="/blog" component={BlogList} />

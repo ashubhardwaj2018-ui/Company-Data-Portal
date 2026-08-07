@@ -14,6 +14,7 @@ import {
 import { db } from "./db";
 import { count } from "drizzle-orm";
 import { processImportJob } from "./importProcessor";
+import { limits } from "./rateLimit";
 
 // Disk storage — avoids OOM for large files, writes to OS temp dir
 const upload = multer({
@@ -40,7 +41,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   };
 
   // ── Companies ──────────────────────────────────────────────────────────────
-  app.get(api.companies.list.path, async (req, res) => {
+  app.get(api.companies.list.path, limits.list, async (req, res) => {
     try {
       const input = api.companies.list.input.parse(req.query);
       const { data, total } = await storage.getCompanies(
@@ -54,7 +55,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Static /api/companies/* paths — ALL must come before /:id ─────────────
 
   // Autocomplete suggestions
-  app.get("/api/companies/suggest", async (req, res) => {
+  app.get("/api/companies/suggest", limits.search, async (req, res) => {
     try {
       const q = String(req.query.q || "").trim();
       const countryCode = req.query.countryCode ? String(req.query.countryCode) : undefined;
@@ -67,7 +68,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Phase 10: CSV export
-  app.get("/api/companies/export", async (req, res) => {
+  app.get("/api/companies/export", limits.export, async (req, res) => {
     try {
       const input = api.companies.list.input.parse({ ...req.query, page: 1, limit: 10000 });
       const { data } = await storage.getCompanies(
@@ -384,6 +385,72 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ── Phase 11: Watchlist ────────────────────────────────────────────────────
+  app.get("/api/watchlist/check/:companyId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.json({ saved: false });
+    const email: string = req.user?.claims?.email || "";
+    const saved = await storage.isInWatchlist(email, Number(req.params.companyId));
+    res.json({ saved });
+  });
+
+  app.get("/api/watchlist", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    const page = Number(req.query.page || 1);
+    const limit = Number(req.query.limit || 12);
+    const result = await storage.getUserWatchlist(email, page, limit);
+    res.json(result);
+  });
+
+  app.post("/api/watchlist/:companyId", limits.write, async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    const companyId = Number(req.params.companyId);
+    const item = await storage.addToWatchlist(email, companyId);
+    res.status(201).json(item);
+  });
+
+  app.delete("/api/watchlist/:companyId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    await storage.removeFromWatchlist(email, Number(req.params.companyId));
+    res.json({ ok: true });
+  });
+
+  // ── Phase 14: Data Correction Suggestions ─────────────────────────────────
+  app.post("/api/companies/:id/suggest", limits.write, async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required to submit suggestions" });
+      const companyId = Number(req.params.id);
+      const company = await storage.getCompany(companyId);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const email: string = req.user?.claims?.email || "";
+      const { fieldName, currentValue, suggestedValue, reason } = req.body;
+      if (!fieldName || !suggestedValue) return res.status(400).json({ message: "fieldName and suggestedValue are required" });
+      const suggestion = await storage.createSuggestion({ companyId, userEmail: email, fieldName, currentValue, suggestedValue, reason });
+      res.status(201).json(suggestion);
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.get("/api/admin/suggestions", requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status ? String(req.query.status) : undefined;
+      res.json(await storage.listSuggestions(status));
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.patch("/api/admin/suggestions/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { status } = req.body;
+      if (!["applied", "dismissed"].includes(status))
+        return res.status(400).json({ message: "status must be applied or dismissed" });
+      const email: string = req.user?.claims?.email || "admin";
+      await storage.updateSuggestionStatus(id, status, email);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
   // ── Phase 7: Company Claims ────────────────────────────────────────────────
   // Any authenticated user can submit a claim; admin reviews it.
   app.post("/api/companies/:id/claim", async (req, res) => {
@@ -457,16 +524,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const statePages = (globalStats.byState || [])
         .filter((s: any) => s.state && s.count > 0)
         .map((s: any) => {
-          // Find which country this state belongs to by checking per-country stats
-          // Default to IN since current data is India-only
           const cc = "in";
           return `<url><loc>${baseUrl}/countries/${cc}/${stateSlug(s.state)}</loc><lastmod>${now}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`;
         });
+
+      // City pages — derive from top companies (Phase 13)
+      const cityMap = new Map<string, { state: string; city: string; cc: string }>();
+      for (const c of topCompanies as any[]) {
+        if (c.city && c.state && c.countryCode) {
+          const key = `${c.countryCode}:${c.state}:${c.city}`;
+          if (!cityMap.has(key)) cityMap.set(key, { state: c.state, city: c.city, cc: c.countryCode.toLowerCase() });
+        }
+      }
+      const cityPages = Array.from(cityMap.values()).slice(0, 500).map(({ state, city, cc }) => {
+        const cityKey = stateSlug(city); // reuse slug helper
+        return `<url><loc>${baseUrl}/countries/${cc}/${stateSlug(state)}/${cityKey}</loc><lastmod>${now}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`;
+      });
 
       const urlEntries = [
         ...staticPages.map(p => `<url><loc>${baseUrl}${p.loc}</loc><lastmod>${now}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`),
         ...countryPages,
         ...statePages,
+        ...cityPages,
         ...topCompanies.map((c: any) => {
           const loc = c.slug && c.countryCode
             ? `${baseUrl}/${c.countryCode.toLowerCase()}/company/${c.slug}`
