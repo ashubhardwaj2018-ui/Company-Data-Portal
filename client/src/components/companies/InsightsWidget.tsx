@@ -10,13 +10,21 @@ import type { Company } from "@shared/schema";
 function buildInsights(company: Company): string[] {
   const insights: string[] = [];
 
-  // Company age
+  // Company age — guard against malformed date strings
   if (company.incorporationDate) {
-    const age = differenceInYears(new Date(), new Date(company.incorporationDate));
-    if (age >= 50) insights.push(`${company.name} is a legacy enterprise — over ${age} years in operation.`);
-    else if (age >= 25) insights.push(`Established in ${new Date(company.incorporationDate).getFullYear()}, this company has ${age} years of operating history.`);
-    else if (age <= 3) insights.push(`A relatively young company, incorporated in ${new Date(company.incorporationDate).getFullYear()}.`);
-    else insights.push(`Incorporated in ${new Date(company.incorporationDate).getFullYear()} — ${age} years of operational history.`);
+    try {
+      const incDate = new Date(company.incorporationDate);
+      if (!isNaN(incDate.getTime())) {
+        const age = differenceInYears(new Date(), incDate);
+        const year = incDate.getFullYear();
+        if (age >= 50) insights.push(`${company.name} is a legacy enterprise — over ${age} years in operation.`);
+        else if (age >= 25) insights.push(`Established in ${year}, this company has ${age} years of operating history.`);
+        else if (age <= 3) insights.push(`A relatively young company, incorporated in ${year}.`);
+        else insights.push(`Incorporated in ${year} — ${age} years of operational history.`);
+      }
+    } catch {
+      console.warn("[InsightsWidget] Invalid incorporationDate:", company.incorporationDate);
+    }
   }
 
   // Capital scale

@@ -15,17 +15,6 @@ import {
   Hash, Globe, Clock, BookOpen, ChevronRight, Database, Landmark, TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
-import { ShareBar } from "@/components/layout/ShareBar";
-import { ServiceAside } from "@/components/layout/ServiceAside";
-import { ClaimModal } from "@/components/companies/ClaimModal";
-import { WatchlistButton } from "@/components/companies/WatchlistButton";
-import { SuggestCorrectionModal } from "@/components/companies/SuggestCorrectionModal";
-import { SharePrintBar } from "@/components/companies/SharePrintBar";
-import { ReviewsSection } from "@/components/companies/ReviewsSection";
-import { CompareToggle } from "@/components/companies/CompareToggle";
-import { BadgesDisplay, parseBadges } from "@/components/companies/BadgesDisplay";
-import { InsightsWidget } from "@/components/companies/InsightsWidget";
-import type { Company } from "@shared/schema";
 
 // ── Country code → display name ───────────────────────────────────────────────
 const COUNTRY_NAMES: Record<string, string> = {
@@ -89,9 +78,7 @@ function CompanyFaqSection({ company }: { company: Company }) {
               {isIndia
                 ? <p><span className="text-slate-400 w-32 inline-block">CIN</span> {company.cin || "N/A"}</p>
                 : <p><span className="text-slate-400 w-32 inline-block">Reg. Number</span> {company.registrationNumber || "N/A"}</p>}
-              <p><span className="text-slate-400 w-32 inline-block">Incorporated</span> {company.incorporationDate
-                ? new Date(company.incorporationDate).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })
-                : "N/A"}</p>
+              <p><span className="text-slate-400 w-32 inline-block">Incorporated</span> {safeLocaleDateString(company.incorporationDate, { year: "numeric", month: "long", day: "numeric" }) ?? "N/A"}</p>
               {isIndia && <p><span className="text-slate-400 w-32 inline-block">ROC</span> {company.roc || "N/A"}</p>}
             </AccordionContent>
           </AccordionItem>
@@ -119,12 +106,8 @@ function CompanyFaqSection({ company }: { company: Company }) {
             <AccordionItem value="compliance" className="border-slate-100 last:border-0">
               <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">What is the compliance status of {company.name}?</AccordionTrigger>
               <AccordionContent className="text-slate-600 space-y-1.5 text-sm pb-4">
-                <p><span className="text-slate-400 w-40 inline-block">Last AGM Date</span> {company.lastAgmDate
-                  ? new Date(company.lastAgmDate).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })
-                  : "N/A"}</p>
-                <p><span className="text-slate-400 w-40 inline-block">Last Balance Sheet</span> {company.lastBalanceSheetDate
-                  ? new Date(company.lastBalanceSheetDate).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })
-                  : "N/A"}</p>
+                <p><span className="text-slate-400 w-40 inline-block">Last AGM Date</span> {safeLocaleDateString(company.lastAgmDate, { year: "numeric", month: "long", day: "numeric" }) ?? "N/A"}</p>
+                <p><span className="text-slate-400 w-40 inline-block">Last Balance Sheet</span> {safeLocaleDateString(company.lastBalanceSheetDate, { year: "numeric", month: "long", day: "numeric" }) ?? "N/A"}</p>
               </AccordionContent>
             </AccordionItem>
           )}
@@ -236,8 +219,8 @@ export default function CompanyDetails() {
     company.city ? ` based in ${company.city}` : "",
     company.state ? `, ${company.state}` : "",
     ". ",
-    company.incorporationDate
-      ? `Incorporated ${new Date(company.incorporationDate).getFullYear()}. `
+    company.incorporationDate && safeYear(company.incorporationDate)
+      ? `Incorporated ${safeYear(company.incorporationDate)}. `
       : "",
     regId ? `${regLabel}: ${regId}.` : "",
   ].join("").trim();
@@ -475,11 +458,11 @@ export default function CompanyDetails() {
                   <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Key Facts</h2>
                 </div>
                 <div className="px-5 py-4 space-y-3">
-                  {company.incorporationDate && (
+                  {company.incorporationDate && safeFormatDate(company.incorporationDate, "MMMM d, yyyy") && (
                     <div>
                       <p className="text-xs text-slate-400">Incorporated</p>
                       <p className="text-sm font-medium text-slate-800 mt-0.5">
-                        {format(new Date(company.incorporationDate), "MMMM d, yyyy")}
+                        {safeFormatDate(company.incorporationDate, "MMMM d, yyyy")}
                       </p>
                     </div>
                   )}
@@ -613,7 +596,7 @@ function GlobalOverviewSection({ company }: { company: Company }) {
       <SectionCard title="Registration" icon={<FileText className="h-4 w-4" />}>
         <DataRow
           label="Date of Incorporation"
-          value={company.incorporationDate ? format(new Date(company.incorporationDate), "MMMM d, yyyy") : undefined}
+          value={safeFormatDate(company.incorporationDate, "MMMM d, yyyy")}
           icon={<Calendar className="h-3.5 w-3.5" />}
         />
         <DataRow label="Source" value={company.source} icon={<Database className="h-3.5 w-3.5" />} />
@@ -649,7 +632,7 @@ function IndiaOverviewSection({ company }: { company: Company }) {
       <SectionCard title="Registration" icon={<FileText className="h-4 w-4" />}>
         <DataRow
           label="Date of Incorporation"
-          value={company.incorporationDate ? format(new Date(company.incorporationDate), "MMMM d, yyyy") : undefined}
+          value={safeFormatDate(company.incorporationDate, "MMMM d, yyyy")}
           icon={<Calendar className="h-3.5 w-3.5" />}
         />
         <DataRow label="Source" value={company.source} icon={<Database className="h-3.5 w-3.5" />} />
@@ -683,12 +666,12 @@ function IndiaOverviewSection({ company }: { company: Company }) {
         <SectionCard title="Compliance Dates" icon={<Clock className="h-4 w-4" />}>
           <DataRow
             label="Last AGM Date"
-            value={company.lastAgmDate ? format(new Date(company.lastAgmDate), "MMMM d, yyyy") : undefined}
+            value={safeFormatDate(company.lastAgmDate, "MMMM d, yyyy")}
             icon={<Calendar className="h-3.5 w-3.5" />}
           />
           <DataRow
             label="Last Balance Sheet"
-            value={company.lastBalanceSheetDate ? format(new Date(company.lastBalanceSheetDate), "MMMM d, yyyy") : undefined}
+            value={safeFormatDate(company.lastBalanceSheetDate, "MMMM d, yyyy")}
             icon={<Calendar className="h-3.5 w-3.5" />}
           />
         </SectionCard>
@@ -724,4 +707,34 @@ function Breadcrumb({ company, countryName }: { company: Company; countryName: s
       ))}
     </nav>
   );
+}
+
+/** Returns formatted date string or undefined (never throws). DataRow hides undefined. */
+function safeFormatDate(value: string | null | undefined, fmt: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) { console.warn("[CompanyDetails] Invalid date:", value); return undefined; }
+    return format(d, fmt);
+  } catch { console.warn("[CompanyDetails] Date format error:", value); return undefined; }
+}
+
+/** Returns locale date string or null (never throws). */
+function safeLocaleDateString(value: string | null | undefined, options: Intl.DateTimeFormatOptions): string | null {
+  if (!value) return null;
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) { console.warn("[CompanyDetails] Invalid date:", value); return null; }
+    return d.toLocaleDateString("en-IN", options);
+  } catch { console.warn("[CompanyDetails] Date locale error:", value); return null; }
+}
+
+/** Returns full year number or null (never throws). */
+function safeYear(value: string | null | undefined): number | null {
+  if (!value) return null;
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return null;
+    return d.getFullYear();
+  } catch { return null; }
 }
