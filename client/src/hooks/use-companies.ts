@@ -64,6 +64,25 @@ export function useCompanyBySlug(countryCode: string, slug: string) {
   });
 }
 
+export function useSuggestions(q: string, countryCode?: string) {
+  return useQuery({
+    queryKey: ["/api/companies/suggest", q, countryCode],
+    queryFn: async () => {
+      if (q.length < 2) return [];
+      const p = new URLSearchParams({ q });
+      if (countryCode) p.set("countryCode", countryCode);
+      const res = await fetch(`/api/companies/suggest?${p}`);
+      if (!res.ok) return [];
+      return res.json() as Promise<Array<{
+        id: number; name: string; cin: string | null; slug: string | null;
+        countryCode: string | null; state: string | null; city: string | null; status: string | null;
+      }>>;
+    },
+    enabled: q.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
 export function useRelatedCompanies(companyId: number) {
   return useQuery({
     queryKey: ["related-companies", companyId],

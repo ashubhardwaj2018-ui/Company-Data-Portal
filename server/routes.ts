@@ -43,9 +43,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get(api.companies.list.path, async (req, res) => {
     try {
       const input = api.companies.list.input.parse(req.query);
-      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search, input.alphabet, input.country, input.countryCode, input.state);
+      const { data, total } = await storage.getCompanies(
+        input.page, input.limit, input.search, input.alphabet,
+        input.country, input.countryCode, input.state, input.status, input.city,
+      );
       res.json({ data, total, page: input.page, limit: input.limit });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  // ── Autocomplete suggestions (must be before /:id) ────────────────────────
+  app.get("/api/companies/suggest", async (req, res) => {
+    try {
+      const q = String(req.query.q || "").trim();
+      const countryCode = req.query.countryCode ? String(req.query.countryCode) : undefined;
+      if (q.length < 2) return res.json([]);
+      const results = await storage.searchSuggestions(q, countryCode, 8);
+      res.json(results);
+    } catch (e) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
   });
 
   app.get(api.companies.get.path, async (req, res) => {

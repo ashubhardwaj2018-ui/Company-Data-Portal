@@ -62,6 +62,8 @@ export const companyQuerySchema = z.object({
   country: z.string().optional(),         // legacy free-text filter (backward compat)
   countryCode: z.string().length(2).optional(), // ISO code filter (new)
   state: z.string().optional(),
+  status: z.string().optional(),          // e.g. "Active", "Strike-off"
+  city: z.string().optional(),            // city ILIKE filter
   page: z.coerce.number().default(1),
   limit: z.coerce.number().default(20),
 });

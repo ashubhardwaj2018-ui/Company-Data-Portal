@@ -14,7 +14,8 @@ import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Companies
-  getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string): Promise<{ data: Company[]; total: number }>;
+  getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string, status?: string, city?: string): Promise<{ data: Company[]; total: number }>;
+  searchSuggestions(q: string, countryCode?: string, limit?: number): Promise<{ id: number; name: string; cin: string | null; slug: string | null; countryCode: string | null; state: string | null; city: string | null; status: string | null }[]>;
   getCompany(id: number): Promise<Company | undefined>;
   getCompanyBySlug(countryCode: string, slug: string): Promise<Company | undefined>;
   getRelatedCompanies(excludeId: number, countryCode: string, state?: string | null, roc?: string | null, limit?: number): Promise<Company[]>;
@@ -73,7 +74,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   // ── Companies ──────────────────────────────────────────────────────────────
-  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string) {
+  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string, status?: string, city?: string) {
     const offset = (page - 1) * limit;
     const conditions: any[] = [];
 
@@ -82,18 +83,40 @@ export class DatabaseStorage implements IStorage {
       if (/^[0-9]$/.test(alphabet)) conditions.push(sql`${companies.name} ~ '^[0-9]'`);
       else conditions.push(ilike(companies.name, `${alphabet}%`));
     }
-    // country_code filter (new, preferred) — exact ISO match
     if (countryCode) conditions.push(eq(companies.countryCode, countryCode.toUpperCase()));
-    // legacy free-text country filter (backward compat)
     else if (country) conditions.push(ilike(companies.country, country));
-    // state filter (new)
     if (state) conditions.push(ilike(companies.state, state));
+    if (status) conditions.push(ilike(companies.status, status));
+    if (city) conditions.push(ilike(companies.city, city));
 
     const whereClause = conditions.length > 0 ? sql`${sql.join(conditions, sql` AND `)}` : undefined;
 
     const [{ count: total }] = await db.select({ count: count() }).from(companies).where(whereClause);
     const data = await db.select().from(companies).where(whereClause).limit(limit).offset(offset).orderBy(desc(companies.id));
     return { data, total };
+  }
+
+  async searchSuggestions(q: string, countryCode?: string, limit = 8) {
+    const conditions: any[] = [
+      sql`(${companies.name} ILIKE ${`%${q}%`} OR ${companies.cin} ILIKE ${`%${q}%`})`,
+    ];
+    if (countryCode) conditions.push(eq(companies.countryCode, countryCode.toUpperCase()));
+    const whereClause = conditions.length > 1 ? sql`${sql.join(conditions, sql` AND `)}` : conditions[0];
+    return db
+      .select({
+        id: companies.id,
+        name: companies.name,
+        cin: companies.cin,
+        slug: companies.slug,
+        countryCode: companies.countryCode,
+        state: companies.state,
+        city: companies.city,
+        status: companies.status,
+      })
+      .from(companies)
+      .where(whereClause)
+      .orderBy(desc(companies.id))
+      .limit(limit);
   }
 
   async getCompany(id: number) {

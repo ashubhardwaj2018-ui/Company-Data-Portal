@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { type Company } from "@shared/schema";
@@ -6,12 +6,12 @@ import { Link } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
 import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
 import { CompanyCard } from "@/components/companies/CompanyCard";
+import { SearchAutocomplete } from "@/components/companies/SearchAutocomplete";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Search, Loader2, ChevronLeft, ChevronRight, Building,
-  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, ExternalLink
+  Loader2, ChevronLeft, ChevronRight, Building,
+  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, ExternalLink, X
 } from "lucide-react";
 import type { Service } from "@shared/schema";
 import { motion } from "framer-motion";
@@ -109,23 +109,40 @@ const STATS = [
   { value: "Free", label: "Basic Access", color: "text-purple-600" },
 ];
 
+function readUrlParam(key: string) {
+  if (typeof window === "undefined") return undefined;
+  return new URLSearchParams(window.location.search).get(key) ?? undefined;
+}
+
 export default function Home() {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => readUrlParam("q") || "");
   const [page, setPage] = useState(1);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [alphabet, setAlphabet] = useState<string | undefined>();
-  const [selectedCountry, setSelectedCountry] = useState<string | undefined>();
+  const [debouncedSearch, setDebouncedSearch] = useState(() => readUrlParam("q") || "");
+  const [alphabet, setAlphabet] = useState<string | undefined>(() => readUrlParam("alphabet"));
+  const [selectedCountry, setSelectedCountry] = useState<string | undefined>(() => readUrlParam("countryCode"));
+  const [statusFilter, setStatusFilter] = useState<string>(() => readUrlParam("status") || "");
 
   const alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const numbers = "0123456789".split("");
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
+  // Sync active filters to URL so searches are shareable
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (debouncedSearch) p.set("q", debouncedSearch);
+    if (selectedCountry) p.set("countryCode", selectedCountry);
+    if (statusFilter) p.set("status", statusFilter);
+    if (alphabet) p.set("alphabet", alphabet);
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `/?${qs}` : "/");
+  }, [debouncedSearch, selectedCountry, statusFilter, alphabet]);
+
+  const handleSearch = (v: string) => {
+    setSearch(v);
     const timeoutId = setTimeout(() => {
-      setDebouncedSearch(e.target.value);
+      setDebouncedSearch(v);
       setAlphabet(undefined);
       setPage(1);
-    }, 500);
+    }, 400);
     return () => clearTimeout(timeoutId);
   };
 
@@ -156,7 +173,8 @@ export default function Home() {
   const params: Record<string, any> = { page, limit: 12 };
   if (debouncedSearch) params.search = debouncedSearch;
   if (alphabet) params.alphabet = alphabet;
-  if (selectedCountry) params.countryCode = selectedCountry; // use authoritative ISO code field
+  if (selectedCountry) params.countryCode = selectedCountry;
+  if (statusFilter) params.status = statusFilter;
 
   const queryString = new URLSearchParams(params).toString();
 
@@ -235,7 +253,7 @@ export default function Home() {
             </p>
           </motion.div>
 
-          {/* Search Bar */}
+          {/* Search Bar — autocomplete with suggestions dropdown */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -243,18 +261,47 @@ export default function Home() {
             className="max-w-2xl mx-auto relative"
           >
             <div className="absolute inset-0 bg-white/10 rounded-2xl blur-xl" />
-            <div className="relative flex items-center bg-white rounded-2xl shadow-2xl overflow-hidden p-2">
-              <Search className="h-6 w-6 text-slate-400 ml-3 shrink-0" />
-              <Input
-                className="border-0 shadow-none focus-visible:ring-0 text-lg py-6 bg-transparent text-slate-900 placeholder:text-slate-400"
-                placeholder="Search by company name, CIN, email..."
+            <div className="relative">
+              <SearchAutocomplete
                 value={search}
-                onChange={handleSearch}
+                onChange={v => { setSearch(v); }}
+                onSearch={v => {
+                  setDebouncedSearch(v);
+                  setSearch(v);
+                  setAlphabet(undefined);
+                  setPage(1);
+                }}
+                countryCode={selectedCountry}
               />
-              <Button size="lg" className="rounded-xl px-8 bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 border-0 hidden sm:flex text-white">
-                Search
-              </Button>
             </div>
+          </motion.div>
+
+          {/* Status quick-filters */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex items-center justify-center gap-2 flex-wrap"
+          >
+            <span className="text-blue-300 text-xs font-medium">Filter by status:</span>
+            {[
+              { label: "All", value: "" },
+              { label: "🟢 Active", value: "Active" },
+              { label: "🔴 Strike-off", value: "Strike-off" },
+              { label: "⚫ Dissolved", value: "Dissolved" },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => { setStatusFilter(opt.value); setPage(1); }}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${
+                  statusFilter === opt.value
+                    ? "bg-white text-slate-900 border-white"
+                    : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </motion.div>
 
           {/* COUNTRY BUTTONS */}
@@ -431,28 +478,37 @@ export default function Home() {
 
       {/* RESULTS SECTION */}
       <main className="flex-1 py-12 container-width">
-        {/* Active filter label */}
-        {(selectedCountry || debouncedSearch || alphabet) && (
-          <div className="flex items-center gap-3 mb-6">
-            <span className="text-sm text-muted-foreground">Showing results for:</span>
+        {/* Active filter chips */}
+        {(selectedCountry || debouncedSearch || alphabet || statusFilter) && (
+          <div className="flex items-center gap-2 mb-6 flex-wrap">
+            <span className="text-sm text-muted-foreground">Filters:</span>
             {selectedCountry && (
-              <Badge className={`gap-1 text-sm px-3 py-1 ${activeCountry?.activeBg} text-white border-0`}>
-                {activeCountry?.flag} {activeCountry?.name}
+              <Badge className={`gap-1.5 text-sm px-3 py-1 ${activeCountry?.activeBg} text-white border-0 cursor-pointer`}
+                onClick={() => setSelectedCountry(undefined)}>
+                {activeCountry?.flag} {activeCountry?.name} <X className="h-3 w-3" />
               </Badge>
             )}
             {debouncedSearch && (
-              <Badge variant="secondary" className="text-sm px-3 py-1">
-                "{debouncedSearch}"
+              <Badge variant="secondary" className="gap-1.5 text-sm px-3 py-1 cursor-pointer"
+                onClick={() => { setSearch(""); setDebouncedSearch(""); setPage(1); }}>
+                &ldquo;{debouncedSearch}&rdquo; <X className="h-3 w-3" />
               </Badge>
             )}
             {alphabet && (
-              <Badge variant="secondary" className="text-sm px-3 py-1">
-                Starts with "{alphabet}"
+              <Badge variant="secondary" className="gap-1.5 text-sm px-3 py-1 cursor-pointer"
+                onClick={() => { setAlphabet(undefined); setPage(1); }}>
+                Starts with &ldquo;{alphabet}&rdquo; <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {statusFilter && (
+              <Badge variant="secondary" className="gap-1.5 text-sm px-3 py-1 cursor-pointer"
+                onClick={() => { setStatusFilter(""); setPage(1); }}>
+                {statusFilter} <X className="h-3 w-3" />
               </Badge>
             )}
             <button
-              onClick={() => { setAlphabet(undefined); setSelectedCountry(undefined); setSearch(""); setDebouncedSearch(""); setPage(1); }}
-              className="text-xs text-muted-foreground hover:text-destructive underline ml-2"
+              onClick={() => { setAlphabet(undefined); setSelectedCountry(undefined); setSearch(""); setDebouncedSearch(""); setStatusFilter(""); setPage(1); }}
+              className="text-xs text-muted-foreground hover:text-destructive transition-colors ml-1"
             >
               Clear all
             </button>
