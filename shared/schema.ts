@@ -6,6 +6,15 @@ export * from "./models/auth";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
+  // ── Global foundation fields (Phase 1) ───────────────────────────────────
+  countryCode: varchar("country_code", { length: 2 }).default("IN"),   // ISO 3166-1 alpha-2
+  registrationNumber: text("registration_number"),                       // Normalized global reg ID
+  slug: text("slug"),                                                    // SEO slug (unique enforced via index)
+  normalizedName: text("normalized_name"),                               // Lowercase/normalized for search
+  industry: text("industry"),                                            // Industry/sector
+  district: text("district"),                                            // Geographic district
+  source: text("source"),                                                // Data provenance: MCA, ASIC, etc.
+  // ── India-specific fields (preserved) ────────────────────────────────────
   cin: varchar("cin", { length: 21 }).unique(),
   name: text("name").notNull(),
   status: text("status"),
@@ -25,7 +34,7 @@ export const companies = pgTable("companies", {
   lastAgmDate: date("last_agm_date"),
   lastBalanceSheetDate: date("last_balance_sheet_date"),
   customQna: text("custom_qna"),
-  country: text("country").default("India"),
+  country: text("country").default("India"),                             // Kept for backward compat
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -50,7 +59,9 @@ export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 export const companyQuerySchema = z.object({
   search: z.string().optional(),
   alphabet: z.string().length(1).optional(),
-  country: z.string().optional(),
+  country: z.string().optional(),         // legacy free-text filter (backward compat)
+  countryCode: z.string().length(2).optional(), // ISO code filter (new)
+  state: z.string().optional(),
   page: z.coerce.number().default(1),
   limit: z.coerce.number().default(20),
 });

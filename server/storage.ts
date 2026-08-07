@@ -12,7 +12,7 @@ import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Companies
-  getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string): Promise<{ data: Company[]; total: number }>;
+  getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string): Promise<{ data: Company[]; total: number }>;
   getCompany(id: number): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
@@ -54,7 +54,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   // ── Companies ──────────────────────────────────────────────────────────────
-  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string) {
+  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string) {
     const offset = (page - 1) * limit;
     const conditions: any[] = [];
 
@@ -63,7 +63,12 @@ export class DatabaseStorage implements IStorage {
       if (/^[0-9]$/.test(alphabet)) conditions.push(sql`${companies.name} ~ '^[0-9]'`);
       else conditions.push(ilike(companies.name, `${alphabet}%`));
     }
-    if (country) conditions.push(ilike(companies.country, country));
+    // country_code filter (new, preferred) — exact ISO match
+    if (countryCode) conditions.push(eq(companies.countryCode, countryCode.toUpperCase()));
+    // legacy free-text country filter (backward compat)
+    else if (country) conditions.push(ilike(companies.country, country));
+    // state filter (new)
+    if (state) conditions.push(ilike(companies.state, state));
 
     const whereClause = conditions.length > 0 ? sql`${sql.join(conditions, sql` AND `)}` : undefined;
 

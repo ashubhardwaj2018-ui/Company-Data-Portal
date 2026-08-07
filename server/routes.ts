@@ -31,8 +31,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerAuthRoutes(app);
 
   // ── Middleware ─────────────────────────────────────────────────────────────
-  const requireAdmin = (req: any, res: any, next: any) => {
+  // requireAdmin: user must be (1) authenticated AND (2) in the admins table.
+  const requireAdmin = async (req: any, res: any, next: any) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    const email: string | undefined = req.user?.claims?.email;
+    if (!email) return res.status(401).json({ message: "Unauthorized" });
+    const adminOk = await storage.isAdmin(email);
+    if (!adminOk) return res.status(403).json({ message: "Forbidden" });
     next();
   };
 
@@ -40,7 +45,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get(api.companies.list.path, async (req, res) => {
     try {
       const input = api.companies.list.input.parse(req.query);
-      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search, input.alphabet, input.country);
+      const { data, total } = await storage.getCompanies(input.page, input.limit, input.search, input.alphabet, input.country, input.countryCode, input.state);
       res.json({ data, total, page: input.page, limit: input.limit });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
   });
@@ -249,8 +254,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Admin Management ───────────────────────────────────────────────────────
-  app.get(api.admin.check.path, (req, res) => {
-    res.json({ isAdmin: req.isAuthenticated() });
+  app.get(api.admin.check.path, async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    const email: string | undefined = (req.user as any)?.claims?.email;
+    if (!email) return res.status(401).json({ message: "Unauthorized" });
+    const isAdmin = await storage.isAdmin(email);
+    res.json({ isAdmin });
   });
 
   app.post("/api/admin/add-admin", requireAdmin, async (req, res) => {

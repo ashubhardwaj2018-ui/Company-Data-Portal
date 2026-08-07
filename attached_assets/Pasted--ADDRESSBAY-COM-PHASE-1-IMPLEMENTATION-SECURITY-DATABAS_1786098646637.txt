@@ -1,0 +1,785 @@
+# ADDRESSBAY.COM — PHASE 1 IMPLEMENTATION
+
+## SECURITY + DATABASE FOUNDATION ONLY
+
+We have completed the architecture audit of the existing India Companies Directory application.
+
+The audit confirmed the following critical issues:
+
+1. `requireAdmin` currently checks only whether the user is authenticated.
+2. Any authenticated Replit/OIDC user can currently access `/api/admin/*`.
+3. The current `companies` table is India-specific.
+4. There is no proper `country_code`.
+5. There is no global registration-number architecture.
+6. Company search uses unindexed `ILIKE '%query%'`.
+7. The application needs to eventually support millions of companies across India, Australia, UK and Singapore.
+8. The existing large-file importer needs a separate later phase.
+9. Existing India data must be preserved.
+
+## IMPORTANT
+
+This is PHASE 1 ONLY.
+
+DO NOT implement the entire AddressBay transformation now.
+
+DO NOT implement:
+
+* XML streaming importer
+* background import workers
+* partner system
+* Legal Filing India integration
+* sitemap redesign
+* SEO page engine
+* PIN-code pages
+* country pages
+* UI redesign
+* Google Ads
+* analytics
+* Australia/UK/Singapore importers
+
+Those are later phases.
+
+The objective of this phase is to establish a SAFE, BACKWARD-COMPATIBLE database and security foundation.
+
+---
+
+# STEP 1 — BACK UP / INSPECT FIRST
+
+Before changing anything:
+
+Inspect:
+
+* `shared/schema.ts`
+* Drizzle migrations
+* `server/storage.ts`
+* `server/routes.ts`
+* `server/db.ts`
+* authentication/session implementation
+* current `admins` table
+* current `companies` table
+
+Do not assume the architecture report is more authoritative than the actual source code.
+
+Verify the current database structure against the audit.
+
+Before migration, ensure existing India company records will remain intact.
+
+DO NOT delete production data.
+
+DO NOT truncate tables.
+
+DO NOT drop the existing `companies` table.
+
+---
+
+# STEP 2 — FIX ADMIN AUTHORIZATION FIRST
+
+This is a live security issue.
+
+Current behavior:
+
+`requireAdmin` checks only:
+
+`req.isAuthenticated()`
+
+This is NOT sufficient.
+
+Change the server-side middleware so that:
+
+1. User must be authenticated.
+2. User email must exist in the `admins` table.
+3. Only then may the request access `/api/admin/*`.
+
+The authorization decision must happen on the server.
+
+Never rely on:
+
+* frontend buttons
+* hidden routes
+* React state
+* `isAdmin` UI flags
+
+as the security mechanism.
+
+Use the existing `storage.isAdmin()` or an equivalent database lookup.
+
+---
+
+# STEP 3 — FIX `/api/admin/check`
+
+The endpoint must return:
+
+For authenticated administrator:
+
+```json
+{
+  "isAdmin": true
+}
+```
+
+For authenticated non-admin:
+
+```json
+{
+  "isAdmin": false
+}
+```
+
+For unauthenticated users:
+
+Return an appropriate `401`.
+
+Do NOT expose unnecessary database information.
+
+---
+
+# STEP 4 — TEST EVERY ADMIN ENDPOINT
+
+After fixing middleware, verify that ALL admin APIs are protected.
+
+At minimum test:
+
+* company create
+* company update
+* company delete
+* company upload
+* post create/update/delete
+* article create/update/delete
+* FAQ create/delete
+* services create/delete
+* settings
+* add-admin
+* AI generation
+* any other `/api/admin/*` endpoint discovered during source inspection
+
+An authenticated but non-admin user must receive `403` or the appropriate authorization response.
+
+Do not rely only on frontend testing.
+
+---
+
+# STEP 5 — GLOBAL COMPANY FOUNDATION
+
+We need to transform the existing India-only company model into a global model without destroying current data.
+
+Add a proper:
+
+`country_code`
+
+field.
+
+Use ISO-style 2-character codes.
+
+Initial supported values:
+
+* `IN`
+* `AU`
+* `GB`
+* `SG`
+
+Default existing records to:
+
+`IN`
+
+Do NOT use free-text country matching as the primary architecture.
+
+The existing `country` field may need to remain temporarily for backward compatibility.
+
+Do NOT immediately remove it.
+
+---
+
+# STEP 6 — GLOBAL REGISTRATION IDENTIFIER
+
+The current `cin` field is India-specific.
+
+Add:
+
+`registration_number`
+
+This will become the normalized global company registration identifier.
+
+Examples:
+
+India:
+CIN
+
+Australia:
+ACN or appropriate primary registration identifier
+
+United Kingdom:
+Companies House company number
+
+Singapore:
+UEN
+
+Do NOT assume every country's identifier is identical.
+
+For this phase:
+
+* preserve existing `cin`
+* preserve all existing India records
+* populate `registration_number` from existing CIN where appropriate
+* do not delete CIN yet
+
+Do not create country-specific detail tables unless the migration design requires them.
+
+We will handle country-specific schemas in a later phase after reviewing actual datasets.
+
+---
+
+# STEP 7 — ADD COMPANY SLUG FOUNDATION
+
+Add:
+
+`slug`
+
+It must support SEO-friendly future URLs.
+
+Examples:
+
+India:
+
+`reliance-industries-limited`
+
+Australia:
+
+`example-company`
+
+UK:
+
+`example-company-limited`
+
+Singapore:
+
+`example-company-pte-ltd`
+
+However, do NOT change public routes yet.
+
+Existing:
+
+`/company/:id`
+
+must continue working.
+
+The slug is only being added as database infrastructure in this phase.
+
+Do not yet switch routing.
+
+---
+
+# STEP 8 — ADD NORMALIZED SEARCH NAME
+
+Add:
+
+`normalized_name`
+
+This should contain a normalized representation of the company name suitable for efficient searching.
+
+Normalization should be deterministic.
+
+Consider:
+
+* lowercase
+* whitespace normalization
+* punctuation normalization
+* Unicode normalization where appropriate
+
+Do not destroy the original company name.
+
+`name` remains the display value.
+
+---
+
+# STEP 9 — ADD FUTURE DATA FOUNDATION
+
+Add the fields that are clearly justified by the audit:
+
+* `country_code`
+* `registration_number`
+* `slug`
+* `normalized_name`
+* `industry`
+* `district`
+* `source`
+
+Use appropriate data types.
+
+Do not add hundreds of speculative nullable fields.
+
+Do not add Australia/UK/Singapore-specific fields to the main table yet.
+
+The principle is:
+
+## Global common fields stay in `companies`.
+
+## Country-specific fields will be designed separately later.
+
+---
+
+# STEP 10 — SOURCE / PROVENANCE
+
+Add:
+
+`source`
+
+This will eventually identify where the company record came from.
+
+Examples:
+
+* MCA
+* ASIC
+* Companies House
+* ACRA
+* IMPORT
+* MANUAL
+
+Do not hard-code assumptions about future data sources.
+
+---
+
+# STEP 11 — SAFE INDEXING
+
+Review the current indexes before adding anything.
+
+The future company database may contain millions of rows.
+
+Create only indexes that are justified by actual queries.
+
+At minimum evaluate indexes for:
+
+* `country_code`
+* `registration_number`
+* `slug`
+* `state`
+* `city`
+* `district`
+* `status`
+* `source`
+
+For name search, evaluate PostgreSQL `pg_trgm`.
+
+Do not blindly create indexes on every column.
+
+Remember:
+
+More indexes improve reads but increase storage and write/import cost.
+
+The final index strategy must consider the future bulk-import workload.
+
+---
+
+# STEP 12 — SEARCH FOUNDATION
+
+Do not completely redesign search in this phase.
+
+However:
+
+Review the current query:
+
+`ILIKE '%query%'`
+
+and prepare the database for scalable search.
+
+If implementing `pg_trgm` now is safe, enable the PostgreSQL extension and create the appropriate trigram index.
+
+If the current production database environment does not safely support the extension, stop and report the exact issue rather than creating a broken migration.
+
+Do not replace search logic unnecessarily in this phase.
+
+---
+
+# STEP 13 — UNIQUE CONSTRAINT STRATEGY
+
+This is extremely important.
+
+Do NOT simply delete the existing CIN unique constraint.
+
+Existing India data must remain safe.
+
+Design a future uniqueness model around:
+
+`country_code + registration_number`
+
+but first inspect:
+
+* existing duplicate CIN values
+* NULL values
+* malformed records
+* current constraints
+* existing data volume
+
+If a migration requires data cleanup, STOP and report the problem instead of automatically deleting or altering records.
+
+The migration must be backward-compatible.
+
+---
+
+# STEP 14 — DO NOT CREATE COUNTRY-SPECIFIC TABLES YET
+
+Do NOT implement:
+
+`india_company_details`
+
+yet unless inspection proves it is necessary for this phase.
+
+The reason:
+
+We will eventually have four countries, and we should first inspect the actual datasets for:
+
+India
+Australia
+UK
+Singapore
+
+before finalizing country-specific schemas.
+
+We do not want to create a poor abstraction now and migrate millions of records later.
+
+---
+
+# STEP 15 — DO NOT CREATE PARTNER TABLES YET
+
+Do not create:
+
+`external_partners`
+
+or
+
+`partner_clicks`
+
+in this phase.
+
+That will be a dedicated later phase.
+
+Existing `services` must continue working exactly as before.
+
+Do not delete or replace the `services` table.
+
+---
+
+# STEP 16 — DO NOT CHANGE PUBLIC URLS YET
+
+Keep:
+
+`/company/:id`
+
+working.
+
+Do not yet implement:
+
+`/in/company/:slug`
+
+`/au/company/:slug`
+
+`/uk/company/:slug`
+
+`/sg/company/:slug`
+
+Those belong to the routing phase.
+
+---
+
+# STEP 17 — DATABASE MIGRATION SAFETY
+
+Migration requirements:
+
+* additive wherever possible
+* preserve existing records
+* preserve existing functionality
+* no destructive table recreation
+* no production data deletion
+* no unnecessary column removal
+* safe defaults
+* appropriate indexes
+* appropriate constraints
+
+Before applying migrations:
+
+Show exactly what schema changes will occur.
+
+If there is any ambiguity about an existing constraint or data condition, stop and report it.
+
+---
+
+# STEP 18 — BACKFILL EXISTING INDIA DATA
+
+After the schema migration, safely populate:
+
+`country_code = 'IN'`
+
+for existing India companies.
+
+Populate:
+
+`registration_number = cin`
+
+where CIN exists.
+
+Generate deterministic slugs from company names.
+
+Handle duplicate company names safely.
+
+Two companies may have identical or very similar names.
+
+Slug generation must therefore guarantee uniqueness without destroying SEO readability.
+
+Do NOT modify the original company `name`.
+
+Populate `normalized_name`.
+
+Do not lose existing information.
+
+---
+
+# STEP 19 — BACKWARD COMPATIBILITY
+
+After migration:
+
+Existing functionality must continue working:
+
+* homepage
+* company search
+* company details
+* blog
+* articles
+* FAQ
+* services
+* admin
+* authentication
+* existing API endpoints
+* existing `/company/:id` URLs
+* existing sitemap
+* existing upload UI
+
+The application should not regress because of Phase 1.
+
+---
+
+# STEP 20 — TESTING REQUIREMENTS
+
+Before declaring Phase 1 complete, test:
+
+### Authentication
+
+1. logged-out user
+2. authenticated non-admin user
+3. authenticated admin user
+
+### Authorization
+
+Verify non-admin cannot access admin APIs.
+
+Verify admin can access admin APIs.
+
+### Existing company data
+
+Verify:
+
+* company count before migration
+* company count after migration
+* sample records before/after
+* CIN values preserved
+* company names preserved
+
+### Search
+
+Test:
+
+* company name
+* CIN
+* email
+* state
+* city
+* alphabet filter
+
+### Existing routes
+
+Test:
+
+`/`
+
+`/company/:id`
+
+`/blog`
+
+`/articles`
+
+`/faq`
+
+`/admin`
+
+`/import`
+
+### Database
+
+Verify:
+
+* migration successful
+* indexes exist
+* constraints are correct
+* no unexpected NULL/duplicate issues
+
+---
+
+# STEP 21 — PERFORMANCE CHECK
+
+After migration, run representative queries against the database.
+
+Report:
+
+* query execution time
+* index usage
+* sequential scans where relevant
+* row counts
+* index sizes where useful
+
+Do not claim "millions-ready" simply because indexes were added.
+
+Tell me what has actually been verified.
+
+---
+
+# STEP 22 — DO NOT TOUCH THESE IN THIS PHASE
+
+Do NOT modify:
+
+### Import system
+
+No XML streaming yet.
+
+No background jobs yet.
+
+No worker queue yet.
+
+No import_jobs implementation yet.
+
+### SEO
+
+No sitemap redesign.
+
+No SEO page engine.
+
+No new geographic pages.
+
+### Partners
+
+No external partner system.
+
+No Legal Filing India integration.
+
+No backlink placement system.
+
+### Countries
+
+No Australia importer.
+
+No UK importer.
+
+No Singapore importer.
+
+No country-specific profile UI.
+
+### UI
+
+No major redesign.
+
+No AddressBay branding redesign.
+
+### Revenue
+
+No Google Ads implementation.
+
+---
+
+# STEP 23 — REQUIRED FINAL REPORT
+
+After implementation, provide:
+
+## A. Files changed
+
+Exact file names.
+
+## B. Database changes
+
+Every added column.
+
+Every index.
+
+Every constraint.
+
+Every migration.
+
+## C. Security changes
+
+Explain exactly how admin authorization now works.
+
+## D. Data migration
+
+Report:
+
+* number of existing companies
+* number assigned `IN`
+* number with registration_number
+* number with generated slug
+* number with normalized_name
+* any failures
+
+## E. Search
+
+Explain indexes and query changes.
+
+## F. Backward compatibility
+
+Confirm which existing routes/API features were tested.
+
+## G. Tests performed
+
+Give actual results, not generic statements.
+
+## H. Problems encountered
+
+If anything could not safely be implemented, explain it.
+
+## I. Next recommended phase
+
+Do NOT automatically start Phase 2.
+
+After completing this phase:
+
+### STOP.
+
+Wait for my approval before making any further changes.
+
+---
+
+# CORE PRINCIPLE
+
+AddressBay will eventually become a global business-data platform supporting:
+
+India
+Australia
+United Kingdom
+Singapore
+
+with potentially millions or tens of millions of records.
+
+Therefore:
+
+DO NOT optimize only for today's dataset.
+
+But also:
+
+DO NOT prematurely build the entire future architecture.
+
+Build the foundation carefully, incrementally, safely and measurably.
+
+Preserve existing data and functionality at every stage.
+
+## START NOW
+
+First inspect the actual repository and database migration state.
+
+Then implement ONLY Phase 1 described above.
+
+Do not proceed beyond Phase 1 without approval.
