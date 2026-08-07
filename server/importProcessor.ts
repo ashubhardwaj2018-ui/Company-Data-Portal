@@ -10,9 +10,9 @@
  */
 
 import * as fs from "fs";
-// sax is a CJS module with no bundled types — require to avoid TS7016
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const sax: any = require("sax");
+// sax is a CJS module — import default to avoid require() in ESM scope
+import saxLib from "sax";
+const sax = saxLib as any;
 import * as xlsx from "xlsx";
 import { storage } from "./storage";
 import { insertCompanySchema, type InsertCompany } from "@shared/schema";
