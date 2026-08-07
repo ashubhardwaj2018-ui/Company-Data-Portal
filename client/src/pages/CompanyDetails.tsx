@@ -86,8 +86,8 @@ function CompanyFaqSection({ company }: { company: Company }) {
             <AccordionItem value="capital" className="border-slate-100">
               <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">What is the capital structure of {company.name}?</AccordionTrigger>
               <AccordionContent className="text-slate-600 space-y-1.5 text-sm pb-4">
-                <p><span className="text-slate-400 w-36 inline-block">Authorised Capital</span> {company.authorizedCapital ? `₹ ${company.authorizedCapital.toLocaleString("en-IN")}` : "N/A"}</p>
-                <p><span className="text-slate-400 w-36 inline-block">Paid-up Capital</span> {company.paidUpCapital ? `₹ ${company.paidUpCapital.toLocaleString("en-IN")}` : "N/A"}</p>
+                <p><span className="text-slate-400 w-36 inline-block">Authorised Capital</span> {safeNumber(company.authorizedCapital) !== undefined ? `₹ ${safeNumber(company.authorizedCapital)!.toLocaleString("en-IN")}` : "N/A"}</p>
+                <p><span className="text-slate-400 w-36 inline-block">Paid-up Capital</span> {safeNumber(company.paidUpCapital) !== undefined ? `₹ ${safeNumber(company.paidUpCapital)!.toLocaleString("en-IN")}` : "N/A"}</p>
               </AccordionContent>
             </AccordionItem>
           )}
@@ -466,11 +466,11 @@ export default function CompanyDetails() {
                       </p>
                     </div>
                   )}
-                  {company.countryCode === "IN" && company.authorizedCapital && (
+                  {company.countryCode === "IN" && safeNumber(company.authorizedCapital) !== undefined && (
                     <div>
                       <p className="text-xs text-slate-400">Authorized Capital</p>
                       <p className="text-sm font-medium text-slate-800 mt-0.5">
-                        ₹ {company.authorizedCapital.toLocaleString("en-IN")}
+                        ₹ {safeNumber(company.authorizedCapital)!.toLocaleString("en-IN")}
                       </p>
                     </div>
                   )}
@@ -614,7 +614,7 @@ function GlobalOverviewSection({ company }: { company: Company }) {
 }
 
 function IndiaOverviewSection({ company }: { company: Company }) {
-  const hasFinancial = company.authorizedCapital || company.paidUpCapital;
+  const hasFinancial = safeNumber(company.authorizedCapital) !== undefined || safeNumber(company.paidUpCapital) !== undefined;
   const hasCompliance = company.lastAgmDate || company.lastBalanceSheetDate;
 
   return (
@@ -651,12 +651,12 @@ function IndiaOverviewSection({ company }: { company: Company }) {
         <SectionCard title="Financial" icon={<TrendingUp className="h-4 w-4" />}>
           <DataRow
             label="Authorized Capital"
-            value={company.authorizedCapital ? `₹ ${company.authorizedCapital.toLocaleString("en-IN")}` : undefined}
+            value={safeNumber(company.authorizedCapital) !== undefined ? `₹ ${safeNumber(company.authorizedCapital)!.toLocaleString("en-IN")}` : undefined}
             icon={<IndianRupee className="h-3.5 w-3.5" />}
           />
           <DataRow
             label="Paid-up Capital"
-            value={company.paidUpCapital ? `₹ ${company.paidUpCapital.toLocaleString("en-IN")}` : undefined}
+            value={safeNumber(company.paidUpCapital) !== undefined ? `₹ ${safeNumber(company.paidUpCapital)!.toLocaleString("en-IN")}` : undefined}
             icon={<IndianRupee className="h-3.5 w-3.5" />}
           />
         </SectionCard>
@@ -737,4 +737,12 @@ function safeYear(value: string | null | undefined): number | null {
     if (isNaN(d.getTime())) return null;
     return d.getFullYear();
   } catch { return null; }
+}
+
+/** Returns a finite number or undefined — never throws on string/null/undefined input. */
+function safeNumber(value: string | number | null | undefined): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!isFinite(n)) { console.warn("[CompanyDetails] Non-numeric capital value:", value); return undefined; }
+  return n;
 }
