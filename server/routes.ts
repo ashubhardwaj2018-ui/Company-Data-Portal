@@ -33,7 +33,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // requireAdmin: user must be (1) authenticated AND (2) in the admins table.
   const requireAdmin = async (req: any, res: any, next: any) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
-    const email: string | undefined = req.user?.claims?.email;
+    const email: string | undefined = (req.user as any)?.claims?.email;
     if (!email) return res.status(401).json({ message: "Unauthorized" });
     const adminOk = await storage.isAdmin(email);
     if (!adminOk) return res.status(403).json({ message: "Forbidden" });
@@ -135,7 +135,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/:countryCode/company/:slug", async (req, res) => {
     try {
       const { countryCode, slug } = req.params;
-      const allowed = ["in", "au", "gb", "sg"];
+      const allowed = ["in", "au", "gb", "sg", "us"];
       if (!allowed.includes(countryCode.toLowerCase()))
         return res.status(400).json({ message: "Unsupported country code" });
       const company = await storage.getCompanyBySlug(countryCode, slug);
@@ -250,7 +250,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.get("/api/directory/stats/:countryCode", async (req, res) => {
     try {
-      const allowed = ["in", "au", "gb", "sg"];
+      const allowed = ["in", "au", "gb", "sg", "us"];
       const cc = req.params.countryCode.toLowerCase();
       if (!allowed.includes(cc))
         return res.status(400).json({ message: "Unsupported country code" });
@@ -454,13 +454,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Phase 17: User profile helpers ────────────────────────────────────────
   app.get("/api/my/claims", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     res.json(await storage.listUserClaims(email));
   });
 
   app.get("/api/my/suggestions", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     res.json(await storage.listUserSuggestions(email));
   });
 
@@ -480,7 +480,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const companyId = Number(req.params.id);
       const company = await storage.getCompany(companyId);
       if (!company) return res.status(404).json({ message: "Company not found" });
-      const email: string = req.user?.claims?.email || "";
+      const email: string = (req.user as any)?.claims?.email || "";
       const { rating, comment, userName } = req.body;
       if (!rating || rating < 1 || rating > 5) return res.status(400).json({ message: "rating must be 1–5" });
       const review = await storage.createReview({ companyId, userEmail: email, rating: Number(rating), comment, userName });
@@ -500,7 +500,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const id = Number(req.params.id);
       const { status } = req.body;
       if (!["approved", "rejected"].includes(status)) return res.status(400).json({ message: "status must be approved or rejected" });
-      const email: string = req.user?.claims?.email || "admin";
+      const email: string = (req.user as any)?.claims?.email || "admin";
       await storage.updateReviewStatus(id, status, email);
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
@@ -524,13 +524,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Phase 27: Saved Searches ───────────────────────────────────────────────
   app.get("/api/my/searches", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     res.json(await storage.getSavedSearches(email));
   });
 
   app.post("/api/my/searches", limits.write, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     const { name, filters } = req.body;
     if (!name || !filters) return res.status(400).json({ message: "name and filters required" });
     const s = await storage.createSavedSearch(email, String(name), JSON.stringify(filters));
@@ -539,7 +539,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.delete("/api/my/searches/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     await storage.deleteSavedSearch(Number(req.params.id), email);
     res.json({ ok: true });
   });
@@ -557,15 +557,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const company = await storage.getCompany(Number(req.params.id));
       if (!company) return res.status(404).send("<h3>Company not found</h3>");
-      const baseUrl = `https://${req.headers.host}`;
-      const url = company.slug && company.countryCode
-        ? `${baseUrl}/${company.countryCode.toLowerCase()}/company/${company.slug}`
-        : `${baseUrl}/company/${company.id}`;
+      // HTML-escape helper — prevents stored XSS from any company field
+      const esc = (s: string | null | undefined) =>
+        (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      // Build a safe absolute URL using the request's actual protocol + host
+      const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() || "https";
+      const host = (req.headers["x-forwarded-host"] as string | undefined) || req.headers.host || "addressbay.com";
+      // Sanitise host: allow only hostname[:port] — no slashes/redirects
+      const safeHost = host.replace(/[^a-zA-Z0-9.\-:]/g, "");
+      const baseUrl = `${proto}://${safeHost}`;
+      const profilePath = company.slug && company.countryCode
+        ? `/${esc(company.countryCode.toLowerCase())}/company/${esc(company.slug)}`
+        : `/company/${company.id}`;
+      const url = `${baseUrl}${profilePath}`;
       const statusColor = company.status?.toLowerCase().includes("active") ? "#16a34a" :
         company.status?.toLowerCase().includes("strike") ? "#dc2626" : "#64748b";
       const badges = (() => { try { return JSON.parse(company.badges || "[]") as string[]; } catch { return []; } })();
+      const location = [company.city, company.state].filter(Boolean).map(esc).join(", ");
+      const regId = esc(company.cin || company.registrationNumber || "");
       const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${company.name}</title>
+<title>${esc(company.name)}</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:0}
 .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;max-width:400px;margin:12px auto;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .cin{font-family:monospace;font-size:11px;color:#64748b;background:#f1f5f9;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:8px}
@@ -580,17 +592,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 .link:hover{background:#eff6ff}.powered{text-align:center;font-size:10px;color:#94a3b8;margin-top:8px}
 </style></head><body>
 <div class="card">
-  <div class="cin">${company.cin || company.registrationNumber || ""}</div>
-  <div class="name">${company.name}</div>
-  <div class="status" style="background:${statusColor}">${company.status || "Unknown"}</div>
-  ${badges.length ? `<div class="badges">${badges.map(b => `<span class="badge badge-${b}">${b}</span>`).join("")}</div>` : ""}
-  ${company.city || company.state ? `<div class="meta">📍 ${[company.city, company.state].filter(Boolean).join(", ")}</div>` : ""}
+  ${regId ? `<div class="cin">${regId}</div>` : ""}
+  <div class="name">${esc(company.name)}</div>
+  <div class="status" style="background:${statusColor}">${esc(company.status || "Unknown")}</div>
+  ${badges.length ? `<div class="badges">${badges.map((b: string) => `<span class="badge badge-${esc(b)}">${esc(b)}</span>`).join("")}</div>` : ""}
+  ${location ? `<div class="meta">📍 ${location}</div>` : ""}
   ${company.incorporationDate ? `<div class="meta">📅 Est. ${new Date(company.incorporationDate).getFullYear()}</div>` : ""}
-  ${company.authorizedCapital ? `<div class="meta">💰 ₹${(company.authorizedCapital/10000000).toFixed(1)}Cr authorized capital</div>` : ""}
-  <a href="${url}" target="_blank" rel="noopener" class="link">View Full Profile →</a>
+  ${company.authorizedCapital ? `<div class="meta">💰 ₹${(company.authorizedCapital / 10000000).toFixed(1)}Cr authorized capital</div>` : ""}
+  <a href="${url}" target="_blank" rel="noopener noreferrer" class="link">View Full Profile →</a>
   <div class="powered">Powered by AddressBay</div>
 </div></body></html>`;
-      res.setHeader("Content-Type", "text/html").setHeader("X-Frame-Options", "ALLOWALL").send(html);
+      res.setHeader("Content-Type", "text/html; charset=utf-8")
+         .setHeader("X-Frame-Options", "ALLOWALL")
+         .setHeader("X-Content-Type-Options", "nosniff")
+         .send(html);
     } catch (e) { res.status(500).send("Error"); }
   });
 
@@ -639,14 +654,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Phase 11: Watchlist ────────────────────────────────────────────────────
   app.get("/api/watchlist/check/:companyId", async (req, res) => {
     if (!req.isAuthenticated()) return res.json({ saved: false });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     const saved = await storage.isInWatchlist(email, Number(req.params.companyId));
     res.json({ saved });
   });
 
   app.get("/api/watchlist", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     const page = Number(req.query.page || 1);
     const limit = Number(req.query.limit || 12);
     const result = await storage.getUserWatchlist(email, page, limit);
@@ -655,7 +670,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/watchlist/:companyId", limits.write, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     const companyId = Number(req.params.companyId);
     const item = await storage.addToWatchlist(email, companyId);
     res.status(201).json(item);
@@ -663,7 +678,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.delete("/api/watchlist/:companyId", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
-    const email: string = req.user?.claims?.email || "";
+    const email: string = (req.user as any)?.claims?.email || "";
     await storage.removeFromWatchlist(email, Number(req.params.companyId));
     res.json({ ok: true });
   });
@@ -675,7 +690,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const companyId = Number(req.params.id);
       const company = await storage.getCompany(companyId);
       if (!company) return res.status(404).json({ message: "Company not found" });
-      const email: string = req.user?.claims?.email || "";
+      const email: string = (req.user as any)?.claims?.email || "";
       const { fieldName, currentValue, suggestedValue, reason } = req.body;
       if (!fieldName || !suggestedValue) return res.status(400).json({ message: "fieldName and suggestedValue are required" });
       const suggestion = await storage.createSuggestion({ companyId, userEmail: email, fieldName, currentValue, suggestedValue, reason });
@@ -696,7 +711,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { status } = req.body;
       if (!["applied", "dismissed"].includes(status))
         return res.status(400).json({ message: "status must be applied or dismissed" });
-      const email: string = req.user?.claims?.email || "admin";
+      const email: string = (req.user as any)?.claims?.email || "admin";
       await storage.updateSuggestionStatus(id, status, email);
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
@@ -710,7 +725,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const companyId = Number(req.params.id);
       const company = await storage.getCompany(companyId);
       if (!company) return res.status(404).json({ message: "Company not found" });
-      const email: string = req.user?.claims?.email || "";
+      const email: string = (req.user as any)?.claims?.email || "";
       const { userName, phone, message } = req.body;
       const claim = await storage.createClaim({ companyId, userEmail: email, userName, phone, message });
       res.status(201).json(claim);
@@ -733,7 +748,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { status } = req.body;
       if (!["approved", "rejected"].includes(status))
         return res.status(400).json({ message: "status must be approved or rejected" });
-      const email: string = req.user?.claims?.email || "admin";
+      const email: string = (req.user as any)?.claims?.email || "admin";
       await storage.updateClaimStatus(id, status, email);
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
@@ -754,9 +769,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         storage.getDirectoryStats(),
       ]);
 
-      function stateSlug(s: string) {
-        return s.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      }
+      const stateSlug = (s: string) =>
+        s.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
       const staticPages = [
         { loc: "/", priority: "1.0", changefreq: "daily" },

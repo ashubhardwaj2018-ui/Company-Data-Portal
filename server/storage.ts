@@ -186,9 +186,9 @@ export class DatabaseStorage implements IStorage {
     return { data, total };
   }
 
-  async searchSuggestions(q: string, countryCode?: string, limit = 8) {
+  async searchSuggestions(q: string, countryCode?: string, limit = 8): Promise<{ id: number; name: string; cin: string | null; slug: string | null; countryCode: string | null; state: string | null; city: string | null; status: string | null }[]> {
     const cacheKey = `suggest:${q.toLowerCase()}:${countryCode || ""}:${limit}`;
-    const cached = cache.get<Awaited<ReturnType<DatabaseStorage["searchSuggestions"]>>>(cacheKey);
+    const cached = cache.get<{ id: number; name: string; cin: string | null; slug: string | null; countryCode: string | null; state: string | null; city: string | null; status: string | null }[]>(cacheKey);
     if (cached) return cached;
 
     const conditions: any[] = [
@@ -230,9 +230,9 @@ export class DatabaseStorage implements IStorage {
     return c;
   }
 
-  async getDirectoryStats(countryCode?: string) {
+  async getDirectoryStats(countryCode?: string): Promise<{ total: number; byState: { state: string | null; count: number }[]; byCountry: { countryCode: string | null; count: number }[] }> {
     const cacheKey = `stats:${countryCode || "global"}`;
-    const cached = cache.get<Awaited<ReturnType<DatabaseStorage["getDirectoryStats"]>>>(cacheKey);
+    const cached = cache.get<{ total: number; byState: { state: string | null; count: number }[]; byCountry: { countryCode: string | null; count: number }[] }>(cacheKey);
     if (cached) return cached;
 
     const whereClause = countryCode

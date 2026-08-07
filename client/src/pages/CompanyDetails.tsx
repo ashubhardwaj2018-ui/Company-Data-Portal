@@ -28,10 +28,12 @@ import type { Company } from "@shared/schema";
 
 // ── Country code → display name ───────────────────────────────────────────────
 const COUNTRY_NAMES: Record<string, string> = {
-  IN: "India", AU: "Australia", GB: "United Kingdom", SG: "Singapore",
+  IN: "India", AU: "Australia", GB: "United Kingdom", SG: "Singapore", US: "United States",
 };
 
-// ── Canonical URL builder ─────────────────────────────────────────────────────
+const COUNTRY_FLAGS: Record<string, string> = {
+  IN: "🇮🇳", AU: "🇦🇺", GB: "🇬🇧", SG: "🇸🇬", US: "🇺🇸",
+};
 function canonicalUrl(company: Company): string {
   if (company.slug && company.countryCode) {
     return `/${company.countryCode.toLowerCase()}/company/${company.slug}`;
@@ -39,240 +41,171 @@ function canonicalUrl(company: Company): string {
   return `/company/${company.id}`;
 }
 
-// ── Country-specific field sections ──────────────────────────────────────────
-
-function IndiaFields({ company }: { company: Company }) {
+function StatusPill({ status }: { status?: string | null }) {
+  if (!status) return null;
+  const lower = status.toLowerCase();
+  const cls = lower.includes("active")
+    ? "ab-status-active"
+    : lower.includes("strike") || lower.includes("dissolv") || lower.includes("wound")
+    ? "ab-status-dissolved"
+    : "ab-status-inactive";
   return (
-    <>
-      <Card className="shadow-lg border-0 overflow-hidden">
-        <CardHeader className="bg-primary/5 border-b border-primary/10">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Building2 className="h-5 w-5 text-primary" /> Company Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 md:p-8 grid md:grid-cols-2 gap-x-8 gap-y-6">
-          <InfoItem label="CIN" value={company.cin} />
-          <InfoItem label="Class" value={company.class} />
-          <InfoItem label="Category" value={company.category} />
-          <InfoItem label="Sub-Category" value={company.subCategory} />
-          <InfoItem label="ROC Code" value={company.roc} />
-          <InfoItem label="Source" value={company.source} />
-          <InfoItem
-            label="Date of Incorporation"
-            value={company.incorporationDate ? format(new Date(company.incorporationDate), "MMMM dd, yyyy") : undefined}
-            icon={<Calendar className="h-4 w-4" />}
-          />
-          <InfoItem
-            label="Authorized Capital"
-            value={company.authorizedCapital ? `₹ ${company.authorizedCapital.toLocaleString("en-IN")}` : undefined}
-            icon={<IndianRupee className="h-4 w-4" />}
-          />
-          <InfoItem
-            label="Paid-up Capital"
-            value={company.paidUpCapital ? `₹ ${company.paidUpCapital.toLocaleString("en-IN")}` : undefined}
-            icon={<IndianRupee className="h-4 w-4" />}
-          />
-          {company.industry && <InfoItem label="Industry" value={company.industry} />}
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-lg border-0 overflow-hidden">
-        <CardHeader className="bg-primary/5 border-b border-primary/10">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <FileText className="h-5 w-5 text-primary" /> Listing &amp; Annual Compliance
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 md:p-8 grid md:grid-cols-2 gap-x-8 gap-y-6">
-          <InfoItem
-            label="Last AGM Date"
-            value={company.lastAgmDate ? format(new Date(company.lastAgmDate), "MMMM dd, yyyy") : undefined}
-          />
-          <InfoItem
-            label="Last Balance Sheet Date"
-            value={company.lastBalanceSheetDate ? format(new Date(company.lastBalanceSheetDate), "MMMM dd, yyyy") : undefined}
-          />
-        </CardContent>
-      </Card>
-    </>
+    <span className={cls}>
+      <span className={`w-1.5 h-1.5 rounded-full inline-block ${
+        lower.includes("active") ? "bg-emerald-500" :
+        lower.includes("strike") || lower.includes("dissolv") ? "bg-red-500" : "bg-slate-400"
+      }`} />
+      {status}
+    </span>
   );
 }
-
-function GlobalFields({ company }: { company: Company }) {
-  return (
-    <Card className="shadow-lg border-0 overflow-hidden">
-      <CardHeader className="bg-primary/5 border-b border-primary/10">
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <Building2 className="h-5 w-5 text-primary" /> Company Overview
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-6 md:p-8 grid md:grid-cols-2 gap-x-8 gap-y-6">
-        <InfoItem label="Registration Number" value={company.registrationNumber} />
-        <InfoItem label="Status" value={company.status} />
-        {company.industry && <InfoItem label="Industry" value={company.industry} />}
-        <InfoItem
-          label="Date of Incorporation"
-          value={company.incorporationDate ? format(new Date(company.incorporationDate), "MMMM dd, yyyy") : undefined}
-          icon={<Calendar className="h-4 w-4" />}
-        />
-        <InfoItem label="Source" value={company.source} />
-      </CardContent>
-    </Card>
-  );
-}
-
 function CompanyFaqSection({ company }: { company: Company }) {
   const isIndia = company.countryCode === "IN";
+  const countryName = COUNTRY_NAMES[company.countryCode || ""] || company.country || company.countryCode || "";
   return (
-    <Card className="shadow-lg border-0 overflow-hidden">
-      <CardHeader className="bg-primary/5 border-b border-primary/10">
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <HelpCircle className="h-5 w-5 text-primary" /> Company Information
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 md:p-6">
+    <div className="ab-card overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+        <HelpCircle className="h-4 w-4 text-primary" />
+        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Frequently Asked Questions</h2>
+      </div>
+      <div className="px-5 py-2">
         <Accordion type="multiple" className="w-full">
-          <AccordionItem value="overview">
-            <AccordionTrigger className="font-semibold">What type of company is {company.name}?</AccordionTrigger>
-            <AccordionContent className="text-muted-foreground space-y-1 text-sm">
+          <AccordionItem value="overview" className="border-slate-100">
+            <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">What type of company is {company.name}?</AccordionTrigger>
+            <AccordionContent className="text-slate-600 space-y-1.5 text-sm pb-4">
               {isIndia && <>
-                <p><strong>Class:</strong> {company.class || "N/A"}</p>
-                <p><strong>Category:</strong> {company.category || "N/A"}</p>
-                <p><strong>Sub-Category:</strong> {company.subCategory || "N/A"}</p>
+                <p><span className="text-slate-400 w-32 inline-block">Class</span> {company.class || "N/A"}</p>
+                <p><span className="text-slate-400 w-32 inline-block">Category</span> {company.category || "N/A"}</p>
+                <p><span className="text-slate-400 w-32 inline-block">Sub-Category</span> {company.subCategory || "N/A"}</p>
               </>}
-              <p><strong>Status:</strong> {company.status || "N/A"}</p>
-              {company.industry && <p><strong>Industry:</strong> {company.industry}</p>}
+              <p><span className="text-slate-400 w-32 inline-block">Status</span> {company.status || "N/A"}</p>
+              {company.industry && <p><span className="text-slate-400 w-32 inline-block">Industry</span> {company.industry}</p>}
             </AccordionContent>
           </AccordionItem>
-          <AccordionItem value="registration">
-            <AccordionTrigger className="font-semibold">When was {company.name} incorporated?</AccordionTrigger>
-            <AccordionContent className="text-muted-foreground space-y-1 text-sm">
+          <AccordionItem value="registration" className="border-slate-100">
+            <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">When was {company.name} incorporated?</AccordionTrigger>
+            <AccordionContent className="text-slate-600 space-y-1.5 text-sm pb-4">
               {isIndia
-                ? <p><strong>CIN:</strong> {company.cin || "N/A"}</p>
-                : <p><strong>Registration Number:</strong> {company.registrationNumber || "N/A"}</p>}
-              <p><strong>Date of Incorporation:</strong> {company.incorporationDate
+                ? <p><span className="text-slate-400 w-32 inline-block">CIN</span> {company.cin || "N/A"}</p>
+                : <p><span className="text-slate-400 w-32 inline-block">Reg. Number</span> {company.registrationNumber || "N/A"}</p>}
+              <p><span className="text-slate-400 w-32 inline-block">Incorporated</span> {company.incorporationDate
                 ? new Date(company.incorporationDate).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })
                 : "N/A"}</p>
-              {isIndia && <p><strong>ROC:</strong> {company.roc || "N/A"}</p>}
+              {isIndia && <p><span className="text-slate-400 w-32 inline-block">ROC</span> {company.roc || "N/A"}</p>}
             </AccordionContent>
           </AccordionItem>
           {isIndia && (
-            <AccordionItem value="capital">
-              <AccordionTrigger className="font-semibold">What is the capital structure of {company.name}?</AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-1 text-sm">
-                <p><strong>Authorised Capital:</strong> {company.authorizedCapital ? `₹ ${company.authorizedCapital.toLocaleString("en-IN")}` : "N/A"}</p>
-                <p><strong>Paid-up Capital:</strong> {company.paidUpCapital ? `₹ ${company.paidUpCapital.toLocaleString("en-IN")}` : "N/A"}</p>
+            <AccordionItem value="capital" className="border-slate-100">
+              <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">What is the capital structure of {company.name}?</AccordionTrigger>
+              <AccordionContent className="text-slate-600 space-y-1.5 text-sm pb-4">
+                <p><span className="text-slate-400 w-36 inline-block">Authorised Capital</span> {company.authorizedCapital ? `₹ ${company.authorizedCapital.toLocaleString("en-IN")}` : "N/A"}</p>
+                <p><span className="text-slate-400 w-36 inline-block">Paid-up Capital</span> {company.paidUpCapital ? `₹ ${company.paidUpCapital.toLocaleString("en-IN")}` : "N/A"}</p>
               </AccordionContent>
             </AccordionItem>
           )}
-          <AccordionItem value="location">
-            <AccordionTrigger className="font-semibold">Where is {company.name} located?</AccordionTrigger>
-            <AccordionContent className="text-muted-foreground space-y-1 text-sm">
-              <p><strong>Address:</strong> {company.address || "N/A"}</p>
-              {company.district && <p><strong>District:</strong> {company.district}</p>}
-              <p><strong>City:</strong> {company.city || "N/A"}</p>
-              <p><strong>State:</strong> {company.state || "N/A"}</p>
-              <p><strong>Pincode:</strong> {company.pincode || "N/A"}</p>
-              <p><strong>Country:</strong> {COUNTRY_NAMES[company.countryCode || "IN"] || company.country || "India"}</p>
+          <AccordionItem value="location" className="border-slate-100">
+            <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">Where is {company.name} located?</AccordionTrigger>
+            <AccordionContent className="text-slate-600 space-y-1.5 text-sm pb-4">
+              {company.address && <p><span className="text-slate-400 w-32 inline-block">Address</span> {company.address}</p>}
+              {company.district && <p><span className="text-slate-400 w-32 inline-block">District</span> {company.district}</p>}
+              <p><span className="text-slate-400 w-32 inline-block">City</span> {company.city || "N/A"}</p>
+              <p><span className="text-slate-400 w-32 inline-block">State</span> {company.state || "N/A"}</p>
+              <p><span className="text-slate-400 w-32 inline-block">Pincode</span> {company.pincode || "N/A"}</p>
+              <p><span className="text-slate-400 w-32 inline-block">Country</span> {countryName}</p>
             </AccordionContent>
           </AccordionItem>
           {isIndia && (
-            <AccordionItem value="compliance">
-              <AccordionTrigger className="font-semibold">What is the compliance status of {company.name}?</AccordionTrigger>
-              <AccordionContent className="text-muted-foreground space-y-1 text-sm">
-                <p><strong>Last AGM Date:</strong> {company.lastAgmDate
+            <AccordionItem value="compliance" className="border-slate-100 last:border-0">
+              <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">What is the compliance status of {company.name}?</AccordionTrigger>
+              <AccordionContent className="text-slate-600 space-y-1.5 text-sm pb-4">
+                <p><span className="text-slate-400 w-40 inline-block">Last AGM Date</span> {company.lastAgmDate
                   ? new Date(company.lastAgmDate).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })
                   : "N/A"}</p>
-                <p><strong>Last Balance Sheet Date:</strong> {company.lastBalanceSheetDate
+                <p><span className="text-slate-400 w-40 inline-block">Last Balance Sheet</span> {company.lastBalanceSheetDate
                   ? new Date(company.lastBalanceSheetDate).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })
                   : "N/A"}</p>
               </AccordionContent>
             </AccordionItem>
           )}
           {company.customQna && (
-            <AccordionItem value="custom">
-              <AccordionTrigger className="font-semibold">Additional Information about {company.name}</AccordionTrigger>
-              <AccordionContent className="text-muted-foreground text-sm whitespace-pre-wrap">
+            <AccordionItem value="custom" className="border-slate-100 last:border-0">
+              <AccordionTrigger className="font-medium text-sm py-4 text-slate-800">Additional Information about {company.name}</AccordionTrigger>
+              <AccordionContent className="text-slate-600 text-sm whitespace-pre-wrap pb-4">
                 {company.customQna}
               </AccordionContent>
             </AccordionItem>
           )}
         </Accordion>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
-// ── Related Companies section ─────────────────────────────────────────────────
+// ── Related Companies ─────────────────────────────────────────────────────────
 function RelatedCompanies({ company }: { company: Company }) {
   const { data: related = [] } = useRelatedCompanies(company.id);
   if (!related.length) return null;
   return (
-    <Card className="shadow-lg border-0 overflow-hidden">
-      <CardHeader className="bg-primary/5 border-b border-primary/10">
-        <CardTitle className="text-lg">
+    <div className="ab-card overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+        <Globe className="h-4 w-4 text-primary" />
+        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
           {company.state ? `More Companies in ${company.state}` : "Related Companies"}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4">
-        <div className="divide-y">
-          {related.map(c => (
-            <Link key={c.id} href={canonicalUrl(c)}
-              className="flex items-center justify-between py-3 hover:bg-muted/30 px-2 rounded transition-colors group">
-              <div className="min-w-0">
-                <p className="font-medium text-sm text-foreground group-hover:text-primary transition-colors truncate">{c.name}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{c.city}{c.city && c.state ? ", " : ""}{c.state}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 ml-3">
-                {c.status && (
-                  <Badge variant="secondary" className="text-[10px]">{c.status}</Badge>
-                )}
-                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary" />
-              </div>
-            </Link>
-          ))}
-        </div>
-        {/* Internal geographic links */}
-        <div className="pt-3 border-t mt-2 flex flex-wrap gap-2">
-          {company.state && (
-            <Link href={`/?state=${encodeURIComponent(company.state)}&countryCode=${company.countryCode || "IN"}`}>
-              <Badge variant="outline" className="cursor-pointer hover:bg-muted text-xs">
-                Companies in {company.state}
-              </Badge>
-            </Link>
-          )}
-          {company.city && (
-            <Link href={`/?search=${encodeURIComponent(company.city)}&countryCode=${company.countryCode || "IN"}`}>
-              <Badge variant="outline" className="cursor-pointer hover:bg-muted text-xs">
-                Companies in {company.city}
-              </Badge>
-            </Link>
-          )}
-          {company.roc && (
-            <Link href={`/?search=${encodeURIComponent(company.roc)}&countryCode=${company.countryCode || "IN"}`}>
-              <Badge variant="outline" className="cursor-pointer hover:bg-muted text-xs">
-                ROC: {company.roc}
-              </Badge>
-            </Link>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </h2>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {related.map(c => (
+          <Link key={c.id} href={canonicalUrl(c)}
+            className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors group">
+            <div className="min-w-0">
+              <p className="font-medium text-sm text-slate-800 group-hover:text-primary transition-colors truncate">{c.name}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{c.city}{c.city && c.state ? ", " : ""}{c.state}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 ml-3">
+              {c.status && (
+                <StatusPill status={c.status} />
+              )}
+              <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover:text-primary" />
+            </div>
+          </Link>
+        ))}
+      </div>
+      <div className="px-5 py-4 border-t border-slate-100 flex flex-wrap gap-2">
+        {company.state && (
+          <Link href={`/?state=${encodeURIComponent(company.state)}&countryCode=${company.countryCode || "IN"}`}>
+            <Badge variant="outline" className="cursor-pointer hover:bg-slate-50 text-xs border-slate-200 text-slate-600">
+              Companies in {company.state}
+            </Badge>
+          </Link>
+        )}
+        {company.city && (
+          <Link href={`/?search=${encodeURIComponent(company.city)}&countryCode=${company.countryCode || "IN"}`}>
+            <Badge variant="outline" className="cursor-pointer hover:bg-slate-50 text-xs border-slate-200 text-slate-600">
+              Companies in {company.city}
+            </Badge>
+          </Link>
+        )}
+        {company.roc && (
+          <Link href={`/?search=${encodeURIComponent(company.roc)}&countryCode=${company.countryCode || "IN"}`}>
+            <Badge variant="outline" className="cursor-pointer hover:bg-slate-50 text-xs border-slate-200 text-slate-600">
+              ROC: {company.roc}
+            </Badge>
+          </Link>
+        )}
+      </div>
+    </div>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-
 export default function CompanyDetails() {
-  // Match both route patterns
   const { user } = useAuth();
   const [matchById, paramsById] = useRoute("/company/:id");
   const [matchBySlug, paramsBySlug] = useRoute("/:countryCode/company/:slug");
 
-  // Fetch by ID (legacy)
   const numericId = matchById ? parseInt(paramsById?.id || "0") : 0;
   const byId = useCompany(numericId);
 
-  // Fetch by slug (new)
   const slugCountry = matchBySlug ? (paramsBySlug?.countryCode || "") : "";
   const slug = matchBySlug ? (paramsBySlug?.slug || "") : "";
   const bySlug = useCompanyBySlug(slugCountry, slug);
@@ -284,11 +217,6 @@ export default function CompanyDetails() {
   if (isLoading) return <CompanyDetailsSkeleton />;
   if (isError || !company) return <CompanyNotFound />;
 
-  const statusColor =
-    company.status?.toLowerCase().includes("active") ? "bg-green-100 text-green-700" :
-    company.status?.toLowerCase().includes("strike") ? "bg-red-100 text-red-700" :
-    "bg-gray-100 text-gray-700";
-
   const regId = company.countryCode === "IN" ? company.cin : company.registrationNumber;
   const regLabel = company.countryCode === "IN" ? "CIN" :
     company.countryCode === "AU" ? "ACN" :
@@ -296,7 +224,8 @@ export default function CompanyDetails() {
     company.countryCode === "SG" ? "UEN" : "Reg. No.";
 
   const pageCanonical = canonicalUrl(company);
-  const countryName = COUNTRY_NAMES[company.countryCode || "IN"] || "India";
+  const countryName = COUNTRY_NAMES[company.countryCode || ""] || company.country || company.countryCode || "";
+  const countryFlag = COUNTRY_FLAGS[company.countryCode || ""] || "🌐";
   const siteOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const canonicalFull = `${siteOrigin}${pageCanonical}`;
 
@@ -314,7 +243,6 @@ export default function CompanyDetails() {
 
   const companyBadges = parseBadges(company.badges);
 
-  // Phase 30 — BreadcrumbList JSON-LD
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -347,7 +275,7 @@ export default function CompanyDetails() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-slate-50">
       <Helmet>
         <title>{pageTitle}</title>
         <meta name="description" content={pageDesc} />
@@ -364,123 +292,127 @@ export default function CompanyDetails() {
       </Helmet>
       <Navbar />
 
-      {/* Header Banner */}
-      <div className="bg-slate-900 text-white py-16">
-        <div className="container-width">
-          <Link href="/">
-            <Button variant="ghost" className="text-white/60 hover:text-white mb-6 pl-0 hover:bg-transparent">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Directory
-            </Button>
-          </Link>
+      {/* ── Company header ─────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="container-width py-6">
+          {/* Breadcrumb */}
+          <div className="mb-5">
+            <Breadcrumb company={company} countryName={countryName} />
+          </div>
 
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div>
-              <div className="flex flex-wrap gap-3 mb-4">
+          {/* Name + meta row */}
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+            <div className="min-w-0 flex-1">
+              {/* Badges row */}
+              {companyBadges.length > 0 && (
+                <BadgesDisplay badges={companyBadges} size="md" className="mb-3" />
+              )}
+
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight mb-3">
+                {company.name}
+              </h1>
+
+              {/* Meta chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill status={company.status} />
+
                 {regId && (
-                  <Badge variant="secondary" className="bg-white/10 text-white hover:bg-white/20 border-0">
-                    {regLabel}: {regId}
-                  </Badge>
+                  <span className="inline-flex items-center gap-1 text-xs font-mono px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+                    <Hash className="h-3 w-3" />{regLabel}: {regId}
+                  </span>
                 )}
-                {company.status && (
-                  <Badge className={`${statusColor} border-0`}>{company.status}</Badge>
+
+                <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+                  {countryFlag} {countryName}
+                </span>
+
+                {company.city && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+                    <MapPin className="h-3 w-3" />{[company.city, company.state].filter(Boolean).join(", ")}
+                  </span>
                 )}
-                <Badge variant="secondary" className="bg-white/10 text-white border-0 text-[10px]">
-                  {COUNTRY_NAMES[company.countryCode || "IN"] || company.country || "India"}
-                </Badge>
-              </div>
-              {/* Phase 26 — Badges */}
-              {companyBadges.length > 0 && <BadgesDisplay badges={companyBadges} size="md" className="mb-3" />}
-              <h1 className="text-3xl md:text-5xl font-display font-bold mb-2">{company.name}</h1>
-              <div className="flex items-center gap-2 text-white/60">
-                <MapPin className="h-4 w-4" />
-                <span>{company.address || [company.city, company.state].filter(Boolean).join(", ")}</span>
+
+                {(company.viewCount ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 ring-1 ring-slate-200">
+                    <Eye className="h-3 w-3" />{company.viewCount?.toLocaleString()} views
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="flex flex-col items-start md:items-end gap-3">
-              <div className="bg-white/10 rounded-xl px-4 py-2.5">
+            {/* Action column */}
+            <div className="flex flex-wrap lg:flex-col items-start gap-2 lg:items-end shrink-0">
+              <div className="flex flex-wrap gap-2">
+                <WatchlistButton companyId={company.id} isLoggedIn={!!user} />
+                <ClaimModal companyId={company.id} companyName={company.name} isLoggedIn={!!user} />
+                <SuggestCorrectionModal
+                  companyId={company.id}
+                  companyName={company.name}
+                  isLoggedIn={!!user}
+                  currentValues={{
+                    email: company.email,
+                    phone: company.phone,
+                    address: company.address,
+                    city: company.city,
+                    state: company.state,
+                    pincode: company.pincode,
+                    status: company.status,
+                    name: company.name,
+                  }}
+                />
+                <CompareToggle company={company} />
+              </div>
+              <div className="flex items-center gap-3">
                 <ShareBar
                   title={`${company.name} — Company Details`}
                   description={`View registration details and information for ${company.name}.`}
                 />
+                <a
+                  href={`${pageCanonical}/report`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-slate-400 hover:text-primary transition-colors underline underline-offset-2"
+                >
+                  📄 Print Report
+                </a>
               </div>
-              {/* Phase 11 — Watchlist */}
-              <WatchlistButton companyId={company.id} isLoggedIn={!!user} />
-              {/* Phase 7 — Claim button */}
-              <ClaimModal
-                companyId={company.id}
-                companyName={company.name}
-                isLoggedIn={!!user}
-              />
-              {/* Phase 14 — Suggest Correction */}
-              <SuggestCorrectionModal
-                companyId={company.id}
-                companyName={company.name}
-                isLoggedIn={!!user}
-                currentValues={{
-                  email: company.email,
-                  phone: company.phone,
-                  address: company.address,
-                  city: company.city,
-                  state: company.state,
-                  pincode: company.pincode,
-                  status: company.status,
-                  name: company.name,
-                }}
-              />
-              {/* Phase 15 — Compare */}
-              <CompareToggle company={company} />
-              {/* Phase 8 — View count */}
-              {(company.viewCount ?? 0) > 0 && (
-                <div className="flex items-center gap-1.5 text-white/50 text-xs">
-                  <Eye className="h-3.5 w-3.5" />
-                  <span>{company.viewCount?.toLocaleString()} views</span>
-                </div>
-              )}
-              {/* Phase 32 — Print Report link */}
-              <a
-                href={`${pageCanonical}/report`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-white/40 hover:text-white/70 transition-colors underline underline-offset-2"
-              >
-                📄 Print Report
-              </a>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container-width -mt-8 flex gap-6">
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
+      <div className="container-width py-8 flex gap-6">
         <ServiceAside side="left" />
-        <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* Main content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Country-specific field sections */}
+        <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* ── Main content ── */}
+          <div className="lg:col-span-2 space-y-5">
+            {/* Country-specific data sections */}
             {company.countryCode === "IN"
-              ? <IndiaFields company={company} />
-              : <GlobalFields company={company} />}
+              ? <IndiaOverviewSection company={company} />
+              : <GlobalOverviewSection company={company} />}
 
-            {/* Phase 23 — Share & Print bar */}
-            <div className="pt-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Share this profile</p>
+            {/* Share & print bar */}
+            <div className="ab-card p-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Share this profile</p>
               <SharePrintBar
                 companyName={company.name}
                 url={typeof window !== "undefined" ? window.location.href : canonicalFull}
               />
             </div>
 
-            {/* FAQ-style accordion */}
+            {/* FAQ */}
             <CompanyFaqSection company={company} />
 
-            {/* Related companies + internal links */}
+            {/* Related companies */}
             <RelatedCompanies company={company} />
 
-            {/* Phase 28 — Company Insights */}
+            {/* Insights */}
             <InsightsWidget company={company} />
 
-            {/* Phase 19 — Reviews & Ratings */}
+            {/* Reviews */}
             <ReviewsSection
               companyId={company.id}
               isLoggedIn={!!user}
@@ -488,91 +420,128 @@ export default function CompanyDetails() {
             />
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Contact */}
-            <Card className="shadow-lg border-0">
-              <CardHeader className="bg-muted/30 pb-4">
-                <CardTitle className="text-lg">Contact Details</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                {company.email && (
-                  <div className="flex items-start gap-3">
-                    <Mail className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Email</p>
-                      <a href={`mailto:${company.email}`} className="text-primary hover:underline break-all text-sm">
-                        {company.email}
-                      </a>
+          {/* ── Sidebar ── */}
+          <div className="space-y-5">
+            {/* Contact card */}
+            {(company.email || company.phone || company.address || company.city) && (
+              <div className="ab-card overflow-hidden">
+                <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+                  <Phone className="h-4 w-4 text-primary" />
+                  <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Contact Details</h2>
+                </div>
+                <div className="px-5 py-4 space-y-4">
+                  {company.email && (
+                    <div className="flex items-start gap-3">
+                      <Mail className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-slate-400 mb-0.5">Email</p>
+                        <a href={`mailto:${company.email}`} className="text-sm text-primary hover:underline break-all">
+                          {company.email}
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {company.phone && (
-                  <div className="flex items-start gap-3">
-                    <Phone className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Phone</p>
-                      <a href={`tel:${company.phone}`} className="text-sm hover:underline">{company.phone}</a>
+                  )}
+                  {company.phone && (
+                    <div className="flex items-start gap-3">
+                      <Phone className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-slate-400 mb-0.5">Phone</p>
+                        <a href={`tel:${company.phone}`} className="text-sm text-slate-800 hover:underline">{company.phone}</a>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {(company.address || company.city) && (
-                  <div className="flex items-start gap-3">
-                    <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  )}
+                  {(company.address || company.city) && (
+                    <div className="flex items-start gap-3">
+                      <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-slate-400 mb-0.5">Registered Address</p>
+                        <p className="text-sm text-slate-800 leading-relaxed">
+                          {company.address && <>{company.address}<br /></>}
+                          {[company.city, company.state, company.pincode].filter(Boolean).join(", ")}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Quick data card for sidebar */}
+            {(company.incorporationDate || company.source) && (
+              <div className="ab-card overflow-hidden">
+                <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Key Facts</h2>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  {company.incorporationDate && (
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">Registered Address</p>
-                      <p className="text-sm leading-relaxed mt-1">
-                        {company.address && <>{company.address}<br /></>}
-                        {[company.city, company.state, company.pincode].filter(Boolean).join(", ")}
+                      <p className="text-xs text-slate-400">Incorporated</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5">
+                        {format(new Date(company.incorporationDate), "MMMM d, yyyy")}
                       </p>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                  {company.countryCode === "IN" && company.authorizedCapital && (
+                    <div>
+                      <p className="text-xs text-slate-400">Authorized Capital</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5">
+                        ₹ {company.authorizedCapital.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  )}
+                  {company.source && (
+                    <div>
+                      <p className="text-xs text-slate-400">Data Source</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5">{company.source}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-            {/* Canonical URL info */}
-            <Card className="shadow-lg border-0">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Permanent Link</p>
-                <Link href={pageCanonical} className="text-xs text-primary break-all hover:underline">
-                  {typeof window !== "undefined" ? `${window.location.origin}${pageCanonical}` : pageCanonical}
-                </Link>
-              </CardContent>
-            </Card>
+            {/* Permanent link */}
+            <div className="ab-card p-4">
+              <p className="text-xs text-slate-400 font-medium mb-1.5">Permanent Link</p>
+              <Link href={pageCanonical} className="text-xs text-primary break-all hover:underline">
+                {typeof window !== "undefined" ? `${window.location.origin}${pageCanonical}` : pageCanonical}
+              </Link>
+            </div>
           </div>
         </div>
+
         <ServiceAside side="right" />
       </div>
+
       <Footer />
     </div>
   );
 }
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function InfoItem({ label, value, icon }: { label: string; value?: string | number | null; icon?: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">{icon}{label}</p>
-      <p className="font-medium text-lg text-foreground">
-        {value ?? <span className="text-muted-foreground/50 italic text-base">Not Available</span>}
-      </p>
-    </div>
-  );
-}
-
 function CompanyDetailsSkeleton() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-slate-50">
       <Navbar />
-      <div className="bg-slate-900 h-64 w-full" />
-      <div className="container-width -mt-32">
-        <Skeleton className="h-12 w-32 mb-4 bg-white/10" />
-        <Skeleton className="h-16 w-3/4 mb-8 bg-white/10" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-12">
-          <Skeleton className="col-span-2 h-96 rounded-xl" />
-          <Skeleton className="h-96 rounded-xl" />
+      <div className="bg-white border-b border-slate-200 py-8">
+        <div className="container-width">
+          <Skeleton className="h-4 w-64 mb-6" />
+          <Skeleton className="h-9 w-2/3 mb-4" />
+          <div className="flex gap-2">
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-32 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+        </div>
+      </div>
+      <div className="container-width py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton className="h-64 rounded-lg" />
+            <Skeleton className="h-48 rounded-lg" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-48 rounded-lg" />
+            <Skeleton className="h-32 rounded-lg" />
+          </div>
         </div>
       </div>
     </div>
@@ -581,16 +550,177 @@ function CompanyDetailsSkeleton() {
 
 function CompanyNotFound() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navbar />
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <div className="bg-muted p-6 rounded-full mb-4">
-          <Building2 className="h-12 w-12 text-muted-foreground" />
+        <div className="bg-slate-100 p-6 rounded-full mb-4">
+          <Building2 className="h-12 w-12 text-slate-400" />
         </div>
-        <h1 className="text-2xl font-bold font-display mb-2">Company Not Found</h1>
-        <p className="text-muted-foreground mb-6">We couldn't locate the company you're looking for.</p>
+        <h1 className="text-2xl font-bold mb-2 text-slate-900">Company Not Found</h1>
+        <p className="text-slate-500 mb-6">We couldn't locate the company you're looking for.</p>
         <Link href="/"><Button>Back to Directory</Button></Link>
       </div>
+      <Footer />
     </div>
+  );
+}
+
+function DataRow({ label, value, icon }: { label: string; value?: string | number | null; icon?: React.ReactNode }) {
+  if (value === undefined || value === null || value === "") return null;
+  return (
+    <tr className="border-b border-slate-100 last:border-0">
+      <td className="py-3 pr-4 pl-0 w-44 text-sm text-slate-500 font-medium whitespace-nowrap align-top">
+        <span className="flex items-center gap-1.5">{icon}{label}</span>
+      </td>
+      <td className="py-3 text-sm text-slate-900 font-medium align-top">{value}</td>
+    </tr>
+  );
+}
+
+function SectionCard({
+  title, icon, children,
+}: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="ab-card overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+        <span className="text-primary">{icon}</span>
+        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">{title}</h2>
+      </div>
+      <div className="px-5 py-2">
+        <table className="w-full">
+          <tbody>{children}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function GlobalOverviewSection({ company }: { company: Company }) {
+  const countryName = COUNTRY_NAMES[company.countryCode || ""] || company.country || company.countryCode || "";
+  const regLabel = company.countryCode === "AU" ? "ACN" :
+    company.countryCode === "GB" ? "Company No." :
+    company.countryCode === "SG" ? "UEN" : "Reg. No.";
+
+  return (
+    <>
+      <SectionCard title="Overview" icon={<Building2 className="h-4 w-4" />}>
+        <DataRow label={regLabel} value={company.registrationNumber} icon={<Hash className="h-3.5 w-3.5" />} />
+        <DataRow label="Status" value={company.status} />
+        <DataRow label="Industry" value={company.industry} />
+      </SectionCard>
+
+      <SectionCard title="Registration" icon={<FileText className="h-4 w-4" />}>
+        <DataRow
+          label="Date of Incorporation"
+          value={company.incorporationDate ? format(new Date(company.incorporationDate), "MMMM d, yyyy") : undefined}
+          icon={<Calendar className="h-3.5 w-3.5" />}
+        />
+        <DataRow label="Source" value={company.source} icon={<Database className="h-3.5 w-3.5" />} />
+      </SectionCard>
+
+      <SectionCard title="Registered Address" icon={<MapPin className="h-4 w-4" />}>
+        <DataRow label="Address" value={company.address} />
+        <DataRow label="City" value={company.city} />
+        <DataRow label="State" value={company.state} />
+        <DataRow label="Pincode" value={company.pincode} />
+        <DataRow label="Country" value={countryName} />
+      </SectionCard>
+    </>
+  );
+}
+
+function IndiaOverviewSection({ company }: { company: Company }) {
+  const hasFinancial = company.authorizedCapital || company.paidUpCapital;
+  const hasCompliance = company.lastAgmDate || company.lastBalanceSheetDate;
+
+  return (
+    <>
+      <SectionCard title="Overview" icon={<Building2 className="h-4 w-4" />}>
+        <DataRow label="CIN" value={company.cin} icon={<Hash className="h-3.5 w-3.5" />} />
+        <DataRow label="Class" value={company.class} />
+        <DataRow label="Category" value={company.category} />
+        <DataRow label="Sub-Category" value={company.subCategory} />
+        <DataRow label="Industry" value={company.industry} />
+        <DataRow label="ROC Code" value={company.roc} icon={<Landmark className="h-3.5 w-3.5" />} />
+        <DataRow label="Status" value={company.status} />
+      </SectionCard>
+
+      <SectionCard title="Registration" icon={<FileText className="h-4 w-4" />}>
+        <DataRow
+          label="Date of Incorporation"
+          value={company.incorporationDate ? format(new Date(company.incorporationDate), "MMMM d, yyyy") : undefined}
+          icon={<Calendar className="h-3.5 w-3.5" />}
+        />
+        <DataRow label="Source" value={company.source} icon={<Database className="h-3.5 w-3.5" />} />
+      </SectionCard>
+
+      <SectionCard title="Registered Address" icon={<MapPin className="h-4 w-4" />}>
+        <DataRow label="Address" value={company.address} />
+        <DataRow label="District" value={company.district} />
+        <DataRow label="City" value={company.city} />
+        <DataRow label="State" value={company.state} />
+        <DataRow label="Pincode" value={company.pincode} />
+        <DataRow label="Country" value={COUNTRY_NAMES[company.countryCode || ""] || company.country || company.countryCode || undefined} />
+      </SectionCard>
+
+      {hasFinancial && (
+        <SectionCard title="Financial" icon={<TrendingUp className="h-4 w-4" />}>
+          <DataRow
+            label="Authorized Capital"
+            value={company.authorizedCapital ? `₹ ${company.authorizedCapital.toLocaleString("en-IN")}` : undefined}
+            icon={<IndianRupee className="h-3.5 w-3.5" />}
+          />
+          <DataRow
+            label="Paid-up Capital"
+            value={company.paidUpCapital ? `₹ ${company.paidUpCapital.toLocaleString("en-IN")}` : undefined}
+            icon={<IndianRupee className="h-3.5 w-3.5" />}
+          />
+        </SectionCard>
+      )}
+
+      {hasCompliance && (
+        <SectionCard title="Compliance Dates" icon={<Clock className="h-4 w-4" />}>
+          <DataRow
+            label="Last AGM Date"
+            value={company.lastAgmDate ? format(new Date(company.lastAgmDate), "MMMM d, yyyy") : undefined}
+            icon={<Calendar className="h-3.5 w-3.5" />}
+          />
+          <DataRow
+            label="Last Balance Sheet"
+            value={company.lastBalanceSheetDate ? format(new Date(company.lastBalanceSheetDate), "MMMM d, yyyy") : undefined}
+            icon={<Calendar className="h-3.5 w-3.5" />}
+          />
+        </SectionCard>
+      )}
+    </>
+  );
+}
+
+function Breadcrumb({ company, countryName }: { company: Company; countryName: string }) {
+  const cc = (company.countryCode || "in").toLowerCase();
+  const items: { label: string; href?: string }[] = [
+    { label: "Home", href: "/" },
+    { label: countryName, href: `/countries/${cc}` },
+  ];
+  if (company.state) {
+    items.push({ label: company.state, href: `/countries/${cc}/${encodeURIComponent(company.state)}` });
+  }
+  items.push({ label: company.name });
+
+  return (
+    <nav aria-label="Breadcrumb" className="flex items-center flex-wrap gap-0.5 text-sm text-slate-500">
+      {items.map((item, i) => (
+        <span key={i} className="flex items-center gap-0.5">
+          {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0" />}
+          {item.href ? (
+            <Link href={item.href} className="hover:text-primary transition-colors truncate max-w-[160px]">
+              {item.label}
+            </Link>
+          ) : (
+            <span className="text-slate-800 font-medium truncate max-w-[200px]">{item.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
   );
 }

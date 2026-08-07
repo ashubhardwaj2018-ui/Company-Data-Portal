@@ -119,7 +119,7 @@ export default function CompanyReportPage() {
     matchSlug ? (paramsSlug?.slug || "") : ""
   );
   const { data: byId } = useCompany(
-    matchId ? Number(paramsId?.id) : undefined
+    matchId ? Number(paramsId?.id) : 0
   );
 
   const company = bySlug || byId;

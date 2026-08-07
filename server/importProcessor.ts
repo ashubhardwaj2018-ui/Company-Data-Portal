@@ -10,9 +10,9 @@
  */
 
 import * as fs from "fs";
-// sax is a CJS module — import as default so createStream is accessible
-import saxLib from "sax";
-const sax = saxLib as any;
+// sax is a CJS module with no bundled types — require to avoid TS7016
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sax: any = require("sax");
 import * as xlsx from "xlsx";
 import { storage } from "./storage";
 import { insertCompanySchema, type InsertCompany } from "@shared/schema";

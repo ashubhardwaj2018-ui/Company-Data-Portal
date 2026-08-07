@@ -17,6 +17,7 @@ const COUNTRY_META: Record<string, { name: string; flag: string; registrar: stri
   AU: { name: "Australia",      flag: "🇦🇺", registrar: "Australian Securities and Investments Commission (ASIC)", regLabel: "ACN" },
   GB: { name: "United Kingdom", flag: "🇬🇧", registrar: "Companies House",                     regLabel: "Company No." },
   SG: { name: "Singapore",      flag: "🇸🇬", registrar: "Accounting and Corporate Regulatory Authority (ACRA)", regLabel: "UEN" },
+  US: { name: "United States",  flag: "🇺🇸", registrar: "Secretary of State (varies by state)",               regLabel: "EIN" },
 };
 
 function stateSlug(state: string): string {

@@ -744,10 +744,9 @@ export default function Home() {
       <NewsletterSignup />
 
       <AdvancedFiltersDrawer
-        open={showFilters}
-        onClose={() => setShowFilters(false)}
         filters={advFilters}
-        onApply={f => { setAdvFilters(f); setPage(1); setShowFilters(false); }}
+        onChange={(f: typeof advFilters) => { setAdvFilters(f); setPage(1); }}
+        activeCount={advActiveCount}
       />
 
       <Footer />

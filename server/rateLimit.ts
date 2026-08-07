@@ -14,7 +14,7 @@ const store = new Map<string, WindowEntry>();
 /** Remove stale entries every 5 minutes to prevent memory leak */
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of store) {
+  for (const [key, entry] of Array.from(store)) {
     if (now > entry.resetAt) store.delete(key);
   }
 }, 5 * 60_000).unref();
