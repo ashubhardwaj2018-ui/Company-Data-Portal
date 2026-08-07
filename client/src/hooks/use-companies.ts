@@ -47,7 +47,32 @@ export function useCompany(id: number) {
       if (!res.ok) throw new Error("Failed to fetch company details");
       return (await res.json()) as Company;
     },
-    enabled: !!id,
+    enabled: !!id && id > 0,
+  });
+}
+
+export function useCompanyBySlug(countryCode: string, slug: string) {
+  return useQuery({
+    queryKey: ["company-by-slug", countryCode, slug],
+    queryFn: async () => {
+      const res = await fetch(`/api/${countryCode}/company/${slug}`);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Failed to fetch company details");
+      return (await res.json()) as Company;
+    },
+    enabled: !!(countryCode && slug),
+  });
+}
+
+export function useRelatedCompanies(companyId: number) {
+  return useQuery({
+    queryKey: ["related-companies", companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/companies/${companyId}/related`);
+      if (!res.ok) return [] as Company[];
+      return (await res.json()) as Company[];
+    },
+    enabled: !!companyId,
   });
 }
 

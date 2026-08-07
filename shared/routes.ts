@@ -111,6 +111,14 @@ export const api = {
       },
     },
   },
+  companyBySlug: {
+    method: 'GET' as const,
+    path: '/api/:countryCode/company/:slug' as const,
+    responses: {
+      200: z.custom<any>(),
+      404: errorSchemas.notFound,
+    },
+  },
   admin: {
     check: {
       method: 'GET' as const,
@@ -118,6 +126,11 @@ export const api = {
       responses: {
         200: z.object({ isAdmin: z.boolean() }),
       },
+    },
+    importJobs: {
+      method: 'GET' as const,
+      path: '/api/admin/import-jobs' as const,
+      responses: { 200: z.array(z.custom<any>()) },
     },
   }
 };

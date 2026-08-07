@@ -18,7 +18,10 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      {/* Legacy numeric-ID route — preserved for backward compat */}
       <Route path="/company/:id" component={CompanyDetails} />
+      {/* Country-aware slug routes: /in/company/reliance-industries-limited */}
+      <Route path="/:countryCode/company/:slug" component={CompanyDetails} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/import" component={ImportData} />
       <Route path="/blog" component={BlogList} />

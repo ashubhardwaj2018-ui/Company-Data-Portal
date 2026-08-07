@@ -54,6 +54,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(company);
   });
 
+  // ── Country-aware slug lookup (/api/:countryCode/company/:slug) ────────────
+  app.get("/api/:countryCode/company/:slug", async (req, res) => {
+    try {
+      const { countryCode, slug } = req.params;
+      const allowed = ["in", "au", "gb", "sg"];
+      if (!allowed.includes(countryCode.toLowerCase()))
+        return res.status(400).json({ message: "Unsupported country code" });
+      const company = await storage.getCompanyBySlug(countryCode, slug);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      res.json(company);
+    } catch (e: any) {
+      console.error("[slug lookup]", e.message);
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  // ── Related companies (same state or ROC, excludes current) ───────────────
+  app.get("/api/companies/:id/related", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const company = await storage.getCompany(id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const related = await storage.getRelatedCompanies(id, company.countryCode || "IN", company.state, company.roc, 6);
+      res.json(related);
+    } catch (e: any) {
+      console.error("[related companies]", e.message);
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
   app.post(api.companies.create.path, requireAdmin, async (req, res) => {
     try {
       const input = api.companies.create.input.parse(req.body);
@@ -289,7 +319,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const urlEntries = [
         ...staticPages.map(p => `<url><loc>${baseUrl}${p.loc}</loc><lastmod>${now}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`),
-        ...topCompanies.map((c: any) => `<url><loc>${baseUrl}/company/${c.id}</loc><lastmod>${now}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+        ...topCompanies.map((c: any) => {
+          // Prefer slug-based country-aware URL; fall back to legacy ID URL
+          const loc = c.slug && c.countryCode
+            ? `${baseUrl}/${c.countryCode.toLowerCase()}/company/${c.slug}`
+            : `${baseUrl}/company/${c.id}`;
+          return `<url><loc>${loc}</loc><lastmod>${now}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`;
+        }),
         ...allPosts.filter((p: any) => p.published).map((p: any) => `<url><loc>${baseUrl}/blog/${p.slug}</loc><lastmod>${(p.updatedAt || p.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
         ...allArticles.filter((a: any) => a.published).map((a: any) => `<url><loc>${baseUrl}/articles/${a.slug}</loc><lastmod>${(a.updatedAt || a.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
       ];

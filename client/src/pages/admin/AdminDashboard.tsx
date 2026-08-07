@@ -17,7 +17,7 @@ import {
   Upload, Users, ShieldAlert, BookOpen, CheckCircle2,
   Link2, Plus, Trash2, ExternalLink, Globe, Loader2,
   Settings, Sparkles, FileText, Search, Eye, EyeOff,
-  Info, AlertCircle
+  Info, AlertCircle, ClipboardList, XCircle, Clock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,6 +35,110 @@ async function apiPut(path: string, body: unknown) {
   const res = await fetch(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any).message || "Request failed"); }
   return res.json();
+}
+
+// ─── Import Jobs Tab ──────────────────────────────────────────────────────────
+const JOB_STATUS_STYLE: Record<string, string> = {
+  QUEUED:     "bg-yellow-100 text-yellow-800",
+  PROCESSING: "bg-blue-100 text-blue-800",
+  COMPLETED:  "bg-green-100 text-green-800",
+  FAILED:     "bg-red-100 text-red-800",
+  CANCELLED:  "bg-gray-100 text-gray-700",
+};
+
+function ImportJobsTab() {
+  const { data: jobs = [], isLoading, refetch, isFetching } = useQuery<any[]>({
+    queryKey: ["/api/admin/import-jobs"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/import-jobs", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch import jobs");
+      return res.json();
+    },
+    refetchInterval: (data) => {
+      // Auto-refresh while any job is still running
+      const active = (data as any)?.state?.data?.some?.((j: any) => j.status === "QUEUED" || j.status === "PROCESSING");
+      return active ? 3000 : false;
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardHeader className="bg-white border-b flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ClipboardList className="h-5 w-5 text-slate-600" /> Import Job History
+            </CardTitle>
+            <CardDescription className="mt-1">Background file import jobs. Auto-refreshes while jobs are running.</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : jobs.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">
+              <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No import jobs yet. Upload a file to get started.</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {jobs.map((job: any) => (
+                <div key={job.id} className="px-6 py-4 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm truncate max-w-xs">{job.filename}</span>
+                        <Badge className={`text-[10px] border-0 ${JOB_STATUS_STYLE[job.status] || "bg-gray-100"}`}>
+                          {job.status}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">{(job.countryCode || "IN").toUpperCase()}</Badge>
+                        <Badge variant="outline" className="text-[10px] uppercase">{job.datasetType}</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-xs text-muted-foreground">
+                        {job.processedRecords != null && (
+                          <span>Processed: <strong className="text-foreground">{job.processedRecords.toLocaleString()}</strong></span>
+                        )}
+                        {job.insertedRecords != null && (
+                          <span>Inserted: <strong className="text-green-700">{job.insertedRecords.toLocaleString()}</strong></span>
+                        )}
+                        {job.skippedRecords != null && job.skippedRecords > 0 && (
+                          <span>Skipped: <strong className="text-yellow-700">{job.skippedRecords.toLocaleString()}</strong></span>
+                        )}
+                        {job.errorRecords != null && job.errorRecords > 0 && (
+                          <span>Errors: <strong className="text-red-700">{job.errorRecords.toLocaleString()}</strong></span>
+                        )}
+                      </div>
+                      {job.errorMessage && (
+                        <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                          <XCircle className="h-3.5 w-3.5 shrink-0" /> {job.errorMessage}
+                        </p>
+                      )}
+                      {(job.status === "QUEUED" || job.status === "PROCESSING") && (
+                        <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Processing in background — you can safely close this tab.
+                        </div>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right text-xs text-muted-foreground space-y-1">
+                      <div className="flex items-center justify-end gap-1">
+                        <Clock className="h-3 w-3" />
+                        {job.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}
+                      </div>
+                      {job.createdBy && <div className="opacity-60">{job.createdBy}</div>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 // ─── Services Tab ─────────────────────────────────────────────────────────────
@@ -648,6 +752,9 @@ export default function AdminDashboard() {
             <TabsTrigger value="upload" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Upload className="h-4 w-4 mr-2" /> Data Import
             </TabsTrigger>
+            <TabsTrigger value="import-jobs" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+              <ClipboardList className="h-4 w-4 mr-2" /> Import Jobs
+            </TabsTrigger>
             <TabsTrigger value="services" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white">
               <Link2 className="h-4 w-4 mr-2" /> Service Links
             </TabsTrigger>
@@ -695,6 +802,7 @@ export default function AdminDashboard() {
             </div>
           </TabsContent>
 
+          <TabsContent value="import-jobs"><ImportJobsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
           <TabsContent value="articles"><ArticlesTab /></TabsContent>
           <TabsContent value="blog"><BlogTab /></TabsContent>

@@ -16,6 +16,8 @@ export interface IStorage {
   // Companies
   getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string): Promise<{ data: Company[]; total: number }>;
   getCompany(id: number): Promise<Company | undefined>;
+  getCompanyBySlug(countryCode: string, slug: string): Promise<Company | undefined>;
+  getRelatedCompanies(excludeId: number, countryCode: string, state?: string | null, roc?: string | null, limit?: number): Promise<Company[]>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
   deleteCompany(id: number): Promise<void>;
@@ -90,6 +92,32 @@ export class DatabaseStorage implements IStorage {
   async getCompany(id: number) {
     const [c] = await db.select().from(companies).where(eq(companies.id, id));
     return c;
+  }
+
+  async getCompanyBySlug(countryCode: string, slug: string) {
+    const { and, eq: deq } = await import("drizzle-orm");
+    const [c] = await db.select().from(companies)
+      .where(and(
+        deq(companies.countryCode, countryCode.toUpperCase()),
+        deq(companies.slug, slug),
+      ));
+    return c;
+  }
+
+  async getRelatedCompanies(excludeId: number, countryCode: string, state?: string | null, roc?: string | null, limit = 6): Promise<Company[]> {
+    const { and, or, ne } = await import("drizzle-orm");
+    // Match same state OR same roc, within the same country, excluding self
+    const geoMatch = state
+      ? ilike(companies.state, state)
+      : roc
+        ? ilike(companies.roc, roc)
+        : undefined;
+
+    const whereClause = geoMatch
+      ? and(ne(companies.id, excludeId), eq(companies.countryCode, countryCode.toUpperCase()), geoMatch)
+      : and(ne(companies.id, excludeId), eq(companies.countryCode, countryCode.toUpperCase()));
+
+    return db.select().from(companies).where(whereClause).orderBy(desc(companies.id)).limit(limit);
   }
 
   async createCompany(company: InsertCompany) {
