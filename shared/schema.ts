@@ -66,6 +66,13 @@ export const companyQuerySchema = z.object({
   state: z.string().optional(),
   status: z.string().optional(),          // e.g. "Active", "Strike-off"
   city: z.string().optional(),            // city ILIKE filter
+  industry: z.string().optional(),        // Phase 18
+  pincode: z.string().optional(),         // Phase 22
+  minCapital: z.coerce.number().optional(), // Phase 25
+  maxCapital: z.coerce.number().optional(), // Phase 25
+  incorporatedAfter: z.string().optional(),  // Phase 25 — ISO date string
+  incorporatedBefore: z.string().optional(), // Phase 25 — ISO date string
+  sortBy: z.enum(["name", "capital", "incorporated", "views", "recent"]).optional(), // Phase 25
   page: z.coerce.number().default(1),
   limit: z.coerce.number().default(20),
 });
@@ -235,3 +242,32 @@ export const companySuggestions = pgTable("company_suggestions", {
 export const insertSuggestionSchema = createInsertSchema(companySuggestions).omit({ id: true, createdAt: true, reviewedAt: true });
 export type CompanySuggestion = typeof companySuggestions.$inferSelect;
 export type InsertSuggestion = z.infer<typeof insertSuggestionSchema>;
+
+// ─── Company Reviews / Ratings (Phase 19) ────────────────────────────────────
+export const companyReviews = pgTable("company_reviews", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  userEmail: text("user_email").notNull(),
+  userName: text("user_name"),
+  rating: integer("rating").notNull(),                // 1–5
+  comment: text("comment"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertReviewSchema = createInsertSchema(companyReviews).omit({ id: true, createdAt: true, reviewedAt: true });
+export type CompanyReview = typeof companyReviews.$inferSelect;
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+
+// ─── Newsletter Subscribers (Phase 16) ────────────────────────────────────────
+export const newsletterSubscribers = pgTable("newsletter_subscribers", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  source: text("source").default("website"),          // website | import | admin
+  active: boolean("active").notNull().default(true),
+  subscribedAt: timestamp("subscribed_at").defaultNow(),
+  unsubscribedAt: timestamp("unsubscribed_at"),
+});
+export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;

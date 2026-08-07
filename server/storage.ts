@@ -11,9 +11,11 @@ import {
   importErrors,
   companyClaims, type CompanyClaim, type InsertClaim,
   userWatchlist, type UserWatchlistItem,
-  companySuggestions, type CompanySuggestion,
+  companySuggestions, type CompanySuggestion, type InsertSuggestion,
+  companyReviews, type CompanyReview, type InsertReview,
+  newsletterSubscribers, type NewsletterSubscriber,
 } from "@shared/schema";
-import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
+import { eq, ilike, desc, count, sql, asc, gte, lte, and, inArray } from "drizzle-orm";
 import { cache, TTL } from "./cache";
 
 export interface IStorage {
@@ -94,11 +96,45 @@ export interface IStorage {
   createSuggestion(suggestion: Omit<InsertSuggestion, "status" | "reviewedBy">): Promise<CompanySuggestion>;
   listSuggestions(status?: string): Promise<(CompanySuggestion & { companyName: string | null })[]>;
   updateSuggestionStatus(id: number, status: "applied" | "dismissed", reviewedBy: string): Promise<void>;
+  listUserSuggestions(userEmail: string): Promise<(CompanySuggestion & { companyName: string | null })[]>;
+
+  // Phase 15 — Company comparison
+  getCompaniesByIds(ids: number[]): Promise<Company[]>;
+
+  // Phase 16 — Newsletter
+  subscribeNewsletter(email: string, name?: string, source?: string): Promise<{ isNew: boolean }>;
+  listSubscribers(): Promise<NewsletterSubscriber[]>;
+  unsubscribeNewsletter(email: string): Promise<void>;
+
+  // Phase 17 — User profile (per-user claims)
+  listUserClaims(userEmail: string): Promise<(CompanyClaim & { companyName: string | null })[]>;
+
+  // Phase 18 / 22 — Industry & Pincode browse use existing getCompanies
+
+  // Phase 19 — Reviews
+  createReview(review: Omit<InsertReview, "status" | "reviewedBy">): Promise<CompanyReview>;
+  getCompanyReviews(companyId: number): Promise<{ reviews: CompanyReview[]; avg: number; total: number }>;
+  listReviews(status?: string): Promise<(CompanyReview & { companyName: string | null })[]>;
+  updateReviewStatus(id: number, status: "approved" | "rejected", reviewedBy: string): Promise<void>;
+
+  // Phase 21 — Recent activity
+  getRecentlyUpdated(limit?: number, countryCode?: string): Promise<Company[]>;
+
+  // Phase 24 — Bulk company update
+  bulkUpdateCompanies(ids: number[], fields: Partial<Pick<InsertCompany, "status" | "industry" | "source">>): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
   // ── Companies ──────────────────────────────────────────────────────────────
-  async getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string, status?: string, city?: string) {
+  async getCompanies(
+    page: number, limit: number,
+    search?: string, alphabet?: string, country?: string, countryCode?: string,
+    state?: string, status?: string, city?: string,
+    industry?: string, pincode?: string,
+    minCapital?: number, maxCapital?: number,
+    incorporatedAfter?: string, incorporatedBefore?: string,
+    sortBy?: string,
+  ) {
     const offset = (page - 1) * limit;
     const conditions: any[] = [];
 
@@ -112,11 +148,28 @@ export class DatabaseStorage implements IStorage {
     if (state) conditions.push(ilike(companies.state, state));
     if (status) conditions.push(ilike(companies.status, status));
     if (city) conditions.push(ilike(companies.city, city));
+    if (industry) conditions.push(ilike(companies.industry, `%${industry}%`));
+    if (pincode) conditions.push(eq(companies.pincode, pincode));
+    if (minCapital != null) conditions.push(sql`${companies.authorizedCapital} >= ${minCapital}`);
+    if (maxCapital != null) conditions.push(sql`${companies.authorizedCapital} <= ${maxCapital}`);
+    if (incorporatedAfter) conditions.push(sql`${companies.incorporationDate} >= ${incorporatedAfter}::date`);
+    if (incorporatedBefore) conditions.push(sql`${companies.incorporationDate} <= ${incorporatedBefore}::date`);
 
     const whereClause = conditions.length > 0 ? sql`${sql.join(conditions, sql` AND `)}` : undefined;
 
+    const orderCol = (() => {
+      switch (sortBy) {
+        case "name":         return asc(companies.name);
+        case "capital":      return desc(companies.authorizedCapital);
+        case "incorporated": return asc(companies.incorporationDate);
+        case "views":        return desc(companies.viewCount);
+        case "recent":       return desc(companies.updatedAt);
+        default:             return desc(companies.id);
+      }
+    })();
+
     const [{ count: total }] = await db.select({ count: count() }).from(companies).where(whereClause);
-    const data = await db.select().from(companies).where(whereClause).limit(limit).offset(offset).orderBy(desc(companies.id));
+    const data = await db.select().from(companies).where(whereClause).limit(limit).offset(offset).orderBy(orderCol);
     return { data, total };
   }
 
@@ -402,6 +455,139 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${userWatchlist.userEmail} = ${userEmail} AND ${userWatchlist.companyId} = ${companyId}`)
       .limit(1);
     return !!row;
+  }
+
+  // ── Phase 15: Compare ──────────────────────────────────────────────────────
+  async getCompaniesByIds(ids: number[]): Promise<Company[]> {
+    if (!ids.length) return [];
+    return db.select().from(companies).where(inArray(companies.id, ids));
+  }
+
+  // ── Phase 16: Newsletter ───────────────────────────────────────────────────
+  async subscribeNewsletter(email: string, name?: string, source = "website"): Promise<{ isNew: boolean }> {
+    const existing = await db.select({ id: newsletterSubscribers.id, active: newsletterSubscribers.active })
+      .from(newsletterSubscribers).where(eq(newsletterSubscribers.email, email)).limit(1);
+    if (existing.length) {
+      if (!existing[0].active) {
+        await db.update(newsletterSubscribers)
+          .set({ active: true, unsubscribedAt: null } as any)
+          .where(eq(newsletterSubscribers.email, email));
+        return { isNew: false };
+      }
+      return { isNew: false };
+    }
+    await db.insert(newsletterSubscribers).values({ email, name, source });
+    return { isNew: true };
+  }
+
+  async listSubscribers(): Promise<NewsletterSubscriber[]> {
+    return db.select().from(newsletterSubscribers).orderBy(desc(newsletterSubscribers.subscribedAt));
+  }
+
+  async unsubscribeNewsletter(email: string): Promise<void> {
+    await db.update(newsletterSubscribers)
+      .set({ active: false, unsubscribedAt: new Date() })
+      .where(eq(newsletterSubscribers.email, email));
+  }
+
+  // ── Phase 17: User profile helpers ────────────────────────────────────────
+  async listUserClaims(userEmail: string): Promise<(CompanyClaim & { companyName: string | null })[]> {
+    const rows = await db.select({
+      id: companyClaims.id,
+      companyId: companyClaims.companyId,
+      userEmail: companyClaims.userEmail,
+      userName: companyClaims.userName,
+      phone: companyClaims.phone,
+      message: companyClaims.message,
+      status: companyClaims.status,
+      reviewedBy: companyClaims.reviewedBy,
+      reviewedAt: companyClaims.reviewedAt,
+      createdAt: companyClaims.createdAt,
+      companyName: companies.name,
+    }).from(companyClaims)
+      .leftJoin(companies, eq(companyClaims.companyId, companies.id))
+      .where(eq(companyClaims.userEmail, userEmail))
+      .orderBy(desc(companyClaims.createdAt));
+    return rows as any;
+  }
+
+  async listUserSuggestions(userEmail: string): Promise<(CompanySuggestion & { companyName: string | null })[]> {
+    const rows = await db.select({
+      id: companySuggestions.id,
+      companyId: companySuggestions.companyId,
+      userEmail: companySuggestions.userEmail,
+      fieldName: companySuggestions.fieldName,
+      currentValue: companySuggestions.currentValue,
+      suggestedValue: companySuggestions.suggestedValue,
+      reason: companySuggestions.reason,
+      status: companySuggestions.status,
+      reviewedBy: companySuggestions.reviewedBy,
+      reviewedAt: companySuggestions.reviewedAt,
+      createdAt: companySuggestions.createdAt,
+      companyName: companies.name,
+    }).from(companySuggestions)
+      .leftJoin(companies, eq(companySuggestions.companyId, companies.id))
+      .where(eq(companySuggestions.userEmail, userEmail))
+      .orderBy(desc(companySuggestions.createdAt));
+    return rows as any;
+  }
+
+  // ── Phase 19: Reviews ──────────────────────────────────────────────────────
+  async createReview(review: Omit<InsertReview, "status" | "reviewedBy">): Promise<CompanyReview> {
+    const [r] = await db.insert(companyReviews).values({ ...review, status: "pending" }).returning();
+    return r;
+  }
+
+  async getCompanyReviews(companyId: number): Promise<{ reviews: CompanyReview[]; avg: number; total: number }> {
+    const reviews = await db.select().from(companyReviews)
+      .where(and(eq(companyReviews.companyId, companyId), eq(companyReviews.status, "approved")))
+      .orderBy(desc(companyReviews.createdAt));
+    const total = reviews.length;
+    const avg = total > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / total : 0;
+    return { reviews, avg: Math.round(avg * 10) / 10, total };
+  }
+
+  async listReviews(status?: string): Promise<(CompanyReview & { companyName: string | null })[]> {
+    const rows = await db.select({
+      id: companyReviews.id,
+      companyId: companyReviews.companyId,
+      userEmail: companyReviews.userEmail,
+      userName: companyReviews.userName,
+      rating: companyReviews.rating,
+      comment: companyReviews.comment,
+      status: companyReviews.status,
+      reviewedBy: companyReviews.reviewedBy,
+      reviewedAt: companyReviews.reviewedAt,
+      createdAt: companyReviews.createdAt,
+      companyName: companies.name,
+    }).from(companyReviews)
+      .leftJoin(companies, eq(companyReviews.companyId, companies.id))
+      .where(status ? eq(companyReviews.status, status) : undefined)
+      .orderBy(desc(companyReviews.createdAt));
+    return rows as any;
+  }
+
+  async updateReviewStatus(id: number, status: "approved" | "rejected", reviewedBy: string): Promise<void> {
+    await db.update(companyReviews)
+      .set({ status, reviewedBy, reviewedAt: new Date() })
+      .where(eq(companyReviews.id, id));
+  }
+
+  // ── Phase 21: Recent Activity ──────────────────────────────────────────────
+  async getRecentlyUpdated(limit = 6, countryCode?: string): Promise<Company[]> {
+    const conditions = countryCode ? [eq(companies.countryCode, countryCode.toUpperCase())] : [];
+    const whereClause = conditions.length ? sql`${sql.join(conditions, sql` AND `)}` : undefined;
+    return db.select().from(companies)
+      .where(whereClause)
+      .orderBy(desc(companies.updatedAt))
+      .limit(limit);
+  }
+
+  // ── Phase 24: Bulk Update ──────────────────────────────────────────────────
+  async bulkUpdateCompanies(ids: number[], fields: Partial<Pick<InsertCompany, "status" | "industry" | "source">>): Promise<number> {
+    if (!ids.length || !Object.keys(fields).length) return 0;
+    const result = await db.update(companies).set(fields).where(inArray(companies.id, ids));
+    return ids.length;
   }
 
   // ── Phase 14: Data Correction Suggestions ─────────────────────────────────

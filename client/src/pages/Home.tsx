@@ -11,10 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2, ChevronLeft, ChevronRight, Building,
-  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, ExternalLink, X
+  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, ExternalLink, X, Clock
 } from "lucide-react";
 import type { Service } from "@shared/schema";
 import { motion } from "framer-motion";
+import { AdvancedFiltersDrawer } from "@/components/companies/AdvancedFiltersDrawer";
+import { NewsletterSignup } from "@/components/layout/NewsletterSignup";
 
 const COUNTRIES = [
   {
@@ -135,6 +137,10 @@ export default function Home() {
   const [alphabet, setAlphabet] = useState<string | undefined>(() => readUrlParam("alphabet"));
   const [selectedCountry, setSelectedCountry] = useState<string | undefined>(() => readUrlParam("countryCode"));
   const [statusFilter, setStatusFilter] = useState<string>(() => readUrlParam("status") || "");
+  const [advFilters, setAdvFilters] = useState<{
+    minCapital?: string; maxCapital?: string;
+    incorporatedAfter?: string; incorporatedBefore?: string; sortBy?: string;
+  }>({});
 
   const alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const numbers = "0123456789".split("");
@@ -184,11 +190,18 @@ export default function Home() {
     setPage(1);
   };
 
+  const advActiveCount = Object.values(advFilters).filter(Boolean).length;
+
   const params: Record<string, any> = { page, limit: 12 };
   if (debouncedSearch) params.search = debouncedSearch;
   if (alphabet) params.alphabet = alphabet;
   if (selectedCountry) params.countryCode = selectedCountry;
   if (statusFilter) params.status = statusFilter;
+  if (advFilters.minCapital) params.minCapital = advFilters.minCapital;
+  if (advFilters.maxCapital) params.maxCapital = advFilters.maxCapital;
+  if (advFilters.incorporatedAfter) params.incorporatedAfter = advFilters.incorporatedAfter;
+  if (advFilters.incorporatedBefore) params.incorporatedBefore = advFilters.incorporatedBefore;
+  if (advFilters.sortBy) params.sortBy = advFilters.sortBy;
 
   const queryString = new URLSearchParams(params).toString();
 
@@ -556,14 +569,21 @@ export default function Home() {
              "All Companies"}
             {data && <span className="text-sm font-normal text-muted-foreground ml-2">({data.total.toLocaleString()} found)</span>}
           </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs text-slate-600 border-slate-300 hover:bg-slate-50"
-            onClick={handleCsvExport}
-          >
-            <Database className="h-3.5 w-3.5" /> Export CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <AdvancedFiltersDrawer
+              filters={advFilters}
+              onChange={f => { setAdvFilters(f); setPage(1); }}
+              activeCount={advActiveCount}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs text-slate-600 border-slate-300 hover:bg-slate-50"
+              onClick={handleCsvExport}
+            >
+              <Database className="h-3.5 w-3.5" /> Export CSV
+            </Button>
+          </div>
         </div>
 
         {/* Active filter chips */}
@@ -752,6 +772,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Phase 16 — Newsletter */}
+      <NewsletterSignup />
 
       {/* BACKLINK GRID */}
       <BacklinkGrid />

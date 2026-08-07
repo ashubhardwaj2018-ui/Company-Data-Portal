@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Building2, MapPin, Calendar, FileText,
-  Mail, IndianRupee, ArrowLeft, HelpCircle, Phone, ExternalLink, Eye,
+  Mail, IndianRupee, ArrowLeft, HelpCircle, Phone, ExternalLink, Eye, Scale,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ShareBar } from "@/components/layout/ShareBar";
@@ -19,6 +19,9 @@ import { ServiceAside } from "@/components/layout/ServiceAside";
 import { ClaimModal } from "@/components/companies/ClaimModal";
 import { WatchlistButton } from "@/components/companies/WatchlistButton";
 import { SuggestCorrectionModal } from "@/components/companies/SuggestCorrectionModal";
+import { SharePrintBar } from "@/components/companies/SharePrintBar";
+import { ReviewsSection } from "@/components/companies/ReviewsSection";
+import { CompareToggle } from "@/components/companies/CompareToggle";
 import type { Company } from "@shared/schema";
 
 // ── Country code → display name ───────────────────────────────────────────────
@@ -406,6 +409,8 @@ export default function CompanyDetails() {
                   name: company.name,
                 }}
               />
+              {/* Phase 15 — Compare */}
+              <CompareToggle company={company} />
               {/* Phase 8 — View count */}
               {(company.viewCount ?? 0) > 0 && (
                 <div className="flex items-center gap-1.5 text-white/50 text-xs">
@@ -429,11 +434,27 @@ export default function CompanyDetails() {
               ? <IndiaFields company={company} />
               : <GlobalFields company={company} />}
 
+            {/* Phase 23 — Share & Print bar */}
+            <div className="pt-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Share this profile</p>
+              <SharePrintBar
+                companyName={company.name}
+                url={typeof window !== "undefined" ? window.location.href : canonicalFull}
+              />
+            </div>
+
             {/* FAQ-style accordion */}
             <CompanyFaqSection company={company} />
 
             {/* Related companies + internal links */}
             <RelatedCompanies company={company} />
+
+            {/* Phase 19 — Reviews & Ratings */}
+            <ReviewsSection
+              companyId={company.id}
+              isLoggedIn={!!user}
+              userEmail={(user as any)?.claims?.email ?? (user as any)?.email ?? undefined}
+            />
           </div>
 
           {/* Sidebar */}

@@ -18,7 +18,11 @@ import {
   Link2, Plus, Trash2, ExternalLink, Globe, Loader2,
   Settings, Sparkles, FileText, Search, Eye, EyeOff,
   Info, AlertCircle, ClipboardList, XCircle, Clock,
+  Star, Mail, BarChart2, Pencil,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+} from "recharts";
 import { useToast } from "@/hooks/use-toast";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -241,6 +245,348 @@ function SuggestionsTab() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Analytics Tab (Phase 20) ─────────────────────────────────────────────────
+const PIE_COLORS = ["#6366f1","#0ea5e9","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6"];
+
+function AnalyticsTab() {
+  const { data: stats } = useQuery<any>({
+    queryKey: ["/api/directory/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/directory/stats");
+      if (!res.ok) return {};
+      return res.json();
+    },
+  });
+
+  const byState = (stats?.byState || []).slice(0, 10).map((s: any) => ({ name: s.state || "Unknown", value: s.count }));
+  const byStatus = (stats?.byStatus || []).map((s: any) => ({ name: s.status || "Unknown", value: s.count }));
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: "Total Companies", value: stats?.total ?? "—" },
+          { label: "Active Companies", value: (stats?.byStatus || []).find((s: any) => s.status === "Active")?.count ?? "—" },
+          { label: "States Covered", value: (stats?.byState || []).filter((s: any) => s.state).length || "—" },
+        ].map(m => (
+          <Card key={m.label} className="border-0 shadow-md">
+            <CardContent className="p-6 text-center">
+              <p className="text-3xl font-bold text-primary">{typeof m.value === "number" ? m.value.toLocaleString() : m.value}</p>
+              <p className="text-sm text-muted-foreground mt-1">{m.label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border-0 shadow-md">
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="text-base flex items-center gap-2"><BarChart2 className="h-4 w-4" /> Top 10 States by Company Count</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            {byState.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No state data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={byState} layout="vertical" margin={{ left: 80, right: 20, top: 5, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+                  <Tooltip formatter={(v: any) => v.toLocaleString()} />
+                  <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md">
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="text-base flex items-center gap-2"><BarChart2 className="h-4 w-4" /> Companies by Status</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            {byStatus.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No status data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    {byStatus.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => v.toLocaleString()} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ─── Reviews Tab (Phase 19) ───────────────────────────────────────────────────
+const REVIEW_STATUS_STYLE: Record<string, string> = {
+  pending:  "bg-yellow-100 text-yellow-800",
+  approved: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-700",
+};
+
+function ReviewStars({ rating }: { rating: number }) {
+  return (
+    <span className="flex gap-0.5">
+      {[1,2,3,4,5].map(i => (
+        <span key={i} className={`text-sm ${i <= rating ? "text-yellow-400" : "text-gray-300"}`}>★</span>
+      ))}
+    </span>
+  );
+}
+
+function ReviewsAdminTab() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const { data: reviews = [], isLoading, refetch } = useQuery<any[]>({
+    queryKey: ["/api/admin/reviews", statusFilter],
+    queryFn: async () => {
+      const p = statusFilter ? `?status=${statusFilter}` : "";
+      const res = await fetch(`/api/admin/reviews${p}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const res = await fetch(`/api/admin/reviews/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/reviews"] }); toast({ title: "Review updated" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardHeader className="bg-white border-b flex-row items-center justify-between space-y-0 gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg"><Star className="h-5 w-5 text-yellow-500" /> Company Reviews</CardTitle>
+            <CardDescription className="mt-1">Moderate user-submitted reviews before they appear publicly.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {["", "pending", "approved", "rejected"].map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${statusFilter === s ? "bg-slate-900 text-white border-slate-900" : "border-slate-300 text-slate-600 hover:border-slate-500"}`}>
+                {s || "All"}
+              </button>
+            ))}
+            <Button size="sm" variant="outline" onClick={() => refetch()}>Refresh</Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          : reviews.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground"><Star className="h-10 w-10 mx-auto mb-3 opacity-30" /><p className="text-sm">No reviews{statusFilter ? ` with status "${statusFilter}"` : ""} yet.</p></div>
+          ) : (
+            <div className="divide-y">
+              {reviews.map((r: any) => (
+                <div key={r.id} className="px-6 py-4 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-semibold text-sm">{r.companyName || `Company #${r.companyId}`}</span>
+                        <Badge className={`text-[10px] border-0 ${REVIEW_STATUS_STYLE[r.status] || "bg-gray-100"}`}>{r.status}</Badge>
+                        <ReviewStars rating={r.rating} />
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-0.5">
+                        {r.userName && <p><strong>By:</strong> {r.userName}</p>}
+                        {r.comment && <p className="italic">"{r.comment}"</p>}
+                        <p><strong>Email:</strong> {r.userEmail} · {new Date(r.createdAt).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    {r.status === "pending" && (
+                      <div className="flex gap-2 shrink-0">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                          onClick={() => reviewMutation.mutate({ id: r.id, status: "approved" })}
+                          disabled={reviewMutation.isPending}>Approve</Button>
+                        <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 text-xs"
+                          onClick={() => reviewMutation.mutate({ id: r.id, status: "rejected" })}
+                          disabled={reviewMutation.isPending}>Reject</Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Newsletter Tab (Phase 16) ─────────────────────────────────────────────────
+function NewsletterAdminTab() {
+  const { data: subscribers = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/newsletter"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/newsletter", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const active = subscribers.filter(s => s.active).length;
+  const exportCsv = () => window.open("/api/admin/newsletter/export", "_blank");
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardHeader className="bg-white border-b flex-row items-center justify-between space-y-0 gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg"><Mail className="h-5 w-5 text-teal-600" /> Newsletter Subscribers</CardTitle>
+            <CardDescription>{subscribers.length} total · {active} active</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={exportCsv} className="gap-2"><ExternalLink className="h-4 w-4" /> Export CSV</Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          : subscribers.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground"><Mail className="h-10 w-10 mx-auto mb-3 opacity-30" /><p className="text-sm">No subscribers yet.</p></div>
+          ) : (
+            <div className="divide-y max-h-[500px] overflow-y-auto">
+              {subscribers.map((s: any) => (
+                <div key={s.id} className="px-6 py-3 flex items-center justify-between gap-4 hover:bg-muted/20 transition-colors">
+                  <div>
+                    <p className="text-sm font-medium">{s.email}</p>
+                    {s.name && <p className="text-xs text-muted-foreground">{s.name}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge className={`text-[10px] border-0 ${s.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>{s.active ? "active" : "unsubscribed"}</Badge>
+                    <span className="text-[10px] text-muted-foreground">{new Date(s.subscribedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Bulk Edit Tab (Phase 24) ──────────────────────────────────────────────────
+function BulkEditTab() {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<number[]>([]);
+  const [statusOverride, setStatusOverride] = useState("");
+  const [industryOverride, setIndustryOverride] = useState("");
+
+  const { data, isLoading } = useQuery<{ data: any[]; total: number }>({
+    queryKey: ["/api/companies", { search, limit: 50 }],
+    queryFn: async () => {
+      const p = new URLSearchParams({ limit: "50" });
+      if (search) p.set("search", search);
+      const res = await fetch(`/api/companies?${p}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: async () => {
+      const fields: Record<string, string> = {};
+      if (statusOverride) fields.status = statusOverride;
+      if (industryOverride) fields.industry = industryOverride;
+      const res = await fetch("/api/admin/companies/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ids: selected, fields }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: (r: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      setSelected([]); setStatusOverride(""); setIndustryOverride("");
+      toast({ title: `Updated ${r.updated} companies` });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const toggle = (id: number) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  const toggleAll = () => {
+    const ids = (data?.data || []).map((c: any) => c.id);
+    setSelected(s => s.length === ids.length ? [] : ids);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2 text-lg"><Pencil className="h-5 w-5" /> Bulk Company Edit</CardTitle>
+          <CardDescription>Select companies below, then apply field overrides to all selected records.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-48">
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Search companies</label>
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Company name…"
+                value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Set status</label>
+              <select className="border rounded-lg px-3 py-2 text-sm" value={statusOverride} onChange={e => setStatusOverride(e.target.value)}>
+                <option value="">No change</option>
+                {["Active","Strike-off","Dissolved","Under liquidation","Converted to LLP"].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Set industry</label>
+              <input className="border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Technology"
+                value={industryOverride} onChange={e => setIndustryOverride(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="border rounded-xl overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b text-xs font-semibold text-muted-foreground">
+              <input type="checkbox" checked={selected.length === (data?.data || []).length && selected.length > 0}
+                onChange={toggleAll} className="rounded" />
+              <span>Select All ({selected.length} selected)</span>
+            </div>
+            <div className="max-h-72 overflow-y-auto divide-y">
+              {isLoading ? <div className="p-6 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              : (data?.data || []).map((c: any) => (
+                <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 cursor-pointer">
+                  <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="rounded" />
+                  <span className="text-sm font-medium truncate">{c.name}</span>
+                  <span className="text-xs text-muted-foreground ml-auto shrink-0">{c.status}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <Button
+            disabled={!selected.length || (!statusOverride && !industryOverride) || bulkMutation.isPending}
+            onClick={() => bulkMutation.mutate()}
+            className="gap-2"
+          >
+            {bulkMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+            Apply to {selected.length} selected
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -992,6 +1338,18 @@ export default function AdminDashboard() {
             <TabsTrigger value="suggestions" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
               <AlertCircle className="h-4 w-4 mr-2" /> Corrections
             </TabsTrigger>
+            <TabsTrigger value="reviews" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
+              <Star className="h-4 w-4 mr-2" /> Reviews
+            </TabsTrigger>
+            <TabsTrigger value="newsletter" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white">
+              <Mail className="h-4 w-4 mr-2" /> Newsletter
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+              <BarChart2 className="h-4 w-4 mr-2" /> Analytics
+            </TabsTrigger>
+            <TabsTrigger value="bulk-edit" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white">
+              <Pencil className="h-4 w-4 mr-2" /> Bulk Edit
+            </TabsTrigger>
             <TabsTrigger value="services" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white">
               <Link2 className="h-4 w-4 mr-2" /> Service Links
             </TabsTrigger>
@@ -1042,6 +1400,10 @@ export default function AdminDashboard() {
           <TabsContent value="import-jobs"><ImportJobsTab /></TabsContent>
           <TabsContent value="claims"><ClaimsTab /></TabsContent>
           <TabsContent value="suggestions"><SuggestionsTab /></TabsContent>
+          <TabsContent value="reviews"><ReviewsAdminTab /></TabsContent>
+          <TabsContent value="newsletter"><NewsletterAdminTab /></TabsContent>
+          <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+          <TabsContent value="bulk-edit"><BulkEditTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
           <TabsContent value="articles"><ArticlesTab /></TabsContent>
           <TabsContent value="blog"><BlogTab /></TabsContent>

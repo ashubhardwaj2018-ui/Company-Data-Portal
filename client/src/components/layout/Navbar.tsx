@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-admin";
 import { Button } from "@/components/ui/button";
-import { Building2, LayoutDashboard, LogOut, User, Upload } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, User, Upload, Bookmark, Scale } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,8 +94,27 @@ export function Navbar() {
                     </div>
                   </div>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">
+                      <User className="mr-2 h-4 w-4" />
+                      My Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/watchlist">
+                      <Bookmark className="mr-2 h-4 w-4" />
+                      Watchlist
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/compare">
+                      <Scale className="mr-2 h-4 w-4" />
+                      Compare
+                    </Link>
+                  </DropdownMenuItem>
                   {adminCheck?.isAdmin && (
                     <>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
                         <Link href="/admin?tab=upload">
                           <Upload className="mr-2 h-4 w-4 text-orange-500" />
@@ -110,6 +129,7 @@ export function Navbar() {
                       </DropdownMenuItem>
                     </>
                   )}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => logout()} className="text-destructive focus:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out

@@ -3,3 +3,4 @@
 - [SAX import CJS fix](sax-cjs-fix.md) — sax package must be imported as `import saxLib from "sax"; const sax = saxLib as any` due to CJS/ESM mismatch.
 - [Helmet JSX constraints](helmet-jsx.md) — Helmet must be inside outermost div (not fragment); JSON-LD script must use dangerouslySetInnerHTML not expression children.
 - [Phase route ordering](phase-route-ordering.md) — /api/watchlist/check/:id MUST be registered before /api/watchlist/:id to prevent Express treating "check" as companyId.
+- [Compare/recent route ordering](route-ordering.md) — /api/companies/compare and /api/companies/recent must live before the /:id wildcard; server restart required to pick up route-order changes (HMR does not reorder middleware).

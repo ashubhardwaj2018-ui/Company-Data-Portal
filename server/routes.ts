@@ -47,6 +47,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { data, total } = await storage.getCompanies(
         input.page, input.limit, input.search, input.alphabet,
         input.country, input.countryCode, input.state, input.status, input.city,
+        input.industry, input.pincode,
+        input.minCapital, input.maxCapital,
+        input.incorporatedAfter, input.incorporatedBefore,
+        input.sortBy,
       );
       res.json({ data, total, page: input.page, limit: input.limit });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
@@ -100,6 +104,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (e) {
       res.status(500).json({ message: "Internal Server Error" });
     }
+  });
+
+  // ── Phase 15: Company comparison — MUST be before /:id ───────────────────
+  app.get("/api/companies/compare", async (req, res) => {
+    try {
+      const ids = String(req.query.ids || "").split(",").map(Number).filter(Boolean).slice(0, 3);
+      if (!ids.length) return res.json([]);
+      res.json(await storage.getCompaniesByIds(ids));
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  // ── Phase 21: Recent activity — MUST be before /:id ───────────────────────
+  app.get("/api/companies/recent", async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit || 6), 12);
+      const cc = req.query.countryCode ? String(req.query.countryCode) : undefined;
+      res.json(await storage.getRecentlyUpdated(limit, cc));
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
   });
 
   // GET /api/companies/:id  — must stay AFTER all /api/companies/<name> paths
@@ -383,6 +405,120 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.error("AI generate error:", err);
       res.status(500).json({ message: err.message || "AI generation failed" });
     }
+  });
+
+  // ── Phase 15: Company comparison (already registered early, stub removed) ──
+
+  // ── Phase 16: Newsletter ───────────────────────────────────────────────────
+  app.post("/api/newsletter/subscribe", limits.write, async (req, res) => {
+    try {
+      const { email, name } = req.body;
+      if (!email || !String(email).includes("@")) return res.status(400).json({ message: "Valid email required" });
+      const result = await storage.subscribeNewsletter(String(email), name);
+      res.json({ ok: true, ...result });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.post("/api/newsletter/unsubscribe", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: "Email required" });
+      await storage.unsubscribeNewsletter(String(email));
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.get("/api/admin/newsletter", requireAdmin, async (req, res) => {
+    try {
+      res.json(await storage.listSubscribers());
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.get("/api/admin/newsletter/export", requireAdmin, async (req, res) => {
+    try {
+      const subs = await storage.listSubscribers();
+      const csvEscape = (v: any) => {
+        const s = String(v ?? "");
+        return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const rows = [
+        ["id", "email", "name", "source", "active", "subscribedAt"].join(","),
+        ...subs.map(s => [s.id, s.email, s.name ?? "", s.source ?? "", s.active, s.subscribedAt ?? ""].map(csvEscape).join(",")),
+      ];
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="subscribers-${Date.now()}.csv"`);
+      res.send(rows.join("\n"));
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  // ── Phase 17: User profile helpers ────────────────────────────────────────
+  app.get("/api/my/claims", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    res.json(await storage.listUserClaims(email));
+  });
+
+  app.get("/api/my/suggestions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    res.json(await storage.listUserSuggestions(email));
+  });
+
+  // ── Phase 19: Reviews ──────────────────────────────────────────────────────
+  // Static paths before /:id
+  app.get("/api/companies/:id/reviews", async (req, res) => {
+    try {
+      const companyId = Number(req.params.id);
+      if (isNaN(companyId)) return res.status(400).json({ message: "Invalid ID" });
+      res.json(await storage.getCompanyReviews(companyId));
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.post("/api/companies/:id/reviews", limits.write, async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required to leave a review" });
+      const companyId = Number(req.params.id);
+      const company = await storage.getCompany(companyId);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const email: string = req.user?.claims?.email || "";
+      const { rating, comment, userName } = req.body;
+      if (!rating || rating < 1 || rating > 5) return res.status(400).json({ message: "rating must be 1–5" });
+      const review = await storage.createReview({ companyId, userEmail: email, rating: Number(rating), comment, userName });
+      res.status(201).json(review);
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.get("/api/admin/reviews", requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status ? String(req.query.status) : undefined;
+      res.json(await storage.listReviews(status));
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.patch("/api/admin/reviews/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { status } = req.body;
+      if (!["approved", "rejected"].includes(status)) return res.status(400).json({ message: "status must be approved or rejected" });
+      const email: string = req.user?.claims?.email || "admin";
+      await storage.updateReviewStatus(id, status, email);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  // ── Phase 21: Recent activity (already registered early, stub removed) ────
+
+  // ── Phase 24: Bulk update ──────────────────────────────────────────────────
+  app.patch("/api/admin/companies/bulk", requireAdmin, async (req, res) => {
+    try {
+      const { ids, fields } = req.body;
+      if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ message: "ids[] required" });
+      if (!fields || !Object.keys(fields).length) return res.status(400).json({ message: "fields required" });
+      const allowed = ["status", "industry", "source"];
+      const safeFields = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
+      const updated = await storage.bulkUpdateCompanies(ids.map(Number), safeFields);
+      res.json({ updated });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
   });
 
   // ── Phase 11: Watchlist ────────────────────────────────────────────────────
