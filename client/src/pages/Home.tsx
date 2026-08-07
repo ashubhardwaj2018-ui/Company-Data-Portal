@@ -114,6 +114,20 @@ function readUrlParam(key: string) {
   return new URLSearchParams(window.location.search).get(key) ?? undefined;
 }
 
+function useTrending(countryCode?: string) {
+  return useQuery<typeof import("@shared/schema").companies.$inferSelect[]>({
+    queryKey: ["/api/companies/trending", countryCode],
+    queryFn: async () => {
+      const p = new URLSearchParams({ limit: "6" });
+      if (countryCode) p.set("countryCode", countryCode);
+      const res = await fetch(`/api/companies/trending?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
 export default function Home() {
   const [search, setSearch] = useState(() => readUrlParam("q") || "");
   const [page, setPage] = useState(1);
@@ -193,6 +207,16 @@ export default function Home() {
   });
 
   const activeCountry = COUNTRIES.find(c => c.code === selectedCountry);
+  const { data: trendingCompanies = [] } = useTrending(selectedCountry);
+
+  const handleCsvExport = () => {
+    const p = new URLSearchParams();
+    if (debouncedSearch) p.set("search", debouncedSearch);
+    if (selectedCountry) p.set("countryCode", selectedCountry);
+    if (statusFilter) p.set("status", statusFilter);
+    if (alphabet) p.set("alphabet", alphabet);
+    window.location.href = `/api/companies/export?${p}`;
+  };
 
   const { data: servicesList } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -356,6 +380,50 @@ export default function Home() {
         </div>
       </div>
 
+      {/* TRENDING COMPANIES (Phase 8) */}
+      {trendingCompanies.length > 0 && (
+        <div className="bg-gradient-to-b from-slate-50 to-white border-b py-10">
+          <div className="container-width">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-orange-500" />
+                  Trending Companies
+                </h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {selectedCountry ? `Most viewed in ${COUNTRIES.find(c => c.code === selectedCountry)?.name}` : "Most viewed globally"}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {trendingCompanies.map((c: any, i: number) => (
+                <Link key={c.id} href={c.slug && c.countryCode ? `/${c.countryCode.toLowerCase()}/company/${c.slug}` : `/company/${c.id}`}>
+                  <div className="flex items-center gap-3 p-4 rounded-xl border bg-white hover:shadow-md hover:border-orange-200 transition-all cursor-pointer group">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-sm font-bold text-orange-600">
+                      {i + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm text-slate-900 truncate group-hover:text-orange-600 transition-colors">{c.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {[c.city, c.state].filter(Boolean).join(", ")}
+                        {c.viewCount ? ` · ${c.viewCount.toLocaleString()} views` : ""}
+                      </p>
+                    </div>
+                    {c.status && (
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                        c.status.toLowerCase().includes("active") ? "bg-green-100 text-green-700" :
+                        c.status.toLowerCase().includes("strike") ? "bg-red-100 text-red-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>{c.status}</span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ALPHABET FILTER */}
       <div className="py-14 border-b" style={{ background: "linear-gradient(135deg, #0a0f1e 0%, #0f172a 40%, #1a1f3a 70%, #0a0f1e 100%)" }}>
         <div className="container-width">
@@ -478,6 +546,26 @@ export default function Home() {
 
       {/* RESULTS SECTION */}
       <main className="flex-1 py-12 container-width">
+        {/* Results header row: title + CSV export */}
+        <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+          <h2 className="text-lg font-bold text-slate-800">
+            {debouncedSearch ? `Results for "${debouncedSearch}"` :
+             selectedCountry ? `${activeCountry?.name || selectedCountry} Companies` :
+             statusFilter ? `${statusFilter} Companies` :
+             alphabet ? `Companies starting with "${alphabet}"` :
+             "All Companies"}
+            {data && <span className="text-sm font-normal text-muted-foreground ml-2">({data.total.toLocaleString()} found)</span>}
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs text-slate-600 border-slate-300 hover:bg-slate-50"
+            onClick={handleCsvExport}
+          >
+            <Database className="h-3.5 w-3.5" /> Export CSV
+          </Button>
+        </div>
+
         {/* Active filter chips */}
         {(selectedCountry || debouncedSearch || alphabet || statusFilter) && (
           <div className="flex items-center gap-2 mb-6 flex-wrap">

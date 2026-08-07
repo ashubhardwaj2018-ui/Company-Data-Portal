@@ -51,7 +51,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
   });
 
-  // ── Autocomplete suggestions (must be before /:id) ────────────────────────
+  // ── Static /api/companies/* paths — ALL must come before /:id ─────────────
+
+  // Autocomplete suggestions
   app.get("/api/companies/suggest", async (req, res) => {
     try {
       const q = String(req.query.q || "").trim();
@@ -64,6 +66,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Phase 10: CSV export
+  app.get("/api/companies/export", async (req, res) => {
+    try {
+      const input = api.companies.list.input.parse({ ...req.query, page: 1, limit: 10000 });
+      const { data } = await storage.getCompanies(
+        1, 10000, input.search, input.alphabet,
+        input.country, input.countryCode, input.state, input.status, input.city,
+      );
+      const headers = ["id", "name", "cin", "status", "state", "city", "country", "email", "phone", "address", "incorporationDate", "authorizedCapital", "paidUpCapital"];
+      const escape = (v: unknown) => {
+        if (v == null) return "";
+        const s = String(v);
+        return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const rows = [headers.join(","), ...data.map(c => headers.map(h => escape((c as any)[h])).join(","))];
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="companies-${Date.now()}.csv"`);
+      res.send(rows.join("\r\n"));
+    } catch (e) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  // Phase 8: Trending companies
+  app.get("/api/companies/trending", async (req, res) => {
+    try {
+      const countryCode = req.query.countryCode ? String(req.query.countryCode) : undefined;
+      const limit = Math.min(Number(req.query.limit || 6), 12);
+      const results = await storage.getTrendingCompanies(limit, countryCode);
+      res.json(results);
+    } catch (e) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  // GET /api/companies/:id  — must stay AFTER all /api/companies/<name> paths
   app.get(api.companies.get.path, async (req, res) => {
     const company = await storage.getCompany(Number(req.params.id));
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -79,6 +117,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Unsupported country code" });
       const company = await storage.getCompanyBySlug(countryCode, slug);
       if (!company) return res.status(404).json({ message: "Company not found" });
+
+      // Phase 8: increment view count (fire-and-forget, debounced by IP+id in 30 min)
+      const ip = String(req.ip || req.socket.remoteAddress || "unknown");
+      const dedupeKey = `view:${ip}:${company.id}`;
+      const { cache: serverCache, TTL: serverTTL } = await import("./cache");
+      if (!serverCache.get(dedupeKey)) {
+        serverCache.set(dedupeKey, 1, serverTTL.VIEW_DEBOUNCE);
+        storage.incrementViewCount(company.id).catch(() => {});
+      }
+
       res.json(company);
     } catch (e: any) {
       console.error("[slug lookup]", e.message);
@@ -334,6 +382,43 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.error("AI generate error:", err);
       res.status(500).json({ message: err.message || "AI generation failed" });
     }
+  });
+
+  // ── Phase 7: Company Claims ────────────────────────────────────────────────
+  // Any authenticated user can submit a claim; admin reviews it.
+  app.post("/api/companies/:id/claim", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required to claim a listing" });
+      const companyId = Number(req.params.id);
+      const company = await storage.getCompany(companyId);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const email: string = req.user?.claims?.email || "";
+      const { userName, phone, message } = req.body;
+      const claim = await storage.createClaim({ companyId, userEmail: email, userName, phone, message });
+      res.status(201).json(claim);
+    } catch (e: any) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  app.get("/api/admin/claims", requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status ? String(req.query.status) : undefined;
+      const claims = await storage.listClaims(status);
+      res.json(claims);
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  app.patch("/api/admin/claims/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { status } = req.body;
+      if (!["approved", "rejected"].includes(status))
+        return res.status(400).json({ message: "status must be approved or rejected" });
+      const email: string = req.user?.claims?.email || "admin";
+      await storage.updateClaimStatus(id, status, email);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
   });
 
   // ── Sitemap ────────────────────────────────────────────────────────────────

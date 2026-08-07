@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, bigint, date, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, bigint, date, varchar, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -35,6 +35,8 @@ export const companies = pgTable("companies", {
   lastBalanceSheetDate: date("last_balance_sheet_date"),
   customQna: text("custom_qna"),
   country: text("country").default("India"),                             // Kept for backward compat
+  // ── Phase 8: view tracking ─────────────────────────────────────────────────
+  viewCount: integer("view_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -186,3 +188,22 @@ export const importErrors = pgTable("import_errors", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type ImportError = typeof importErrors.$inferSelect;
+
+// ─── Company Claims (Phase 7) ─────────────────────────────────────────────────
+// Allows business owners to claim and verify their listing.
+// Statuses: pending → approved | rejected
+export const companyClaims = pgTable("company_claims", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  userEmail: text("user_email").notNull(),
+  userName: text("user_name"),
+  phone: text("phone"),
+  message: text("message"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertClaimSchema = createInsertSchema(companyClaims).omit({ id: true, createdAt: true, reviewedAt: true });
+export type CompanyClaim = typeof companyClaims.$inferSelect;
+export type InsertClaim = z.infer<typeof insertClaimSchema>;

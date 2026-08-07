@@ -141,6 +141,131 @@ function ImportJobsTab() {
   );
 }
 
+// ─── Claims Tab (Phase 7) ─────────────────────────────────────────────────────
+const CLAIM_STATUS_STYLE: Record<string, string> = {
+  pending:  "bg-yellow-100 text-yellow-800",
+  approved: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-800",
+};
+
+function ClaimsTab() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  const { data: claims = [], isLoading, refetch } = useQuery<any[]>({
+    queryKey: ["/api/admin/claims", statusFilter],
+    queryFn: async () => {
+      const p = statusFilter ? `?status=${statusFilter}` : "";
+      const res = await fetch(`/api/admin/claims${p}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch claims");
+      return res.json();
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const res = await fetch(`/api/admin/claims/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Review failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/claims"] });
+      toast({ title: "Claim updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardHeader className="bg-white border-b flex-row items-center justify-between space-y-0 gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ShieldAlert className="h-5 w-5 text-blue-600" /> Business Claim Requests
+            </CardTitle>
+            <CardDescription className="mt-1">Review and approve/reject ownership claims submitted by users.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {["", "pending", "approved", "rejected"].map(s => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                  statusFilter === s ? "bg-slate-900 text-white border-slate-900" : "border-slate-300 text-slate-600 hover:border-slate-500"
+                }`}
+              >
+                {s || "All"}
+              </button>
+            ))}
+            <Button size="sm" variant="outline" onClick={() => refetch()}>Refresh</Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : claims.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">
+              <ShieldAlert className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No claims{statusFilter ? ` with status "${statusFilter}"` : ""} yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {claims.map((claim: any) => (
+                <div key={claim.id} className="px-6 py-4 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-semibold text-sm">{claim.companyName || `Company #${claim.companyId}`}</span>
+                        <Badge className={`text-[10px] border-0 ${CLAIM_STATUS_STYLE[claim.status] || "bg-gray-100"}`}>
+                          {claim.status}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-0.5">
+                        <p><strong>Claimant:</strong> {claim.userName || "—"} · {claim.userEmail}</p>
+                        {claim.phone && <p><strong>Phone:</strong> {claim.phone}</p>}
+                        {claim.message && <p><strong>Message:</strong> {claim.message}</p>}
+                        <p className="text-[10px] opacity-60">Submitted: {new Date(claim.createdAt).toLocaleString()}</p>
+                        {claim.reviewedBy && (
+                          <p className="text-[10px] opacity-60">Reviewed by {claim.reviewedBy} · {new Date(claim.reviewedAt).toLocaleString()}</p>
+                        )}
+                      </div>
+                    </div>
+                    {claim.status === "pending" && (
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                          onClick={() => reviewMutation.mutate({ id: claim.id, status: "approved" })}
+                          disabled={reviewMutation.isPending}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50 text-xs"
+                          onClick={() => reviewMutation.mutate({ id: claim.id, status: "rejected" })}
+                          disabled={reviewMutation.isPending}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Services Tab ─────────────────────────────────────────────────────────────
 function ServicesTab() {
   const [title, setTitle] = useState("");
@@ -755,6 +880,9 @@ export default function AdminDashboard() {
             <TabsTrigger value="import-jobs" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
               <ClipboardList className="h-4 w-4 mr-2" /> Import Jobs
             </TabsTrigger>
+            <TabsTrigger value="claims" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white">
+              <ShieldAlert className="h-4 w-4 mr-2" /> Claims
+            </TabsTrigger>
             <TabsTrigger value="services" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white">
               <Link2 className="h-4 w-4 mr-2" /> Service Links
             </TabsTrigger>
@@ -803,6 +931,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="import-jobs"><ImportJobsTab /></TabsContent>
+          <TabsContent value="claims"><ClaimsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
           <TabsContent value="articles"><ArticlesTab /></TabsContent>
           <TabsContent value="blog"><BlogTab /></TabsContent>

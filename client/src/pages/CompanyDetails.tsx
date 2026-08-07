@@ -1,6 +1,7 @@
 import { useRoute, Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { useCompany, useCompanyBySlug, useRelatedCompanies } from "@/hooks/use-companies";
+import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/layout/Navbar";
 import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -10,11 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Building2, MapPin, Calendar, FileText,
-  Mail, IndianRupee, ArrowLeft, HelpCircle, Phone, ExternalLink,
+  Mail, IndianRupee, ArrowLeft, HelpCircle, Phone, ExternalLink, Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ShareBar } from "@/components/layout/ShareBar";
 import { ServiceAside } from "@/components/layout/ServiceAside";
+import { ClaimModal } from "@/components/companies/ClaimModal";
 import type { Company } from "@shared/schema";
 
 // ── Country code → display name ───────────────────────────────────────────────
@@ -255,6 +257,7 @@ function RelatedCompanies({ company }: { company: Company }) {
 
 export default function CompanyDetails() {
   // Match both route patterns
+  const { user } = useAuth();
   const [matchById, paramsById] = useRoute("/company/:id");
   const [matchBySlug, paramsBySlug] = useRoute("/:countryCode/company/:slug");
 
@@ -377,6 +380,19 @@ export default function CompanyDetails() {
                   description={`View registration details and information for ${company.name}.`}
                 />
               </div>
+              {/* Phase 7 — Claim button */}
+              <ClaimModal
+                companyId={company.id}
+                companyName={company.name}
+                isLoggedIn={!!user}
+              />
+              {/* Phase 8 — View count */}
+              {(company.viewCount ?? 0) > 0 && (
+                <div className="flex items-center gap-1.5 text-white/50 text-xs">
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>{company.viewCount?.toLocaleString()} views</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

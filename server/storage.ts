@@ -9,8 +9,10 @@ import {
   siteSettings, type SiteSetting,
   importJobs, type ImportJob, type InsertImportJob,
   importErrors,
+  companyClaims, type CompanyClaim, type InsertClaim,
 } from "@shared/schema";
 import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
+import { cache, TTL } from "./cache";
 
 export interface IStorage {
   // Companies
@@ -70,6 +72,15 @@ export interface IStorage {
   listImportJobs(limit?: number): Promise<ImportJob[]>;
   createImportError(err: { importJobId: number; recordNumber?: number; errorType?: string; errorMessage?: string; identifier?: string }): Promise<void>;
   markStaleJobsFailed(): Promise<void>;
+
+  // Phase 7 — Company Claims
+  createClaim(claim: Omit<InsertClaim, "status" | "reviewedBy">): Promise<CompanyClaim>;
+  listClaims(status?: string): Promise<(CompanyClaim & { companyName: string | null })[]>;
+  updateClaimStatus(id: number, status: "approved" | "rejected", reviewedBy: string): Promise<void>;
+
+  // Phase 8 — View tracking
+  incrementViewCount(companyId: number): Promise<void>;
+  getTrendingCompanies(limit?: number, countryCode?: string): Promise<Company[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -97,12 +108,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async searchSuggestions(q: string, countryCode?: string, limit = 8) {
+    const cacheKey = `suggest:${q.toLowerCase()}:${countryCode || ""}:${limit}`;
+    const cached = cache.get<Awaited<ReturnType<DatabaseStorage["searchSuggestions"]>>>(cacheKey);
+    if (cached) return cached;
+
     const conditions: any[] = [
       sql`(${companies.name} ILIKE ${`%${q}%`} OR ${companies.cin} ILIKE ${`%${q}%`})`,
     ];
     if (countryCode) conditions.push(eq(companies.countryCode, countryCode.toUpperCase()));
     const whereClause = conditions.length > 1 ? sql`${sql.join(conditions, sql` AND `)}` : conditions[0];
-    return db
+    const results = await db
       .select({
         id: companies.id,
         name: companies.name,
@@ -117,6 +132,8 @@ export class DatabaseStorage implements IStorage {
       .where(whereClause)
       .orderBy(desc(companies.id))
       .limit(limit);
+    cache.set(cacheKey, results, TTL.SUGGEST);
+    return results;
   }
 
   async getCompany(id: number) {
@@ -135,6 +152,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDirectoryStats(countryCode?: string) {
+    const cacheKey = `stats:${countryCode || "global"}`;
+    const cached = cache.get<Awaited<ReturnType<DatabaseStorage["getDirectoryStats"]>>>(cacheKey);
+    if (cached) return cached;
+
     const whereClause = countryCode
       ? eq(companies.countryCode, countryCode.toUpperCase())
       : undefined;
@@ -158,7 +179,9 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(count()));
     }
 
-    return { total, byState, byCountry };
+    const result = { total, byState, byCountry };
+    cache.set(cacheKey, result, TTL.STATS);
+    return result;
   }
 
   async getRelatedCompanies(excludeId: number, countryCode: string, state?: string | null, roc?: string | null, limit = 6): Promise<Company[]> {
@@ -274,6 +297,64 @@ export class DatabaseStorage implements IStorage {
     await db.update(importJobs)
       .set({ status: "FAILED", errorMessage: "Server restarted during import", completedAt: new Date() })
       .where(eq(importJobs.status, "PROCESSING"));
+  }
+
+  // ── Phase 7: Company Claims ────────────────────────────────────────────────
+  async createClaim(claim: Omit<InsertClaim, "status" | "reviewedBy">): Promise<CompanyClaim> {
+    const [c] = await db.insert(companyClaims).values({ ...claim, status: "pending" }).returning();
+    return c;
+  }
+
+  async listClaims(status?: string): Promise<(CompanyClaim & { companyName: string | null })[]> {
+    const rows = await db
+      .select({
+        id: companyClaims.id,
+        companyId: companyClaims.companyId,
+        userEmail: companyClaims.userEmail,
+        userName: companyClaims.userName,
+        phone: companyClaims.phone,
+        message: companyClaims.message,
+        status: companyClaims.status,
+        reviewedBy: companyClaims.reviewedBy,
+        reviewedAt: companyClaims.reviewedAt,
+        createdAt: companyClaims.createdAt,
+        companyName: companies.name,
+      })
+      .from(companyClaims)
+      .leftJoin(companies, eq(companyClaims.companyId, companies.id))
+      .where(status ? eq(companyClaims.status, status) : undefined)
+      .orderBy(desc(companyClaims.createdAt));
+    return rows as any;
+  }
+
+  async updateClaimStatus(id: number, status: "approved" | "rejected", reviewedBy: string): Promise<void> {
+    await db.update(companyClaims).set({ status, reviewedBy, reviewedAt: new Date() }).where(eq(companyClaims.id, id));
+    if (status === "approved") {
+      const [claim] = await db.select().from(companyClaims).where(eq(companyClaims.id, id));
+      if (claim) await db.update(companies).set({ updatedAt: new Date() }).where(eq(companies.id, claim.companyId));
+    }
+  }
+
+  // ── Phase 8: View tracking ─────────────────────────────────────────────────
+  async incrementViewCount(companyId: number): Promise<void> {
+    await db.update(companies)
+      .set({ viewCount: sql`COALESCE(${companies.viewCount}, 0) + 1` })
+      .where(eq(companies.id, companyId));
+    // Invalidate trending cache
+    cache.invalidate("trending:");
+  }
+
+  async getTrendingCompanies(limit = 6, countryCode?: string): Promise<Company[]> {
+    const cacheKey = `trending:${countryCode || "global"}:${limit}`;
+    const cached = cache.get<Company[]>(cacheKey);
+    if (cached) return cached;
+    const conditions = countryCode ? eq(companies.countryCode, countryCode.toUpperCase()) : undefined;
+    const results = await db.select().from(companies)
+      .where(conditions)
+      .orderBy(desc(sql`COALESCE(${companies.viewCount}, 0)`), desc(companies.id))
+      .limit(limit);
+    cache.set(cacheKey, results, 5 * 60_000); // 5 min
+    return results;
   }
 
   // ── Admin ──────────────────────────────────────────────────────────────────
