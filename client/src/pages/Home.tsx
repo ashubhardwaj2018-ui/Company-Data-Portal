@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 const COUNTRIES = [
   {
     name: "India",
+    code: "IN",
     flag: "🇮🇳",
     gradient: "from-orange-500 via-white to-green-600",
     bg: "bg-gradient-to-br from-orange-50 to-green-50",
@@ -29,6 +30,7 @@ const COUNTRIES = [
   },
   {
     name: "Australia",
+    code: "AU",
     flag: "🇦🇺",
     gradient: "from-blue-600 via-red-600 to-blue-800",
     bg: "bg-gradient-to-br from-blue-50 to-sky-50",
@@ -40,6 +42,7 @@ const COUNTRIES = [
   },
   {
     name: "Singapore",
+    code: "SG",
     flag: "🇸🇬",
     gradient: "from-red-600 to-white",
     bg: "bg-gradient-to-br from-red-50 to-pink-50",
@@ -51,6 +54,7 @@ const COUNTRIES = [
   },
   {
     name: "UK",
+    code: "GB",
     flag: "🇬🇧",
     gradient: "from-blue-800 via-red-600 to-blue-900",
     bg: "bg-gradient-to-br from-blue-50 to-indigo-50",
@@ -135,11 +139,12 @@ export default function Home() {
     setPage(1);
   };
 
-  const handleCountryClick = (country: string) => {
-    if (selectedCountry === country) {
+  // selectedCountry stores the ISO code (e.g. "IN"), not the display name
+  const handleCountryClick = (code: string) => {
+    if (selectedCountry === code) {
       setSelectedCountry(undefined);
     } else {
-      setSelectedCountry(country);
+      setSelectedCountry(code);
       setSearch("");
       setDebouncedSearch("");
       setAlphabet(undefined);
@@ -150,7 +155,7 @@ export default function Home() {
   const params: Record<string, any> = { page, limit: 12 };
   if (debouncedSearch) params.search = debouncedSearch;
   if (alphabet) params.alphabet = alphabet;
-  if (selectedCountry) params.country = selectedCountry;
+  if (selectedCountry) params.countryCode = selectedCountry; // use authoritative ISO code field
 
   const queryString = new URLSearchParams(params).toString();
 
@@ -168,7 +173,7 @@ export default function Home() {
     },
   });
 
-  const activeCountry = COUNTRIES.find(c => c.name === selectedCountry);
+  const activeCountry = COUNTRIES.find(c => c.code === selectedCountry);
 
   const { data: servicesList } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -242,11 +247,11 @@ export default function Home() {
             <p className="text-blue-200 text-sm mb-4 font-medium uppercase tracking-widest">Browse by Country</p>
             <div className="flex flex-wrap justify-center gap-4">
               {COUNTRIES.map((country) => {
-                const isActive = selectedCountry === country.name;
+                const isActive = selectedCountry === country.code;
                 return (
                   <button
-                    key={country.name}
-                    onClick={() => handleCountryClick(country.name)}
+                    key={country.code}
+                    onClick={() => handleCountryClick(country.code)}
                     className={`group relative flex flex-col items-center gap-2 px-6 py-4 rounded-2xl border-2 transition-all duration-300 shadow-lg hover:shadow-2xl hover:-translate-y-1 min-w-[140px] ${
                       isActive
                         ? "border-white/60 " + country.activeBg + " text-white scale-105"
@@ -413,7 +418,7 @@ export default function Home() {
             <span className="text-sm text-muted-foreground">Showing results for:</span>
             {selectedCountry && (
               <Badge className={`gap-1 text-sm px-3 py-1 ${activeCountry?.activeBg} text-white border-0`}>
-                {activeCountry?.flag} {selectedCountry}
+                {activeCountry?.flag} {activeCountry?.name}
               </Badge>
             )}
             {debouncedSearch && (
@@ -457,7 +462,7 @@ export default function Home() {
           <div className="space-y-8">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold font-display">
-                {selectedCountry ? `${activeCountry?.flag} ${selectedCountry} Companies` : debouncedSearch ? "Search Results" : "Company Directory"}
+                {selectedCountry ? `${activeCountry?.flag} ${activeCountry?.name} Companies` : debouncedSearch ? "Search Results" : "Company Directory"}
                 <span className="ml-2 text-sm font-sans font-normal text-muted-foreground bg-muted px-2 py-1 rounded-full">
                   {data?.total?.toLocaleString()} records
                 </span>
@@ -615,12 +620,12 @@ export default function Home() {
               <ul className="space-y-2 text-slate-400 text-sm">
                 {COUNTRIES.map(c => (
                   <li key={c.name}>
-                    <button
-                      onClick={() => { handleCountryClick(c.name); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    <Link
+                      href={`/countries/${c.code.toLowerCase()}`}
                       className="hover:text-white transition-colors"
                     >
                       {c.flag} {c.name}
-                    </button>
+                    </Link>
                   </li>
                 ))}
               </ul>

@@ -151,6 +151,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Import Job status endpoints ─────────────────────────────────────────────
+  // ── Directory stats ───────────────────────────────────────────────────────
+  app.get("/api/directory/stats", async (_req, res) => {
+    try {
+      const stats = await storage.getDirectoryStats();
+      res.json(stats);
+    } catch (e: any) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  app.get("/api/directory/stats/:countryCode", async (req, res) => {
+    try {
+      const allowed = ["in", "au", "gb", "sg"];
+      const cc = req.params.countryCode.toLowerCase();
+      if (!allowed.includes(cc))
+        return res.status(400).json({ message: "Unsupported country code" });
+      const stats = await storage.getDirectoryStats(cc);
+      res.json(stats);
+    } catch (e: any) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
   app.get("/api/admin/import-jobs", requireAdmin, async (_req, res) => {
     res.json(await storage.listImportJobs(50));
   });

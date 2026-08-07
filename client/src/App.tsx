@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import CompanyDetails from "@/pages/CompanyDetails";
+import CountryPage from "@/pages/CountryPage";
+import StatePage from "@/pages/StatePage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import BlogList from "@/pages/BlogList";
 import BlogPost from "@/pages/BlogPost";
@@ -22,6 +24,9 @@ function Router() {
       <Route path="/company/:id" component={CompanyDetails} />
       {/* Country-aware slug routes: /in/company/reliance-industries-limited */}
       <Route path="/:countryCode/company/:slug" component={CompanyDetails} />
+      {/* Geographic directory pages */}
+      <Route path="/countries/:countryCode/:state" component={StatePage} />
+      <Route path="/countries/:countryCode" component={CountryPage} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/import" component={ImportData} />
       <Route path="/blog" component={BlogList} />

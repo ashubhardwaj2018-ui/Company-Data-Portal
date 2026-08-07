@@ -55,6 +55,13 @@ export interface IStorage {
   isAdmin(email: string): Promise<boolean>;
   addAdmin(email: string): Promise<void>;
 
+  // Directory stats
+  getDirectoryStats(countryCode?: string): Promise<{
+    total: number;
+    byState: { state: string | null; count: number }[];
+    byCountry: { countryCode: string | null; count: number }[];
+  }>;
+
   // Import Jobs
   createImportJob(job: InsertImportJob): Promise<ImportJob>;
   updateImportJob(id: number, data: Partial<InsertImportJob>): Promise<void>;
@@ -102,6 +109,33 @@ export class DatabaseStorage implements IStorage {
         deq(companies.slug, slug),
       ));
     return c;
+  }
+
+  async getDirectoryStats(countryCode?: string) {
+    const whereClause = countryCode
+      ? eq(companies.countryCode, countryCode.toUpperCase())
+      : undefined;
+
+    const [{ total }] = await db.select({ total: count() }).from(companies).where(whereClause);
+
+    const byState = await db
+      .select({ state: companies.state, count: count() })
+      .from(companies)
+      .where(whereClause)
+      .groupBy(companies.state)
+      .orderBy(desc(count()))
+      .limit(30);
+
+    let byCountry: { countryCode: string | null; count: number }[] = [];
+    if (!countryCode) {
+      byCountry = await db
+        .select({ countryCode: companies.countryCode, count: count() })
+        .from(companies)
+        .groupBy(companies.countryCode)
+        .orderBy(desc(count()));
+    }
+
+    return { total, byState, byCountry };
   }
 
   async getRelatedCompanies(excludeId: number, countryCode: string, state?: string | null, roc?: string | null, limit = 6): Promise<Company[]> {

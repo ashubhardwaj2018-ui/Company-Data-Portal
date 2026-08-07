@@ -5,14 +5,25 @@ import { Badge } from "@/components/ui/badge";
 import { Building, MapPin, Calendar, IndianRupee } from "lucide-react";
 import { format } from "date-fns";
 
+/** Returns the canonical URL for a company: slug-based if possible, ID-based fallback. */
+function companyUrl(company: Company): string {
+  if (company.slug && company.countryCode) {
+    return `/${company.countryCode.toLowerCase()}/company/${company.slug}`;
+  }
+  return `/company/${company.id}`;
+}
+
 export function CompanyCard({ company }: { company: Company }) {
   const statusColor = 
     company.status?.toLowerCase().includes("active") ? "bg-green-100 text-green-700 hover:bg-green-200" :
     company.status?.toLowerCase().includes("strike") ? "bg-red-100 text-red-700 hover:bg-red-200" :
     "bg-gray-100 text-gray-700 hover:bg-gray-200";
 
+  // Use registration number label based on country
+  const regId = company.countryCode === "IN" ? company.cin : (company.registrationNumber || company.cin);
+
   return (
-    <Link href={`/company/${company.id}`} className="block h-full group">
+    <Link href={companyUrl(company)} className="block h-full group">
       <Card className="h-full transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-border/50 bg-card hover:border-primary/50">
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start gap-4">
