@@ -10,7 +10,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { CompanyCardSkeleton } from "@/components/companies/CompanyCardSkeleton";
 import { ArrowLeft, Briefcase, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Company } from "@shared/schema";
 
@@ -75,7 +75,7 @@ export default function IndustryPage() {
       <main className="flex-1 py-12 container-width">
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-2xl" />)}
+            {Array.from({ length: 6 }).map((_, i) => <CompanyCardSkeleton key={i} />)}
           </div>
         ) : !data?.data.length ? (
           <div className="text-center py-20 border rounded-2xl bg-muted/20">

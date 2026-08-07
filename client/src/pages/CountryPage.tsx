@@ -6,7 +6,7 @@ import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { CompanyCardSkeleton } from "@/components/companies/CompanyCardSkeleton";
 import { ArrowLeft, Building2, MapPin, Loader2, ChevronRight, ChevronLeft } from "lucide-react";
 import { useState } from "react";
 import type { Company } from "@shared/schema";
@@ -167,7 +167,7 @@ export default function CountryPage() {
           {companiesLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-52 rounded-xl" />
+                <CompanyCardSkeleton key={i} />
               ))}
             </div>
           ) : data?.data.length === 0 ? (

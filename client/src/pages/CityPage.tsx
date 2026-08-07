@@ -6,7 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { CompanyCardSkeleton } from "@/components/companies/CompanyCardSkeleton";
 import { ArrowLeft, Building2, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import type { Company } from "@shared/schema";
 
@@ -102,7 +102,7 @@ export default function CityPage() {
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-48 rounded-2xl" />
+              <CompanyCardSkeleton key={i} />
             ))}
           </div>
         ) : !data?.data.length ? (
