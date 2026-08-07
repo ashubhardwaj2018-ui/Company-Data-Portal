@@ -8,13 +8,16 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Bookmark, ShieldAlert, AlertTriangle, LogIn, Building2 } from "lucide-react";
+import { User, Bookmark, ShieldAlert, AlertTriangle, LogIn, Building2, Search, Trash2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Company } from "@shared/schema";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -58,6 +61,27 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
+  const { data: savedSearches = [], isLoading: ssLoading } = useQuery<any[]>({
+    queryKey: ["/api/my/searches"],
+    queryFn: async () => {
+      const res = await fetch("/api/my/searches", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const { toast } = useToast();
+
+  const deleteSearch = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/my/searches/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/my/searches"] }),
+    onError: () => toast({ title: "Could not delete search", variant: "destructive" }),
+  });
+
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -71,7 +95,7 @@ export default function ProfilePage() {
             <a href="/api/login"><Button>Sign In</Button></a>
           </div>
         </div>
-        <BacklinkGrid />
+        <Footer />
       </div>
     );
   }
@@ -108,8 +132,9 @@ export default function ProfilePage() {
 
       <main className="flex-1 py-10 container-width">
         <Tabs defaultValue="watchlist">
-          <TabsList className="mb-6">
+          <TabsList className="mb-6 flex-wrap h-auto gap-1">
             <TabsTrigger value="watchlist" className="gap-2"><Bookmark className="h-4 w-4" /> Watchlist ({watchlist?.total ?? 0})</TabsTrigger>
+            <TabsTrigger value="searches" className="gap-2"><Search className="h-4 w-4" /> Saved Searches ({savedSearches.length})</TabsTrigger>
             <TabsTrigger value="claims" className="gap-2"><ShieldAlert className="h-4 w-4" /> Claims ({claims.length})</TabsTrigger>
             <TabsTrigger value="suggestions" className="gap-2"><AlertTriangle className="h-4 w-4" /> Corrections ({suggestions.length})</TabsTrigger>
           </TabsList>
@@ -129,6 +154,49 @@ export default function ProfilePage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {watchlist.data.map(c => <CompanyCard key={c.id} company={c} />)}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="searches">
+            {ssLoading ? <Skeleton className="h-32 rounded-xl" /> : !savedSearches.length ? (
+              <div className="text-center py-16 border rounded-2xl bg-muted/20">
+                <Search className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                <p className="font-semibold mb-1">No saved searches yet</p>
+                <p className="text-muted-foreground text-sm">Use the "Save Search" button on the directory to save a filter combination.</p>
+                <Link href="/"><button className="mt-4 text-primary text-sm font-medium underline underline-offset-2">Go to Directory</button></Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {savedSearches.map((s: any) => {
+                  let filters: Record<string, any> = {};
+                  try { filters = JSON.parse(s.filters); } catch {}
+                  const paramStr = Object.entries(filters)
+                    .filter(([, v]) => v)
+                    .map(([k, v]) => `${k}=${v}`)
+                    .join("&");
+                  return (
+                    <div key={s.id} className="border rounded-xl p-4 flex items-center justify-between gap-4 hover:bg-muted/20 transition-colors">
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{s.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate">{paramStr || "All companies"}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{new Date(s.createdAt).toLocaleDateString("en-IN")}</p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Link href={`/?${paramStr}`}>
+                          <button className="text-xs px-3 py-1.5 rounded-lg bg-primary text-white font-medium hover:bg-primary/90">Run</button>
+                        </Link>
+                        <button
+                          onClick={() => deleteSearch.mutate(s.id)}
+                          disabled={deleteSearch.isPending}
+                          className="text-xs px-3 py-1.5 rounded-lg border text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -180,7 +248,7 @@ export default function ProfilePage() {
           </TabsContent>
         </Tabs>
       </main>
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

@@ -22,14 +22,17 @@ import FAQ from "@/pages/FAQ";
 import ImportData from "@/pages/ImportData";
 import ArticleList from "@/pages/ArticleList";
 import ArticleDetail from "@/pages/ArticleDetail";
+import CompanyReportPage from "@/pages/CompanyReportPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       {/* Legacy numeric-ID route — preserved for backward compat */}
+      <Route path="/company/:id/report" component={CompanyReportPage} />
       <Route path="/company/:id" component={CompanyDetails} />
       {/* Country-aware slug routes: /in/company/reliance-industries-limited */}
+      <Route path="/:countryCode/company/:slug/report" component={CompanyReportPage} />
       <Route path="/:countryCode/company/:slug" component={CompanyDetails} />
       {/* Geographic directory pages — city must be before state */}
       <Route path="/countries/:countryCode/:state/:city" component={CityPage} />

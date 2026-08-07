@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Building, MapPin, Calendar, IndianRupee, Scale } from "lucide-react";
 import { format } from "date-fns";
 import { addToCompare, isInCompare, removeFromCompare } from "./CompareBar";
+import { BadgesDisplay, parseBadges } from "./BadgesDisplay";
 import { useState, useEffect } from "react";
 
 /** Returns the canonical URL for a company: slug-based if possible, ID-based fallback. */
@@ -23,6 +24,7 @@ export function CompanyCard({ company }: { company: Company }) {
 
   const regId = company.countryCode === "IN" ? company.cin : (company.registrationNumber || company.cin);
 
+  const badges = parseBadges(company.badges);
   const [inCompare, setInCompare] = useState(() => isInCompare(company.id));
   useEffect(() => {
     const update = () => setInCompare(isInCompare(company.id));
@@ -48,6 +50,7 @@ export function CompanyCard({ company }: { company: Company }) {
               <CardTitle className="text-lg font-bold leading-tight group-hover:text-primary transition-colors">
                 {company.name}
               </CardTitle>
+              {badges.length > 0 && <BadgesDisplay badges={badges} size="sm" className="mt-1" />}
             </div>
             <div className="flex flex-col items-end gap-1.5 shrink-0">
               <Badge className={`${statusColor} border-0`}>

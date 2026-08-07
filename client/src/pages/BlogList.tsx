@@ -1,6 +1,6 @@
 import { usePosts } from "@/hooks/use-content";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -54,7 +54,7 @@ export default function BlogList() {
           )}
         </div>
       </main>
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

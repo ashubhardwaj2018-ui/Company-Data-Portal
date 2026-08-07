@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, bigint, date, varchar, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, bigint, date, varchar, index, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -37,6 +37,7 @@ export const companies = pgTable("companies", {
   country: text("country").default("India"),                             // Kept for backward compat
   // ── Phase 8: view tracking ─────────────────────────────────────────────────
   viewCount: integer("view_count").default(0),
+  badges: text("badges"),   // Phase 26 — JSON array e.g. ["verified","featured","claimed"]
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -259,6 +260,16 @@ export const companyReviews = pgTable("company_reviews", {
 export const insertReviewSchema = createInsertSchema(companyReviews).omit({ id: true, createdAt: true, reviewedAt: true });
 export type CompanyReview = typeof companyReviews.$inferSelect;
 export type InsertReview = z.infer<typeof insertReviewSchema>;
+
+// ─── Saved Searches (Phase 27) ────────────────────────────────────────────────
+export const savedSearches = pgTable("saved_searches", {
+  id: serial("id").primaryKey(),
+  userEmail: text("user_email").notNull(),
+  name: text("name").notNull(),
+  filters: text("filters").notNull(),   // JSON-serialized filter object
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SavedSearch = typeof savedSearches.$inferSelect;
 
 // ─── Newsletter Subscribers (Phase 16) ────────────────────────────────────────
 export const newsletterSubscribers = pgTable("newsletter_subscribers", {

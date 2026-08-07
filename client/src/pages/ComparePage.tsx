@@ -7,7 +7,7 @@ import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -150,7 +150,7 @@ export default function ComparePage() {
           </div>
         )}
       </main>
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

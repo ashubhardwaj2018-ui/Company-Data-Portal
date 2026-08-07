@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,7 +94,7 @@ export default function WatchlistPage() {
           </>
         )}
       </main>
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

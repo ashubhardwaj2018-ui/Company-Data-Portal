@@ -508,6 +508,121 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── Phase 21: Recent activity (already registered early, stub removed) ────
 
+  // ── Phase 26: Company Badges (admin) ──────────────────────────────────────
+  app.patch("/api/admin/companies/:id/badges", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { badges } = req.body;
+      if (!Array.isArray(badges)) return res.status(400).json({ message: "badges must be an array" });
+      const allowed = ["verified", "featured", "claimed", "premium"];
+      const safe = badges.filter((b: string) => allowed.includes(b));
+      await storage.updateCompanyBadges(id, safe);
+      res.json({ ok: true, badges: safe });
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  // ── Phase 27: Saved Searches ───────────────────────────────────────────────
+  app.get("/api/my/searches", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    res.json(await storage.getSavedSearches(email));
+  });
+
+  app.post("/api/my/searches", limits.write, async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    const { name, filters } = req.body;
+    if (!name || !filters) return res.status(400).json({ message: "name and filters required" });
+    const s = await storage.createSavedSearch(email, String(name), JSON.stringify(filters));
+    res.status(201).json(s);
+  });
+
+  app.delete("/api/my/searches/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Login required" });
+    const email: string = req.user?.claims?.email || "";
+    await storage.deleteSavedSearch(Number(req.params.id), email);
+    res.json({ ok: true });
+  });
+
+  // ── Phase 29: Admin User Management ───────────────────────────────────────
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
+    try {
+      const users = await storage.listAllUsers(200);
+      res.json(users);
+    } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
+  });
+
+  // ── Phase 31: Embeddable Widget (server-rendered HTML) ────────────────────
+  app.get("/embed/company/:id", async (req, res) => {
+    try {
+      const company = await storage.getCompany(Number(req.params.id));
+      if (!company) return res.status(404).send("<h3>Company not found</h3>");
+      const baseUrl = `https://${req.headers.host}`;
+      const url = company.slug && company.countryCode
+        ? `${baseUrl}/${company.countryCode.toLowerCase()}/company/${company.slug}`
+        : `${baseUrl}/company/${company.id}`;
+      const statusColor = company.status?.toLowerCase().includes("active") ? "#16a34a" :
+        company.status?.toLowerCase().includes("strike") ? "#dc2626" : "#64748b";
+      const badges = (() => { try { return JSON.parse(company.badges || "[]") as string[]; } catch { return []; } })();
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${company.name}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:0}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;max-width:400px;margin:12px auto;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.cin{font-family:monospace;font-size:11px;color:#64748b;background:#f1f5f9;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:8px}
+.name{font-size:16px;font-weight:700;color:#1e293b;line-height:1.3;margin-bottom:4px}
+.status{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:#fff;margin-bottom:10px}
+.meta{font-size:12px;color:#64748b;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.05em}
+.badge-verified{background:#dbeafe;color:#1d4ed8}.badge-featured{background:#fef9c3;color:#a16207}
+.badge-claimed{background:#dcfce7;color:#15803d}.badge-premium{background:#f3e8ff;color:#7c3aed}
+.link{display:block;margin-top:12px;text-align:center;font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;padding:8px;border:1px solid #2563eb;border-radius:8px}
+.link:hover{background:#eff6ff}.powered{text-align:center;font-size:10px;color:#94a3b8;margin-top:8px}
+</style></head><body>
+<div class="card">
+  <div class="cin">${company.cin || company.registrationNumber || ""}</div>
+  <div class="name">${company.name}</div>
+  <div class="status" style="background:${statusColor}">${company.status || "Unknown"}</div>
+  ${badges.length ? `<div class="badges">${badges.map(b => `<span class="badge badge-${b}">${b}</span>`).join("")}</div>` : ""}
+  ${company.city || company.state ? `<div class="meta">📍 ${[company.city, company.state].filter(Boolean).join(", ")}</div>` : ""}
+  ${company.incorporationDate ? `<div class="meta">📅 Est. ${new Date(company.incorporationDate).getFullYear()}</div>` : ""}
+  ${company.authorizedCapital ? `<div class="meta">💰 ₹${(company.authorizedCapital/10000000).toFixed(1)}Cr authorized capital</div>` : ""}
+  <a href="${url}" target="_blank" rel="noopener" class="link">View Full Profile →</a>
+  <div class="powered">Powered by AddressBay</div>
+</div></body></html>`;
+      res.setHeader("Content-Type", "text/html").setHeader("X-Frame-Options", "ALLOWALL").send(html);
+    } catch (e) { res.status(500).send("Error"); }
+  });
+
+  // ── Phase 34: RSS Feeds ────────────────────────────────────────────────────
+  app.get("/rss/recent.xml", async (req, res) => {
+    try {
+      const baseUrl = `https://${req.headers.host}`;
+      const companies = await storage.getRecentlyUpdated(20);
+      const items = companies.map(c => {
+        const url = c.slug && c.countryCode ? `${baseUrl}/${c.countryCode.toLowerCase()}/company/${c.slug}` : `${baseUrl}/company/${c.id}`;
+        const desc = [c.status, c.city, c.state, c.country].filter(Boolean).join(" · ");
+        return `<item><title>${c.name.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</title><link>${url}</link><description>${desc}</description><pubDate>${new Date(c.updatedAt || c.createdAt || Date.now()).toUTCString()}</pubDate><guid>${url}</guid></item>`;
+      }).join("\n");
+      const xml = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>AddressBay — Recently Updated Companies</title><link>${baseUrl}</link><description>Recently updated company records on AddressBay</description><language>en-us</language>${items}</channel></rss>`;
+      res.setHeader("Content-Type", "application/rss+xml").send(xml);
+    } catch (e) { res.status(500).send("Error generating RSS"); }
+  });
+
+  app.get("/rss/trending.xml", async (req, res) => {
+    try {
+      const baseUrl = `https://${req.headers.host}`;
+      const companies = await storage.getTrendingCompanies(20);
+      const items = companies.map(c => {
+        const url = c.slug && c.countryCode ? `${baseUrl}/${c.countryCode.toLowerCase()}/company/${c.slug}` : `${baseUrl}/company/${c.id}`;
+        const desc = [c.status, c.city, c.state].filter(Boolean).join(" · ");
+        return `<item><title>${c.name.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</title><link>${url}</link><description>${desc} — ${c.viewCount || 0} views</description><pubDate>${new Date(c.updatedAt || c.createdAt || Date.now()).toUTCString()}</pubDate><guid>${url}</guid></item>`;
+      }).join("\n");
+      const xml = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>AddressBay — Trending Companies</title><link>${baseUrl}</link><description>Trending company profiles on AddressBay</description><language>en-us</language>${items}</channel></rss>`;
+      res.setHeader("Content-Type", "application/rss+xml").send(xml);
+    } catch (e) { res.status(500).send("Error generating RSS"); }
+  });
+
   // ── Phase 24: Bulk update ──────────────────────────────────────────────────
   app.patch("/api/admin/companies/bulk", requireAdmin, async (req, res) => {
     try {

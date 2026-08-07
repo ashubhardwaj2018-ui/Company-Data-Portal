@@ -1,114 +1,99 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { type Company } from "@shared/schema";
 import { Link } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { SearchAutocomplete } from "@/components/companies/SearchAutocomplete";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { AdvancedFiltersDrawer } from "@/components/companies/AdvancedFiltersDrawer";
+import { NewsletterSignup } from "@/components/layout/NewsletterSignup";
 import {
-  Loader2, ChevronLeft, ChevronRight, Building,
-  TrendingUp, Globe, Shield, Database, ArrowRight, Zap, Star, Users, ExternalLink, X, Clock
+  Loader2, ChevronLeft, ChevronRight, ArrowRight, TrendingUp,
+  Building2, Globe, Shield, Database, Filter, X, ChevronDown,
+  BarChart3, Briefcase, Cpu, Factory, HeartPulse, ShoppingBag,
+  GraduationCap, Truck, Scale, Home as HomeIcon,
 } from "lucide-react";
 import type { Service } from "@shared/schema";
 import { motion } from "framer-motion";
-import { AdvancedFiltersDrawer } from "@/components/companies/AdvancedFiltersDrawer";
-import { NewsletterSignup } from "@/components/layout/NewsletterSignup";
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const COUNTRIES = [
   {
     name: "India",
     code: "IN",
     flag: "🇮🇳",
-    gradient: "from-orange-500 via-white to-green-600",
-    bg: "bg-gradient-to-br from-orange-50 to-green-50",
-    border: "border-orange-200",
-    activeBg: "bg-gradient-to-br from-orange-500 to-green-600",
-    textColor: "text-orange-700",
     count: "20L+",
-    desc: "MCA Registered"
+    desc: "MCA Registered",
+    reg: "Ministry of Corporate Affairs",
+    cities: ["Mumbai", "Delhi", "Bengaluru"],
+    href: "/countries/in",
   },
   {
     name: "Australia",
     code: "AU",
     flag: "🇦🇺",
-    gradient: "from-blue-600 via-red-600 to-blue-800",
-    bg: "bg-gradient-to-br from-blue-50 to-sky-50",
-    border: "border-blue-200",
-    activeBg: "bg-gradient-to-br from-blue-600 to-sky-700",
-    textColor: "text-blue-700",
     count: "2.8M+",
-    desc: "ASIC Registered"
+    desc: "ASIC Registered",
+    reg: "Australian Securities & Investments Commission",
+    cities: ["Sydney", "Melbourne", "Brisbane"],
+    href: "/countries/au",
+  },
+  {
+    name: "United Kingdom",
+    code: "GB",
+    flag: "🇬🇧",
+    count: "5M+",
+    desc: "Companies House",
+    reg: "UK Companies House",
+    cities: ["London", "Manchester", "Birmingham"],
+    href: "/countries/gb",
   },
   {
     name: "Singapore",
     code: "SG",
     flag: "🇸🇬",
-    gradient: "from-red-600 to-white",
-    bg: "bg-gradient-to-br from-red-50 to-pink-50",
-    border: "border-red-200",
-    activeBg: "bg-gradient-to-br from-red-500 to-pink-600",
-    textColor: "text-red-700",
     count: "500K+",
-    desc: "ACRA Registered"
+    desc: "ACRA Registered",
+    reg: "Accounting & Corporate Regulatory Authority",
+    cities: ["Singapore City"],
+    href: "/countries/sg",
   },
   {
-    name: "UK",
-    code: "GB",
-    flag: "🇬🇧",
-    gradient: "from-blue-800 via-red-600 to-blue-900",
-    bg: "bg-gradient-to-br from-blue-50 to-indigo-50",
-    border: "border-indigo-200",
-    activeBg: "bg-gradient-to-br from-blue-800 to-indigo-900",
-    textColor: "text-blue-900",
-    count: "5M+",
-    desc: "Companies House"
+    name: "USA",
+    code: "US",
+    flag: "🇺🇸",
+    count: "30M+",
+    desc: "State Registered",
+    reg: "State Secretary of State databases",
+    cities: ["New York", "Los Angeles", "Chicago"],
+    href: "/countries/us",
   },
 ];
 
-const FEATURES = [
-  {
-    icon: <Database className="h-8 w-8" />,
-    title: "20 Lakh+ Records",
-    desc: "Comprehensive database of all MCA registered companies",
-    color: "from-violet-500 to-purple-700",
-    bg: "bg-violet-50",
-    iconColor: "text-violet-600"
-  },
-  {
-    icon: <Zap className="h-8 w-8" />,
-    title: "Instant Search",
-    desc: "Find any company by name, CIN, email in milliseconds",
-    color: "from-yellow-400 to-orange-500",
-    bg: "bg-yellow-50",
-    iconColor: "text-yellow-600"
-  },
-  {
-    icon: <Shield className="h-8 w-8" />,
-    title: "Verified Data",
-    desc: "Data sourced directly from Ministry of Corporate Affairs",
-    color: "from-green-500 to-emerald-700",
-    bg: "bg-green-50",
-    iconColor: "text-green-600"
-  },
-  {
-    icon: <Globe className="h-8 w-8" />,
-    title: "Multi-Country",
-    desc: "Browse companies from India, Australia, Singapore & UK",
-    color: "from-blue-500 to-cyan-600",
-    bg: "bg-blue-50",
-    iconColor: "text-blue-600"
-  },
+const INDUSTRIES = [
+  { name: "Technology", slug: "technology", icon: Cpu, color: "bg-violet-50 text-violet-700 border-violet-100" },
+  { name: "Manufacturing", slug: "manufacturing", icon: Factory, color: "bg-amber-50 text-amber-700 border-amber-100" },
+  { name: "Finance", slug: "finance", icon: BarChart3, color: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+  { name: "Healthcare", slug: "healthcare", icon: HeartPulse, color: "bg-rose-50 text-rose-700 border-rose-100" },
+  { name: "Construction", slug: "construction", icon: HomeIcon, color: "bg-orange-50 text-orange-700 border-orange-100" },
+  { name: "Retail", slug: "retail", icon: ShoppingBag, color: "bg-pink-50 text-pink-700 border-pink-100" },
+  { name: "Education", slug: "education", icon: GraduationCap, color: "bg-blue-50 text-blue-700 border-blue-100" },
+  { name: "Logistics", slug: "logistics", icon: Truck, color: "bg-slate-50 text-slate-700 border-slate-200" },
+];
+
+const POPULAR_SEARCHES = [
+  "Reliance Industries", "Tata Motors", "Infosys", "HDFC Bank",
+  "Wipro Limited", "Bajaj Finance", "ITC Limited", "Maruti Suzuki",
 ];
 
 const STATS = [
-  { value: "20L+", label: "Indian Companies", color: "text-orange-600" },
-  { value: "4", label: "Countries Covered", color: "text-blue-600" },
-  { value: "99.9%", label: "Data Accuracy", color: "text-green-600" },
-  { value: "Free", label: "Basic Access", color: "text-purple-600" },
+  { label: "Companies indexed", value: "28M+", icon: Database },
+  { label: "Countries covered", value: "5", icon: Globe },
+  { label: "Data accuracy", value: "99.9%", icon: Shield },
+  { label: "Basic access", value: "Free", icon: Building2 },
 ];
 
 function readUrlParam(key: string) {
@@ -117,7 +102,7 @@ function readUrlParam(key: string) {
 }
 
 function useTrending(countryCode?: string) {
-  return useQuery<typeof import("@shared/schema").companies.$inferSelect[]>({
+  return useQuery<Company[]>({
     queryKey: ["/api/companies/trending", countryCode],
     queryFn: async () => {
       const p = new URLSearchParams({ limit: "6" });
@@ -130,6 +115,63 @@ function useTrending(countryCode?: string) {
   });
 }
 
+// ─── Country Selector ─────────────────────────────────────────────────────────
+
+function CountrySelector({
+  value, onChange,
+}: { value?: string; onChange: (code: string | undefined) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = COUNTRIES.find(c => c.code === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 h-full px-3 border-r border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors min-w-[100px] whitespace-nowrap"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="text-base">{selected?.flag ?? "🌐"}</span>
+        <span>{selected?.name ?? "All"}</span>
+        <ChevronDown className="h-3 w-3 text-slate-400 ml-0.5" />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[180px] py-1" role="listbox">
+          <button
+            onClick={() => { onChange(undefined); setOpen(false); }}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-slate-50 transition-colors ${!value ? "text-primary font-semibold" : "text-slate-700"}`}
+          >
+            <Globe className="h-4 w-4" /> All Countries
+          </button>
+          {COUNTRIES.map(c => (
+            <button
+              key={c.code}
+              role="option"
+              aria-selected={value === c.code}
+              onClick={() => { onChange(c.code); setOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-slate-50 transition-colors ${value === c.code ? "text-primary font-semibold" : "text-slate-700"}`}
+            >
+              <span className="text-base">{c.flag}</span> {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function Home() {
   const [search, setSearch] = useState(() => readUrlParam("q") || "");
   const [page, setPage] = useState(1);
@@ -141,11 +183,11 @@ export default function Home() {
     minCapital?: string; maxCapital?: string;
     incorporatedAfter?: string; incorporatedBefore?: string; sortBy?: string;
   }>({});
+  const [showFilters, setShowFilters] = useState(false);
 
   const alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-  const numbers = "0123456789".split("");
 
-  // Sync active filters to URL so searches are shareable
+  // Sync URL
   useEffect(() => {
     const p = new URLSearchParams();
     if (debouncedSearch) p.set("q", debouncedSearch);
@@ -158,35 +200,26 @@ export default function Home() {
 
   const handleSearch = (v: string) => {
     setSearch(v);
-    const timeoutId = setTimeout(() => {
+    const id = setTimeout(() => {
       setDebouncedSearch(v);
       setAlphabet(undefined);
       setPage(1);
     }, 400);
-    return () => clearTimeout(timeoutId);
+    return () => clearTimeout(id);
   };
 
   const handleAlphabetClick = (letter: string) => {
-    if (alphabet === letter) {
-      setAlphabet(undefined);
-    } else {
-      setAlphabet(letter);
-      setSearch("");
-      setDebouncedSearch("");
-    }
+    setAlphabet(prev => prev === letter ? undefined : letter);
+    setSearch("");
+    setDebouncedSearch("");
     setPage(1);
   };
 
-  // selectedCountry stores the ISO code (e.g. "IN"), not the display name
-  const handleCountryClick = (code: string) => {
-    if (selectedCountry === code) {
-      setSelectedCountry(undefined);
-    } else {
-      setSelectedCountry(code);
-      setSearch("");
-      setDebouncedSearch("");
-      setAlphabet(undefined);
-    }
+  const handleCountrySelect = (code: string | undefined) => {
+    setSelectedCountry(code);
+    setSearch("");
+    setDebouncedSearch("");
+    setAlphabet(undefined);
     setPage(1);
   };
 
@@ -217,19 +250,10 @@ export default function Home() {
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },
+    staleTime: 30_000,
   });
 
-  const activeCountry = COUNTRIES.find(c => c.code === selectedCountry);
   const { data: trendingCompanies = [] } = useTrending(selectedCountry);
-
-  const handleCsvExport = () => {
-    const p = new URLSearchParams();
-    if (debouncedSearch) p.set("search", debouncedSearch);
-    if (selectedCountry) p.set("countryCode", selectedCountry);
-    if (statusFilter) p.set("status", statusFilter);
-    if (alphabet) p.set("alphabet", alphabet);
-    window.location.href = `/api/companies/export?${p}`;
-  };
 
   const { data: servicesList } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -238,483 +262,243 @@ export default function Home() {
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 5 * 60_000,
   });
   const activeServices = (servicesList || []).filter(s => s.isActive);
 
-  const homeTitle = selectedCountry
-    ? `${activeCountry?.name} Companies — Global Corporate Directory`
-    : "AddressBay — Global Corporate Directory | Search India, Australia, UK & Singapore Companies";
-  const homeDesc = selectedCountry
-    ? `Browse registered ${activeCountry?.name} companies. Find CIN, registration details, addresses, and contact information.`
-    : "Search over 20 lakh registered companies in India and millions more across Australia, Singapore, and the UK. Official government registration data.";
+  // Phase 35 — Live stats
+  const { data: dirStats } = useQuery<{ total: number }>({
+    queryKey: ["/api/directory/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/directory/stats");
+      if (!res.ok) return { total: 0 };
+      return res.json();
+    },
+    staleTime: 10 * 60_000,
+  });
+
+  // Phase 33 — IP Geolocation (silent, once on mount)
+  useEffect(() => {
+    if (selectedCountry) return;
+    const SUPPORTED = ["IN", "AU", "GB", "SG"];
+    fetch("https://ip-api.com/json?fields=countryCode", { signal: AbortSignal.timeout(4000) })
+      .then(r => r.json())
+      .then(d => {
+        if (d?.countryCode && SUPPORTED.includes(d.countryCode)) setSelectedCountry(d.countryCode);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const activeCountry = COUNTRIES.find(c => c.code === selectedCountry);
+  const totalPages = data ? Math.ceil(data.total / data.limit) : 0;
+  const isFiltered = !!(debouncedSearch || alphabet || selectedCountry || statusFilter || advActiveCount);
+  const hasResults = !isLoading && !isError && (data?.data?.length ?? 0) > 0;
+  const showHero = !isFiltered;
+
+  const siteTitle = selectedCountry
+    ? `${activeCountry?.name} Companies — AddressBay Global Directory`
+    : "AddressBay — Global Company Discovery Platform";
+  const siteDesc = selectedCountry
+    ? `Browse registered ${activeCountry?.name} companies. Official government registration data including addresses, contacts, and corporate details.`
+    : "Search millions of registered companies across India, Australia, UK, Singapore and USA. Official government data — fast, free, and always up to date.";
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       <Helmet>
-        <title>{homeTitle}</title>
-        <meta name="description" content={homeDesc} />
+        <title>{siteTitle}</title>
+        <meta name="description" content={siteDesc} />
         <link rel="canonical" href={typeof window !== "undefined" ? window.location.origin + "/" : "/"} />
-        <meta property="og:title" content={homeTitle} />
-        <meta property="og:description" content={homeDesc} />
+        <meta property="og:title" content={siteTitle} />
+        <meta property="og:description" content={siteDesc} />
         <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={homeTitle} />
-        <meta name="twitter:description" content={homeDesc} />
       </Helmet>
+
       <Navbar />
 
-      {/* HERO SECTION */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900 text-white py-20">
-        {/* Decorative blobs */}
-        <div className="absolute top-0 left-0 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
-        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-purple-500/10 rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2" />
+      {/* ── HERO ──────────────────────────────────────────────── */}
+      {showHero && (
+        <section className="bg-slate-900 text-white">
+          <div className="container-width py-16 md:py-24 text-center">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Global Business Intelligence</p>
+              <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white leading-tight">
+                Discover Companies &amp;{" "}
+                <span className="text-amber-400">Businesses</span>
+                {" "}Worldwide
+              </h1>
+              <p className="mt-4 text-base md:text-lg text-slate-300 max-w-2xl mx-auto">
+                Official government registration data from India, Australia, UK, Singapore &amp; USA — all in one place.
+              </p>
 
-        <div className="container-width relative z-10 text-center space-y-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Badge className="bg-white/10 border-white/20 text-white mb-4 text-sm px-4 py-1">
-              <Star className="h-3 w-3 mr-1 fill-yellow-400 text-yellow-400" />
-              Trusted by 50,000+ professionals
-            </Badge>
-            <h1 className="text-4xl md:text-6xl font-display font-bold tracking-tight leading-tight">
-              Global Corporate{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-pink-400 to-yellow-400">
-                Directory
-              </span>
-            </h1>
-            <p className="mt-4 text-lg md:text-xl text-blue-100 max-w-2xl mx-auto">
-              Search over 20 lakh registered companies in India and millions more across Australia, Singapore & UK.
-            </p>
-          </motion.div>
+              {/* Stats strip */}
+              {dirStats?.total ? (
+                <div className="flex flex-wrap items-center justify-center gap-4 mt-6 text-sm text-slate-400">
+                  <span><span className="font-bold text-white text-base">{dirStats.total.toLocaleString()}</span> companies indexed</span>
+                  <span className="w-px h-3 bg-slate-600" />
+                  <span>5 countries</span>
+                  <span className="w-px h-3 bg-slate-600" />
+                  <span>Official government data</span>
+                </div>
+              ) : null}
+            </motion.div>
 
-          {/* Search Bar — autocomplete with suggestions dropdown */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="max-w-2xl mx-auto relative"
-          >
-            <div className="absolute inset-0 bg-white/10 rounded-2xl blur-xl" />
-            <div className="relative">
-              <SearchAutocomplete
-                value={search}
-                onChange={v => { setSearch(v); }}
-                onSearch={v => {
-                  setDebouncedSearch(v);
-                  setSearch(v);
-                  setAlphabet(undefined);
-                  setPage(1);
-                }}
-                countryCode={selectedCountry}
-              />
-            </div>
-          </motion.div>
+            {/* ── Search Bar ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.4 }}
+              className="max-w-3xl mx-auto mt-10"
+            >
+              <div className="flex items-center bg-white rounded-lg shadow-xl overflow-hidden border border-slate-200">
+                <CountrySelector value={selectedCountry} onChange={handleCountrySelect} />
+                <div className="flex-1">
+                  <SearchAutocomplete
+                    value={search}
+                    onChange={v => setSearch(v)}
+                    onSearch={v => {
+                      setDebouncedSearch(v);
+                      setSearch(v);
+                      setAlphabet(undefined);
+                      setPage(1);
+                    }}
+                    countryCode={selectedCountry}
+                  />
+                </div>
+              </div>
 
-          {/* Status quick-filters */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex items-center justify-center gap-2 flex-wrap"
-          >
-            <span className="text-blue-300 text-xs font-medium">Filter by status:</span>
-            {[
-              { label: "All", value: "" },
-              { label: "🟢 Active", value: "Active" },
-              { label: "🔴 Strike-off", value: "Strike-off" },
-              { label: "⚫ Dissolved", value: "Dissolved" },
-            ].map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => { setStatusFilter(opt.value); setPage(1); }}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${
-                  statusFilter === opt.value
-                    ? "bg-white text-slate-900 border-white"
-                    : "bg-white/10 text-white border-white/20 hover:bg-white/20"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </motion.div>
-
-          {/* COUNTRY BUTTONS */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-          >
-            <p className="text-blue-200 text-sm mb-4 font-medium uppercase tracking-widest">Browse by Country</p>
-            <div className="flex flex-wrap justify-center gap-4">
-              {COUNTRIES.map((country) => {
-                const isActive = selectedCountry === country.code;
-                return (
+              {/* Popular searches */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <span className="text-xs text-slate-500 font-medium">Popular:</span>
+                {POPULAR_SEARCHES.slice(0, 6).map(q => (
                   <button
-                    key={country.code}
-                    onClick={() => handleCountryClick(country.code)}
-                    className={`group relative flex flex-col items-center gap-2 px-6 py-4 rounded-2xl border-2 transition-all duration-300 shadow-lg hover:shadow-2xl hover:-translate-y-1 min-w-[140px] ${
-                      isActive
-                        ? "border-white/60 " + country.activeBg + " text-white scale-105"
-                        : "border-white/20 bg-white/10 hover:bg-white/20 text-white"
-                    }`}
+                    key={q}
+                    onClick={() => {
+                      setSearch(q);
+                      setDebouncedSearch(q);
+                      setAlphabet(undefined);
+                      setPage(1);
+                    }}
+                    className="text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
                   >
-                    <span className="text-4xl">{country.flag}</span>
-                    <div className="text-center">
-                      <p className="font-bold text-lg leading-none">{country.name}</p>
-                      <p className={`text-xs mt-1 ${isActive ? "text-white/80" : "text-blue-200"}`}>{country.count} • {country.desc}</p>
-                    </div>
-                    {isActive && (
-                      <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full">
-                        Active
-                      </div>
-                    )}
+                    {q}
                   </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* STATS BANNER */}
-      <div className="bg-white border-b py-8">
-        <div className="container-width">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {STATS.map((s) => (
-              <div key={s.label} className="space-y-1">
-                <p className={`text-3xl font-bold font-display ${s.color}`}>{s.value}</p>
-                <p className="text-sm text-muted-foreground">{s.label}</p>
+                ))}
               </div>
-            ))}
+            </motion.div>
           </div>
-        </div>
-      </div>
-
-      {/* TRENDING COMPANIES (Phase 8) */}
-      {trendingCompanies.length > 0 && (
-        <div className="bg-gradient-to-b from-slate-50 to-white border-b py-10">
-          <div className="container-width">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-orange-500" />
-                  Trending Companies
-                </h2>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {selectedCountry ? `Most viewed in ${COUNTRIES.find(c => c.code === selectedCountry)?.name}` : "Most viewed globally"}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {trendingCompanies.map((c: any, i: number) => (
-                <Link key={c.id} href={c.slug && c.countryCode ? `/${c.countryCode.toLowerCase()}/company/${c.slug}` : `/company/${c.id}`}>
-                  <div className="flex items-center gap-3 p-4 rounded-xl border bg-white hover:shadow-md hover:border-orange-200 transition-all cursor-pointer group">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-sm font-bold text-orange-600">
-                      {i + 1}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm text-slate-900 truncate group-hover:text-orange-600 transition-colors">{c.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {[c.city, c.state].filter(Boolean).join(", ")}
-                        {c.viewCount ? ` · ${c.viewCount.toLocaleString()} views` : ""}
-                      </p>
-                    </div>
-                    {c.status && (
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
-                        c.status.toLowerCase().includes("active") ? "bg-green-100 text-green-700" :
-                        c.status.toLowerCase().includes("strike") ? "bg-red-100 text-red-700" :
-                        "bg-gray-100 text-gray-600"
-                      }`}>{c.status}</span>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
+        </section>
       )}
 
-      {/* ALPHABET FILTER */}
-      <div className="py-14 border-b" style={{ background: "linear-gradient(135deg, #0a0f1e 0%, #0f172a 40%, #1a1f3a 70%, #0a0f1e 100%)" }}>
-        <div className="container-width">
-
-          {/* Header row */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-10">
-            <div>
-              <h2 className="text-white font-extrabold text-3xl tracking-tight">Browse by Letter or Number</h2>
-              <p className="text-slate-400 text-sm mt-1">Click any tile to instantly filter companies</p>
+      {/* ── COUNTRY CARDS ─────────────────────────────────────── */}
+      {showHero && (
+        <section className="border-b border-slate-100 bg-slate-50">
+          <div className="container-width py-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-slate-900">Browse by Country</h2>
+              <span className="text-xs text-slate-500">{COUNTRIES.length} countries available</span>
             </div>
-            <button
-              data-testid="filter-show-all"
-              onClick={() => { setAlphabet(undefined); setSelectedCountry(undefined); setSearch(""); setDebouncedSearch(""); setPage(1); }}
-              className={`self-start sm:self-auto px-8 py-3 rounded-full text-sm font-bold border-2 transition-all duration-200 ${
-                !alphabet && !selectedCountry
-                  ? "bg-white text-slate-900 border-white shadow-lg shadow-white/20"
-                  : "bg-transparent text-white border-white/30 hover:border-white hover:bg-white/10"
-              }`}
-            >
-              ✦ Show All
-            </button>
-          </div>
-
-          {/* A–Z */}
-          <div className="mb-10">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-white font-bold text-sm tracking-[0.2em] uppercase bg-blue-600/30 border border-blue-500/40 px-4 py-1.5 rounded-full">A – Z</span>
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-slate-500 text-xs">26 letters</span>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {alphabets.map((char, i) => {
-                const colors = [
-                  "from-blue-400 to-blue-700 shadow-blue-600/50",
-                  "from-violet-400 to-purple-700 shadow-violet-600/50",
-                  "from-pink-400 to-rose-700 shadow-pink-600/50",
-                  "from-orange-400 to-red-600 shadow-orange-600/50",
-                  "from-emerald-400 to-green-700 shadow-emerald-600/50",
-                  "from-cyan-400 to-sky-700 shadow-cyan-600/50",
-                  "from-yellow-300 to-amber-600 shadow-yellow-600/50",
-                  "from-teal-400 to-teal-700 shadow-teal-600/50",
-                ];
-                const color = colors[i % colors.length];
-                const isActive = alphabet === char;
-                return (
-                  <button
-                    key={char}
-                    data-testid={`filter-letter-${char}`}
-                    onClick={() => handleAlphabetClick(char)}
-                    className={`
-                      relative flex flex-col items-center justify-center w-[72px] h-[72px] rounded-2xl font-black transition-all duration-200 select-none
-                      ${isActive
-                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-2xl ring-2 ring-white/50`
-                        : "bg-white/[0.07] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.14] hover:text-white hover:border-white/30 hover:shadow-xl"
-                      }
-                    `}
-                  >
-                    <span className="text-2xl leading-none">{char}</span>
-                    {isActive && (
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white rounded-full shadow-lg flex items-center justify-center">
-                        <span className="w-2 h-2 bg-blue-600 rounded-full" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              {COUNTRIES.map(country => (
+                <div
+                  key={country.code}
+                  className="bg-white rounded-lg border border-slate-200 p-5 hover:border-primary/40 hover:shadow-md transition-all cursor-pointer group"
+                  onClick={() => handleCountrySelect(country.code)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === "Enter" && handleCountrySelect(country.code)}
+                  aria-label={`Browse ${country.name} companies`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-3xl">{country.flag}</span>
+                    <span className="text-xs font-bold text-primary bg-primary/8 px-2 py-0.5 rounded-full">
+                      {country.count}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-sm mb-0.5 group-hover:text-primary transition-colors">
+                    {country.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-3">{country.desc}</p>
+                  <div className="flex flex-wrap gap-1 mb-4">
+                    {country.cities.slice(0, 2).map(city => (
+                      <span key={city} className="text-[10px] px-1.5 py-0.5 bg-slate-50 rounded text-slate-500 border border-slate-100">
+                        {city}
                       </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 0–9 */}
-          <div>
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-white font-bold text-sm tracking-[0.2em] uppercase bg-emerald-600/30 border border-emerald-500/40 px-4 py-1.5 rounded-full">0 – 9</span>
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-slate-500 text-xs">10 digits</span>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {numbers.map((char) => {
-                const numColors = [
-                  "from-emerald-400 to-teal-700 shadow-emerald-600/50",
-                  "from-cyan-400 to-blue-600 shadow-cyan-600/50",
-                  "from-violet-400 to-indigo-700 shadow-violet-600/50",
-                  "from-pink-400 to-rose-600 shadow-pink-600/50",
-                  "from-amber-400 to-orange-600 shadow-amber-600/50",
-                  "from-lime-400 to-green-600 shadow-lime-600/50",
-                  "from-sky-400 to-cyan-700 shadow-sky-600/50",
-                  "from-fuchsia-400 to-pink-700 shadow-fuchsia-600/50",
-                  "from-rose-400 to-red-700 shadow-rose-600/50",
-                  "from-indigo-400 to-blue-700 shadow-indigo-600/50",
-                ];
-                const color = numColors[Number(char)];
-                const isActive = alphabet === char;
-                return (
-                  <button
-                    key={char}
-                    data-testid={`filter-number-${char}`}
-                    onClick={() => handleAlphabetClick(char)}
-                    className={`
-                      relative flex flex-col items-center justify-center w-[72px] h-[72px] rounded-2xl font-black transition-all duration-200 select-none
-                      ${isActive
-                        ? `bg-gradient-to-br ${color} text-white scale-110 shadow-2xl ring-2 ring-white/50`
-                        : "bg-white/[0.07] text-slate-300 border border-white/10 hover:scale-105 hover:bg-white/[0.14] hover:text-white hover:border-white/30 hover:shadow-xl"
-                      }
-                    `}
+                    ))}
+                  </div>
+                  <Link
+                    href={country.href}
+                    onClick={e => e.stopPropagation()}
+                    className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
                   >
-                    <span className="text-2xl leading-none">{char}</span>
-                    {isActive && (
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white rounded-full shadow-lg flex items-center justify-center">
-                        <span className="w-2 h-2 bg-emerald-600 rounded-full" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* RESULTS SECTION */}
-      <main className="flex-1 py-12 container-width">
-        {/* Results header row: title + CSV export */}
-        <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-          <h2 className="text-lg font-bold text-slate-800">
-            {debouncedSearch ? `Results for "${debouncedSearch}"` :
-             selectedCountry ? `${activeCountry?.name || selectedCountry} Companies` :
-             statusFilter ? `${statusFilter} Companies` :
-             alphabet ? `Companies starting with "${alphabet}"` :
-             "All Companies"}
-            {data && <span className="text-sm font-normal text-muted-foreground ml-2">({data.total.toLocaleString()} found)</span>}
-          </h2>
-          <div className="flex items-center gap-2">
-            <AdvancedFiltersDrawer
-              filters={advFilters}
-              onChange={f => { setAdvFilters(f); setPage(1); }}
-              activeCount={advActiveCount}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs text-slate-600 border-slate-300 hover:bg-slate-50"
-              onClick={handleCsvExport}
-            >
-              <Database className="h-3.5 w-3.5" /> Export CSV
-            </Button>
-          </div>
-        </div>
-
-        {/* Active filter chips */}
-        {(selectedCountry || debouncedSearch || alphabet || statusFilter) && (
-          <div className="flex items-center gap-2 mb-6 flex-wrap">
-            <span className="text-sm text-muted-foreground">Filters:</span>
-            {selectedCountry && (
-              <Badge className={`gap-1.5 text-sm px-3 py-1 ${activeCountry?.activeBg} text-white border-0 cursor-pointer`}
-                onClick={() => setSelectedCountry(undefined)}>
-                {activeCountry?.flag} {activeCountry?.name} <X className="h-3 w-3" />
-              </Badge>
-            )}
-            {debouncedSearch && (
-              <Badge variant="secondary" className="gap-1.5 text-sm px-3 py-1 cursor-pointer"
-                onClick={() => { setSearch(""); setDebouncedSearch(""); setPage(1); }}>
-                &ldquo;{debouncedSearch}&rdquo; <X className="h-3 w-3" />
-              </Badge>
-            )}
-            {alphabet && (
-              <Badge variant="secondary" className="gap-1.5 text-sm px-3 py-1 cursor-pointer"
-                onClick={() => { setAlphabet(undefined); setPage(1); }}>
-                Starts with &ldquo;{alphabet}&rdquo; <X className="h-3 w-3" />
-              </Badge>
-            )}
-            {statusFilter && (
-              <Badge variant="secondary" className="gap-1.5 text-sm px-3 py-1 cursor-pointer"
-                onClick={() => { setStatusFilter(""); setPage(1); }}>
-                {statusFilter} <X className="h-3 w-3" />
-              </Badge>
-            )}
-            <button
-              onClick={() => { setAlphabet(undefined); setSelectedCountry(undefined); setSearch(""); setDebouncedSearch(""); setStatusFilter(""); setPage(1); }}
-              className="text-xs text-muted-foreground hover:text-destructive transition-colors ml-1"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-muted-foreground animate-pulse">Fetching company records...</p>
-          </div>
-        ) : isError ? (
-          <div className="text-center py-20">
-            <h3 className="text-xl font-bold text-destructive">Unable to load data</h3>
-            <p className="text-muted-foreground">Please try again later.</p>
-          </div>
-        ) : data?.data.length === 0 ? (
-          <div className="text-center py-20 border rounded-2xl bg-muted/20">
-            <div className="bg-background w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border">
-              <Building className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground">No companies found</h3>
-            <p className="text-muted-foreground">Try adjusting your search or filters.</p>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold font-display">
-                {selectedCountry ? `${activeCountry?.flag} ${activeCountry?.name} Companies` : debouncedSearch ? "Search Results" : "Company Directory"}
-                <span className="ml-2 text-sm font-sans font-normal text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                  {data?.total?.toLocaleString()} records
-                </span>
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {data?.data.map((company) => (
-                <CompanyCard key={company.id} company={company} />
+                    Explore <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
               ))}
             </div>
+          </div>
+        </section>
+      )}
 
-            <div className="flex items-center justify-center gap-4 pt-8 border-t">
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="gap-2"
-              >
-                <ChevronLeft className="h-4 w-4" /> Previous
-              </Button>
-              <span className="text-sm font-medium text-muted-foreground bg-muted px-4 py-2 rounded-lg">
-                Page {page} of {Math.max(1, Math.ceil((data?.total || 0) / (data?.limit || 1)))}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={(data?.data?.length ?? 0) < (data?.limit || 12)}
-                className="gap-2"
-              >
-                Next <ChevronRight className="h-4 w-4" />
-              </Button>
+      {/* ── INDUSTRY DISCOVERY ────────────────────────────────── */}
+      {showHero && (
+        <section className="border-b border-slate-100">
+          <div className="container-width py-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-slate-900">Browse by Industry</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3">
+              {INDUSTRIES.map(ind => {
+                const Icon = ind.icon;
+                return (
+                  <Link
+                    key={ind.slug}
+                    href={`/industry/${ind.slug}`}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border ${ind.color} hover:shadow-sm transition-all text-center group`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="text-xs font-semibold">{ind.name}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
-        )}
-      </main>
+        </section>
+      )}
 
-      {/* SERVICES SECTION — only shown when services exist */}
-      {activeServices.length > 0 && (
-        <section className="py-14 border-t bg-gradient-to-br from-orange-50 via-white to-amber-50">
-          <div className="container-width">
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center gap-2 bg-orange-100 text-orange-700 text-xs font-bold px-4 py-1.5 rounded-full mb-3 uppercase tracking-widest">
-                <span className="w-4 h-4 rounded bg-orange-500 text-white text-[9px] flex items-center justify-center font-black">CA</span>
-                StartupCA Services
+      {/* ── PARTNER SERVICES ─────────────────────────────────── */}
+      {showHero && activeServices.length > 0 && (
+        <section className="border-b border-slate-100 bg-slate-50">
+          <div className="container-width py-12">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Sponsored</p>
+                <h2 className="text-lg font-bold text-slate-900">Recommended Services</h2>
               </div>
-              <h2 className="text-3xl font-bold font-display text-slate-900">Recommended Services</h2>
-              <p className="text-muted-foreground mt-2 max-w-lg mx-auto text-sm">Expert business services from our partner <a href="https://startupcaservices.com" target="_blank" rel="noopener noreferrer" className="text-orange-600 font-semibold hover:underline">startupcaservices.com</a></p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {activeServices.map((svc) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {activeServices.slice(0, 8).map((svc: any) => (
                 <a
                   key={svc.id}
                   href={svc.url}
                   target="_blank"
-                  rel="noopener noreferrer"
-                  data-testid={`service-card-${svc.id}`}
-                  className="group flex items-start gap-4 p-5 bg-white rounded-2xl border border-orange-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
+                  rel="noopener noreferrer sponsored"
+                  className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md hover:border-primary/30 transition-all group"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center text-2xl flex-shrink-0 shadow-md">
-                    {svc.icon || "🔗"}
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="text-sm font-semibold text-slate-900 group-hover:text-primary transition-colors leading-tight">
+                      {svc.name}
+                    </h3>
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                      Partner
+                    </span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-slate-900 text-sm leading-tight group-hover:text-orange-600 transition-colors">{svc.title}</h3>
-                    {svc.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{svc.description}</p>}
-                    <div className="flex items-center gap-1 mt-2 text-xs text-orange-500 font-semibold">
-                      Visit <ExternalLink className="h-3 w-3" />
-                    </div>
-                  </div>
+                  {svc.description && (
+                    <p className="text-xs text-slate-500 leading-relaxed">{svc.description}</p>
+                  )}
+                  <p className="mt-3 text-xs font-semibold text-primary flex items-center gap-1">
+                    Explore Service <ArrowRight className="h-3 w-3" />
+                  </p>
                 </a>
               ))}
             </div>
@@ -722,115 +506,251 @@ export default function Home() {
         </section>
       )}
 
-      {/* FEATURES SECTION */}
-      <section className="py-16 bg-gradient-to-br from-slate-50 to-blue-50 border-t">
-        <div className="container-width">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold font-display text-slate-900">Why Choose IndiaCorpDB?</h2>
-            <p className="text-muted-foreground mt-3 max-w-xl mx-auto">The most comprehensive and up-to-date corporate directory in South Asia.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {FEATURES.map((f) => (
-              <div key={f.title} className={`${f.bg} rounded-2xl p-6 border border-white shadow-sm hover:shadow-md transition-shadow`}>
-                <div className={`${f.iconColor} mb-4`}>{f.icon}</div>
-                <h3 className="font-bold text-lg text-slate-900 mb-2">{f.title}</h3>
-                <p className="text-sm text-muted-foreground">{f.desc}</p>
+      {/* ── MAIN DIRECTORY ────────────────────────────────────── */}
+      <section className="flex-1">
+        <div className="container-width py-8">
+          {/* Filtered state: show active filter pill + back */}
+          {isFiltered && (
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex flex-wrap gap-2">
+                {selectedCountry && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-primary/8 text-primary rounded-full border border-primary/20">
+                    {COUNTRIES.find(c => c.code === selectedCountry)?.flag} {activeCountry?.name}
+                    <button onClick={() => handleCountrySelect(undefined)} aria-label="Remove country filter">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {debouncedSearch && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full">
+                    "{debouncedSearch}"
+                    <button onClick={() => { setSearch(""); setDebouncedSearch(""); }} aria-label="Clear search">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {statusFilter && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full">
+                    Status: {statusFilter}
+                    <button onClick={() => setStatusFilter("")} aria-label="Remove status filter">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Filter toolbar */}
+          <div className="flex flex-col gap-4 mb-6">
+            {/* Search (when below hero) */}
+            {isFiltered && (
+              <div className="flex items-center bg-white rounded-lg border border-slate-200 overflow-hidden max-w-2xl">
+                <CountrySelector value={selectedCountry} onChange={handleCountrySelect} />
+                <div className="flex-1">
+                  <SearchAutocomplete
+                    value={search}
+                    onChange={v => setSearch(v)}
+                    onSearch={v => {
+                      setDebouncedSearch(v);
+                      setSearch(v);
+                      setAlphabet(undefined);
+                      setPage(1);
+                    }}
+                    countryCode={selectedCountry}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Status */}
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-1 py-1">
+                {["", "Active", "Strike-off", "Dissolved"].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => { setStatusFilter(s); setPage(1); }}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+                      statusFilter === s
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {s || "All Status"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Advanced filters */}
+              <button
+                onClick={() => setShowFilters(true)}
+                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2.5 rounded-lg border transition-colors ${
+                  advActiveCount > 0
+                    ? "border-primary text-primary bg-primary/5"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300 bg-white"
+                }`}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                Filters{advActiveCount > 0 && ` (${advActiveCount})`}
+              </button>
+
+              {/* Result count */}
+              {data && (
+                <span className="text-xs text-slate-500 ml-auto">
+                  {data.total.toLocaleString()} companies
+                </span>
+              )}
+            </div>
+
+            {/* Alphabet strip */}
+            <div className="flex flex-wrap gap-1">
+              {alphabets.map(letter => (
+                <button
+                  key={letter}
+                  onClick={() => handleAlphabetClick(letter)}
+                  className={`w-7 h-7 text-xs font-semibold rounded transition-colors ${
+                    alphabet === letter
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  {letter}
+                </button>
+              ))}
+              {alphabet && (
+                <button
+                  onClick={() => setAlphabet(undefined)}
+                  className="flex items-center gap-1 px-2 h-7 text-xs text-slate-500 hover:text-slate-900 border border-slate-200 rounded bg-white"
+                >
+                  <X className="h-3 w-3" /> Clear
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Results grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-52 bg-slate-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : isError ? (
+            <div className="text-center py-20 border border-slate-100 rounded-lg">
+              <p className="font-semibold text-slate-900 mb-1">Something went wrong</p>
+              <p className="text-sm text-slate-500">Could not load companies. Please try again.</p>
+            </div>
+          ) : !hasResults ? (
+            <div className="text-center py-20 border border-slate-100 rounded-lg">
+              <Building2 className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+              <p className="font-semibold text-slate-900 mb-1">No companies found</p>
+              <p className="text-sm text-slate-500 mb-4">Try adjusting your search or removing filters.</p>
+              {isFiltered && (
+                <button
+                  onClick={() => { setSearch(""); setDebouncedSearch(""); setAlphabet(undefined); setStatusFilter(""); handleCountrySelect(undefined); }}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {data!.data.map(company => (
+                  <CompanyCard key={company.id} company={company} />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="flex items-center gap-1 px-3 py-2 text-sm font-medium border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Prev
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pg = page <= 3 ? i + 1 : page + i - 2;
+                      if (pg < 1 || pg > totalPages) return null;
+                      return (
+                        <button
+                          key={pg}
+                          onClick={() => setPage(pg)}
+                          className={`w-8 h-8 text-sm rounded-lg font-medium transition-colors ${
+                            pg === page ? "bg-slate-900 text-white" : "text-slate-600 border border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="flex items-center gap-1 px-3 py-2 text-sm font-medium border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
 
-      {/* QUICK LINKS SECTION */}
-      <section className="py-12 bg-white border-t">
-        <div className="container-width">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link href="/blog">
-              <div className="group p-6 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 text-white hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer">
-                <TrendingUp className="h-8 w-8 mb-3 opacity-80" />
-                <h3 className="font-bold text-xl mb-1">Corporate Blog</h3>
-                <p className="text-purple-100 text-sm">Latest insights & updates from the Indian corporate world</p>
-                <div className="flex items-center gap-1 mt-4 text-sm font-semibold">Read now <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></div>
-              </div>
-            </Link>
-            <Link href="/faq">
-              <div className="group p-6 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer">
-                <Users className="h-8 w-8 mb-3 opacity-80" />
-                <h3 className="font-bold text-xl mb-1">FAQ & Company Info</h3>
-                <p className="text-cyan-100 text-sm">Common questions answered with real company data</p>
-                <div className="flex items-center gap-1 mt-4 text-sm font-semibold">View FAQs <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></div>
-              </div>
-            </Link>
-            <a href="https://your-different-website.com" target="_blank" rel="noopener noreferrer">
-              <div className="group p-6 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 text-white hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer">
-                <Globe className="h-8 w-8 mb-3 opacity-80" />
-                <h3 className="font-bold text-xl mb-1">Partner Website</h3>
-                <p className="text-orange-100 text-sm">Explore our partner site for more business tools & resources</p>
-                <div className="flex items-center gap-1 mt-4 text-sm font-semibold">Visit now <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></div>
-              </div>
-            </a>
+      {/* ── TRENDING ─────────────────────────────────────────── */}
+      {!isFiltered && trendingCompanies.length > 0 && (
+        <section className="ab-section bg-slate-50">
+          <div className="container-width">
+            <div className="flex items-center gap-2 mb-6">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold text-slate-900">Trending Companies</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {trendingCompanies.slice(0, 6).map(company => (
+                <CompanyCard key={company.id} company={company} />
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Phase 16 — Newsletter */}
+      {/* ── STATS ─────────────────────────────────────────────── */}
+      {showHero && (
+        <section className="border-t border-slate-100 bg-white">
+          <div className="container-width py-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              {STATS.map(stat => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.label} className="text-center">
+                    <Icon className="h-5 w-5 text-slate-400 mx-auto mb-2" />
+                    <p className="text-3xl font-bold text-slate-900">{stat.value}</p>
+                    <p className="text-xs text-slate-500 mt-1">{stat.label}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── NEWSLETTER ────────────────────────────────────────── */}
       <NewsletterSignup />
 
-      {/* BACKLINK GRID */}
-      <BacklinkGrid />
+      <AdvancedFiltersDrawer
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        filters={advFilters}
+        onApply={f => { setAdvFilters(f); setPage(1); setShowFilters(false); }}
+      />
 
-      {/* FOOTER */}
-      <footer className="bg-slate-900 text-white py-12">
-        <div className="container-width">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Building className="h-7 w-7 text-orange-400" />
-                <span className="text-xl font-bold font-display">IndiaCorp<span className="text-orange-400">DB</span></span>
-              </div>
-              <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
-                India's most comprehensive corporate directory. Sourced from Ministry of Corporate Affairs (MCA).
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-3 text-slate-200">Quick Links</h4>
-              <ul className="space-y-2 text-slate-400 text-sm">
-                <li><Link href="/" className="hover:text-white transition-colors">Company Directory</Link></li>
-                <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
-                <li><Link href="/faq" className="hover:text-white transition-colors">FAQ</Link></li>
-                <li><Link href="/admin" className="hover:text-white transition-colors">Admin Panel</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-3 text-slate-200">Countries</h4>
-              <ul className="space-y-2 text-slate-400 text-sm">
-                {COUNTRIES.map(c => (
-                  <li key={c.name}>
-                    <Link
-                      href={`/countries/${c.code.toLowerCase()}`}
-                      className="hover:text-white transition-colors"
-                    >
-                      {c.flag} {c.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-slate-400 text-sm">
-            <p>&copy; {new Date().getFullYear()} IndiaCorpDB. All rights reserved.</p>
-            <a
-              href="https://your-different-website.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 hover:text-orange-400 transition-colors font-medium"
-            >
-              <Globe className="h-4 w-4" />
-              Visit our Partner Website
-            </a>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

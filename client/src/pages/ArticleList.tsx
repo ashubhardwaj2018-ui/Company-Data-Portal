@@ -1,6 +1,6 @@
 import { useArticles } from "@/hooks/use-content";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { ServiceAside } from "@/components/layout/ServiceAside";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -122,7 +122,7 @@ export default function ArticleList() {
         </div>
       </div>
 
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

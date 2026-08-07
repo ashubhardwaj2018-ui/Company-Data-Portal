@@ -14,7 +14,9 @@ import {
   companySuggestions, type CompanySuggestion, type InsertSuggestion,
   companyReviews, type CompanyReview, type InsertReview,
   newsletterSubscribers, type NewsletterSubscriber,
+  savedSearches, type SavedSearch,
 } from "@shared/schema";
+import { users, type User as AuthUser } from "@shared/models/auth";
 import { eq, ilike, desc, count, sql, asc, gte, lte, and, inArray } from "drizzle-orm";
 import { cache, TTL } from "./cache";
 
@@ -122,6 +124,17 @@ export interface IStorage {
 
   // Phase 24 — Bulk company update
   bulkUpdateCompanies(ids: number[], fields: Partial<Pick<InsertCompany, "status" | "industry" | "source">>): Promise<number>;
+
+  // Phase 26 — Company badges
+  updateCompanyBadges(id: number, badges: string[]): Promise<void>;
+
+  // Phase 27 — Saved searches
+  getSavedSearches(userEmail: string): Promise<SavedSearch[]>;
+  createSavedSearch(userEmail: string, name: string, filters: string): Promise<SavedSearch>;
+  deleteSavedSearch(id: number, userEmail: string): Promise<void>;
+
+  // Phase 29 — User management
+  listAllUsers(limit?: number): Promise<AuthUser[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -621,6 +634,33 @@ export class DatabaseStorage implements IStorage {
     await db.update(companySuggestions)
       .set({ status, reviewedBy, reviewedAt: new Date() })
       .where(eq(companySuggestions.id, id));
+  }
+
+  // ── Phase 26: Company Badges ──────────────────────────────────────────────
+  async updateCompanyBadges(id: number, badges: string[]): Promise<void> {
+    await db.update(companies).set({ badges: JSON.stringify(badges) }).where(eq(companies.id, id));
+  }
+
+  // ── Phase 27: Saved Searches ──────────────────────────────────────────────
+  async getSavedSearches(userEmail: string): Promise<SavedSearch[]> {
+    return db.select().from(savedSearches)
+      .where(eq(savedSearches.userEmail, userEmail))
+      .orderBy(desc(savedSearches.createdAt));
+  }
+
+  async createSavedSearch(userEmail: string, name: string, filters: string): Promise<SavedSearch> {
+    const [s] = await db.insert(savedSearches).values({ userEmail, name, filters }).returning();
+    return s;
+  }
+
+  async deleteSavedSearch(id: number, userEmail: string): Promise<void> {
+    await db.delete(savedSearches)
+      .where(and(eq(savedSearches.id, id), eq(savedSearches.userEmail, userEmail)));
+  }
+
+  // ── Phase 29: User Management ─────────────────────────────────────────────
+  async listAllUsers(limit = 100): Promise<AuthUser[]> {
+    return db.select().from(users).orderBy(desc(users.createdAt)).limit(limit);
   }
 
   // ── Admin ──────────────────────────────────────────────────────────────────

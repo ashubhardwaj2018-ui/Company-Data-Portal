@@ -1,0 +1,952 @@
+ADDRESSBAY.COM — PUBLIC FRONTEND UI/UX IMPLEMENTATION
+
+IMPORTANT SCOPE RULE
+
+The existing AddressBay Phase 1–32 implementation specification already contains the required Admin UI/UX and Admin Dashboard work.
+
+DO NOT redesign, replace, duplicate, or remove the Admin UI/UX requirements from the existing Phase 1–32 specification.
+
+This task is specifically for the PUBLIC-FACING FRONTEND UI/UX of AddressBay.com.
+
+The objective is to transform the public website into a world-class global business-data discovery platform while remaining fully compatible with the existing and planned Phase 1–32 backend architecture.
+
+⸻
+
+1. PUBLIC WEBSITE ONLY
+
+Redesign and improve only public-facing pages and components.
+
+The frontend must support:
+
+* India
+* Australia
+* United Kingdom
+* Singapore
+* USA
+* future countries
+
+Do not hardcode the frontend around India.
+
+The architecture must allow additional countries without redesigning the UI.
+
+⸻
+
+2. DESIGN OBJECTIVE
+
+AddressBay should look like a premium global business-data platform.
+
+Design inspiration may come from the quality and usability principles of:
+
+* Bloomberg
+* Crunchbase
+* LinkedIn
+* modern SaaS products
+* premium data platforms
+
+Do not copy any competitor.
+
+Create an original AddressBay design language.
+
+The user should immediately understand:
+
+AddressBay helps me discover and research companies and businesses worldwide.
+
+The interface should feel:
+
+Premium + Fast + Trustworthy + Data-rich + Modern + Simple
+
+⸻
+
+3. HOMEPAGE
+
+Create a world-class homepage.
+
+Hero section:
+
+Discover Companies & Businesses Worldwide
+
+Large global search interface.
+
+Search should support:
+
+* Company name
+* Registration number
+* Address
+* City
+* PIN/Postcode
+* Country
+
+Example:
+
+[ India ▼ ] [ Search company, registration number, city... ] [ Search ]
+
+Below search:
+
+* Popular searches
+* Popular countries
+* Featured locations
+* Industries
+
+⸻
+
+4. COUNTRY DISCOVERY
+
+Create attractive country cards.
+
+Initial countries:
+
+🇮🇳 India
+
+🇦🇺 Australia
+
+🇬🇧 United Kingdom
+
+🇸🇬 Singapore
+
+🇺🇸 USA
+
+Each country should have:
+
+* flag
+* country name
+* company count where available
+* major locations
+* industries
+* Explore button
+
+Example:
+
+/in
+
+/au
+
+/gb
+
+/sg
+
+/us
+
+⸻
+
+5. GLOBAL SEARCH
+
+Create a premium search experience.
+
+Requirements:
+
+* autocomplete
+* debounce
+* keyboard navigation
+* country selector
+* recent searches
+* search suggestions
+* loading state
+* empty state
+* error state
+
+Search suggestions can contain:
+
+Companies
+
+Locations
+
+Industries
+
+Registration numbers
+
+⸻
+
+6. SEARCH RESULTS
+
+Create a professional search results page.
+
+Desktop:
+
+Left:
+
+Filters
+
+Right:
+
+Results
+
+Filters may include:
+
+* Country
+* Region/state
+* City
+* Industry
+* Status
+* Registration type
+* Date
+
+Results must show:
+
+Company name
+
+Country
+
+Registration number
+
+Location
+
+Industry/activity
+
+Status
+
+CTA:
+
+View Company
+
+Use server-side pagination.
+
+Never load thousands or millions of records into the browser.
+
+⸻
+
+7. COMPANY PROFILE
+
+Company pages are the most important public pages.
+
+Use SEO-friendly country-aware URLs planned by the architecture.
+
+Example:
+
+/in/company/example-company
+
+The page should look like a premium company intelligence profile.
+
+Header:
+
+Company name
+
+Country
+
+Registration number
+
+Status
+
+Industry
+
+Location
+
+Share button
+
+Then sections:
+
+Overview
+
+Company Information
+
+Registration Information
+
+Address
+
+Business Activity
+
+Financial/Capital Information
+
+Important Dates
+
+Source Information
+
+Only show fields that exist for that country/company.
+
+⸻
+
+8. COUNTRY-SPECIFIC UI
+
+Never display irrelevant fields.
+
+India:
+
+Display India-specific company information.
+
+Australia:
+
+Display Australian company information.
+
+UK:
+
+Display UK company information.
+
+Singapore:
+
+Display Singapore company information.
+
+USA:
+
+Display US company information.
+
+Use reusable dynamic components.
+
+Example:
+
+CompanyDataSection
+
+CompanyField
+
+CompanyDataTable
+
+The UI must render based on the actual country schema/data.
+
+⸻
+
+9. BREADCRUMBS
+
+Every deep public page should contain useful breadcrumbs.
+
+Example:
+
+Home
+
+→ India
+
+→ Haryana
+
+→ Panipat
+
+→ Companies
+
+→ Company Name
+
+All breadcrumb elements should be clickable.
+
+⸻
+
+10. LOCATION PAGES
+
+Design public geographic discovery pages.
+
+Examples:
+
+/in/companies/haryana
+
+/in/companies/haryana/panipat
+
+These pages should contain:
+
+Location overview
+
+Company statistics
+
+Companies
+
+Industries
+
+Cities
+
+Nearby locations
+
+Related locations
+
+Use real database relationships.
+
+Do not create meaningless navigation links.
+
+⸻
+
+11. INDIA PIN CODE PAGES
+
+Create a dedicated premium PIN-code experience.
+
+Example:
+
+/in/pincode/132103
+
+Display:
+
+PIN code
+
+Post offices
+
+Localities
+
+District
+
+State
+
+Companies
+
+Industries
+
+Related PIN codes
+
+Nearby locations
+
+Company results should use proper pagination.
+
+⸻
+
+12. COUNTRY PAGES
+
+Country landing pages should contain:
+
+Country name
+
+Country flag
+
+Company statistics
+
+Company discovery
+
+Major locations
+
+Industries
+
+Popular searches
+
+Latest/recent companies where appropriate
+
+Example:
+
+Companies in India
+
+Then:
+
+Total Companies
+
+Active Companies
+
+Locations
+
+Industries
+
+⸻
+
+13. INDUSTRY DISCOVERY
+
+Where supported by the backend, create industry discovery.
+
+Examples:
+
+Technology
+
+Manufacturing
+
+Finance
+
+Healthcare
+
+Construction
+
+Retail
+
+Education
+
+Logistics
+
+Professional Services
+
+Real Estate
+
+Users should be able to explore:
+
+Industry → Country → Location → Companies
+
+⸻
+
+14. INTERNAL DISCOVERY
+
+Create useful contextual sections:
+
+Related Companies
+
+Companies in This City
+
+Companies in This Industry
+
+Companies in This Location
+
+Nearby Locations
+
+Related PIN Codes
+
+Popular Searches
+
+All links must lead to useful, real pages.
+
+Do not generate artificial links simply to increase link count.
+
+⸻
+
+15. PARTNER/SERVICE PLACEMENTS
+
+The existing backend will support multiple external partners.
+
+The public frontend must provide reusable partner components.
+
+Example:
+
+Recommended Service
+
+Legal Filing India
+
+Company Registration
+
+GST | Trademark | Legal Services
+
+Explore Service →
+
+Do not hardcode Legal Filing India.
+
+The component must work with any future partner.
+
+Examples:
+
+* Legal services
+* Astrology
+* Insurance
+* Accounting
+* Immigration
+* Loans
+* Education
+* Real estate
+
+Partner content must be visually distinguishable from normal AddressBay navigation.
+
+Where applicable use labels such as:
+
+Sponsored
+
+Partner
+
+Recommended Service
+
+⸻
+
+16. PARTNER PLACEMENT
+
+Support backend-driven placement such as:
+
+* Company profile sidebar
+* Company profile section
+* Location pages
+* Country pages
+* Search results
+* Article pages
+* Blog pages
+
+The frontend must consume placement configuration from the backend.
+
+Do not hardcode partner placement rules.
+
+⸻
+
+17. BLOG
+
+Create premium editorial UI.
+
+Blog listing:
+
+* featured article
+* latest articles
+* categories
+* search
+* article cards
+
+Cards:
+
+Image
+
+Category
+
+Title
+
+Excerpt
+
+Date
+
+Read article
+
+⸻
+
+18. ARTICLE PAGE
+
+Create a high-quality reading experience.
+
+Include:
+
+* breadcrumbs
+* title
+* category
+* date
+* author if available
+* table of contents where appropriate
+* readable content width
+* related articles
+* related companies
+* relevant services
+* social sharing
+
+⸻
+
+19. FAQ
+
+Modern FAQ experience.
+
+Include:
+
+* category filtering
+* search
+* accordion
+* mobile-friendly layout
+
+⸻
+
+20. HEADER
+
+Create a premium responsive public header.
+
+Desktop:
+
+AddressBay logo
+
+Companies
+
+Countries
+
+Industries
+
+Locations
+
+Articles
+
+Blog
+
+Search
+
+Mobile:
+
+Logo
+
+Search
+
+Menu
+
+The header must remain simple and fast.
+
+⸻
+
+21. FOOTER
+
+Create a professional global footer.
+
+Sections:
+
+AddressBay
+
+Countries
+
+Industries
+
+Locations
+
+Resources
+
+Services
+
+Company
+
+Legal
+
+Include:
+
+Privacy Policy
+
+Terms
+
+Disclaimer
+
+Contact
+
+⸻
+
+22. MOBILE DESIGN
+
+The public website must be excellent on:
+
+320px
+
+375px
+
+390px
+
+430px
+
+768px
+
+1024px
+
+1280px
+
+1440px
+
+1920px
+
+Mobile search should remain the primary action.
+
+Tables should use responsive layouts or horizontal scrolling where necessary.
+
+⸻
+
+23. ACCESSIBILITY
+
+Follow WCAG principles.
+
+Implement:
+
+* semantic HTML
+* keyboard navigation
+* visible focus states
+* accessible forms
+* accessible dropdowns
+* accessible dialogs
+* proper labels
+* appropriate ARIA
+* adequate contrast
+* reduced motion support
+
+⸻
+
+24. PERFORMANCE
+
+The public website must be optimized for millions of company records.
+
+Use:
+
+* server-side pagination
+* lazy loading
+* code splitting
+* route-based loading
+* TanStack Query caching
+* debounced search
+* request cancellation
+* optimized images
+
+Never load an entire company dataset into the browser.
+
+⸻
+
+25. SEO FRONTEND
+
+Every public page should support:
+
+* unique title
+* meta description
+* canonical URL
+* Open Graph
+* Twitter metadata
+* breadcrumbs
+* structured data where appropriate
+
+Use the SEO architecture from the existing Phase 1–32 implementation.
+
+Do not create duplicate metadata manually in every component.
+
+⸻
+
+26. LOADING STATES
+
+Never show blank screens.
+
+Create reusable:
+
+* skeletons
+* spinners where appropriate
+* loading cards
+* table skeletons
+* search loading states
+
+⸻
+
+27. EMPTY STATES
+
+Example:
+
+No Companies Found
+
+Try:
+
+* changing your search
+* removing filters
+* selecting another country
+
+Provide useful actions.
+
+⸻
+
+28. ERROR STATES
+
+Create professional public error pages.
+
+Include:
+
+404
+
+500
+
+Network error
+
+Search error
+
+Data unavailable
+
+Never expose stack traces or backend implementation details.
+
+⸻
+
+29. DESIGN SYSTEM
+
+Create reusable public components.
+
+Examples:
+
+AddressBayHeader
+
+AddressBayFooter
+
+GlobalSearch
+
+CountrySelector
+
+CompanyCard
+
+CompanyStatusBadge
+
+CompanyDataSection
+
+CompanyDataTable
+
+Breadcrumbs
+
+CountryCard
+
+LocationCard
+
+IndustryCard
+
+PartnerCard
+
+PartnerSidebar
+
+RelatedCompanies
+
+SearchFilters
+
+Pagination
+
+EmptyState
+
+ErrorState
+
+LoadingSkeleton
+
+⸻
+
+30. VISUAL DESIGN
+
+Use:
+
+* premium typography
+* consistent spacing
+* subtle borders
+* restrained shadows
+* professional cards
+* clean tables
+* consistent icons
+* subtle animations
+
+Avoid:
+
+* excessive gradients
+* excessive rounded cards
+* excessive glass effects
+* visual clutter
+* unnecessary animation
+* cheap-looking stock imagery
+
+Information clarity comes first.
+
+⸻
+
+31. ANIMATION
+
+Use Framer Motion selectively.
+
+Animations should be subtle.
+
+Use for:
+
+* navigation
+* cards
+* search suggestions
+* filters
+* dialogs
+* page transitions
+
+Respect reduced-motion preferences.
+
+⸻
+
+32. DO NOT DUPLICATE ADMIN WORK
+
+IMPORTANT:
+
+Do not redesign or replace the Admin UI/UX already specified in the existing AddressBay Phase 1–32 implementation plan.
+
+Do not modify Admin Dashboard layouts unless required for compatibility with the backend changes.
+
+Do not create a second Admin design system.
+
+This task is specifically the PUBLIC FRONTEND UI/UX layer.
+
+⸻
+
+33. IMPLEMENTATION RULE
+
+Before changing code:
+
+1. Inspect the current frontend.
+2. Inspect the existing Phase 1–32 implementation.
+3. Reuse existing APIs and components where appropriate.
+4. Do not break existing functionality.
+5. Do not change database architecture as part of this task.
+6. Do not modify backend behavior unless required to expose already-planned frontend data.
+7. Keep the frontend compatible with future countries.
+
+⸻
+
+34. FINAL QUALITY STANDARD
+
+The final AddressBay public website should feel like:
+
+A global business intelligence and company discovery platform — not a simple company directory.
+
+Prioritize:
+
+Usability
+
+Performance
+
+Trust
+
+Data readability
+
+SEO
+
+Mobile experience
+
+Scalability
+
+Professional visual design
+
+Do not sacrifice functionality for visual effects.
+
+Do not sacrifice performance for animation.
+
+Do not sacrifice accessibility for aesthetics.
+
+Do not create artificial pages or links solely for SEO.
+
+Build the public frontend as a long-term global product.

@@ -1,6 +1,6 @@
 import { usePost } from "@/hooks/use-content";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { useParams, Link } from "wouter";
 import { format } from "date-fns";
 import { Loader2, ArrowLeft } from "lucide-react";
@@ -80,7 +80,7 @@ export default function BlogPost() {
           <ServiceAside side="right" />
         </div>
       </main>
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

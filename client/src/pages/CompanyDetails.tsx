@@ -3,7 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useCompany, useCompanyBySlug, useRelatedCompanies } from "@/hooks/use-companies";
 import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ import { SuggestCorrectionModal } from "@/components/companies/SuggestCorrection
 import { SharePrintBar } from "@/components/companies/SharePrintBar";
 import { ReviewsSection } from "@/components/companies/ReviewsSection";
 import { CompareToggle } from "@/components/companies/CompareToggle";
+import { BadgesDisplay, parseBadges } from "@/components/companies/BadgesDisplay";
+import { InsightsWidget } from "@/components/companies/InsightsWidget";
 import type { Company } from "@shared/schema";
 
 // ── Country code → display name ───────────────────────────────────────────────
@@ -310,6 +312,20 @@ export default function CompanyDetails() {
     regId ? `${regLabel}: ${regId}.` : "",
   ].join("").trim();
 
+  const companyBadges = parseBadges(company.badges);
+
+  // Phase 30 — BreadcrumbList JSON-LD
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteOrigin + "/" },
+      ...(company.countryCode ? [{ "@type": "ListItem", position: 2, name: countryName, item: `${siteOrigin}/countries/${company.countryCode.toLowerCase()}` }] : []),
+      ...(company.state ? [{ "@type": "ListItem", position: 3, name: company.state, item: `${siteOrigin}/countries/${(company.countryCode || "in").toLowerCase()}/${encodeURIComponent(company.state)}` }] : []),
+      { "@type": "ListItem", position: (company.state ? 4 : (company.countryCode ? 3 : 2)), name: company.name, item: canonicalFull },
+    ],
+  };
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -344,6 +360,7 @@ export default function CompanyDetails() {
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={pageDesc} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
       </Helmet>
       <Navbar />
 
@@ -371,6 +388,8 @@ export default function CompanyDetails() {
                   {COUNTRY_NAMES[company.countryCode || "IN"] || company.country || "India"}
                 </Badge>
               </div>
+              {/* Phase 26 — Badges */}
+              {companyBadges.length > 0 && <BadgesDisplay badges={companyBadges} size="md" className="mb-3" />}
               <h1 className="text-3xl md:text-5xl font-display font-bold mb-2">{company.name}</h1>
               <div className="flex items-center gap-2 text-white/60">
                 <MapPin className="h-4 w-4" />
@@ -418,6 +437,15 @@ export default function CompanyDetails() {
                   <span>{company.viewCount?.toLocaleString()} views</span>
                 </div>
               )}
+              {/* Phase 32 — Print Report link */}
+              <a
+                href={`${pageCanonical}/report`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-white/40 hover:text-white/70 transition-colors underline underline-offset-2"
+              >
+                📄 Print Report
+              </a>
             </div>
           </div>
         </div>
@@ -448,6 +476,9 @@ export default function CompanyDetails() {
 
             {/* Related companies + internal links */}
             <RelatedCompanies company={company} />
+
+            {/* Phase 28 — Company Insights */}
+            <InsightsWidget company={company} />
 
             {/* Phase 19 — Reviews & Ratings */}
             <ReviewsSection
@@ -513,7 +544,7 @@ export default function CompanyDetails() {
         </div>
         <ServiceAside side="right" />
       </div>
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

@@ -41,6 +41,164 @@ async function apiPut(path: string, body: unknown) {
   return res.json();
 }
 
+// ─── Badges Admin Tab (Phase 26) ──────────────────────────────────────────────
+const BADGE_OPTIONS = ["verified", "featured", "claimed", "premium"] as const;
+
+function BadgesAdminTab() {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<number | null>(null);
+  const [activeBadges, setActiveBadges] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const { data, isLoading } = useQuery<{ data: any[]; total: number }>({
+    queryKey: ["/api/companies", { search, limit: 50 }],
+    queryFn: async () => {
+      const p = new URLSearchParams({ limit: "50" });
+      if (search) p.set("search", search);
+      const res = await fetch(`/api/companies?${p}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const selectCompany = (c: any) => {
+    setSelected(c.id);
+    try { setActiveBadges(JSON.parse(c.badges || "[]")); }
+    catch { setActiveBadges([]); }
+  };
+
+  const saveBadges = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/companies/${selected}/badges`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ badges: activeBadges }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      toast({ title: "Badges updated" });
+    } catch { toast({ title: "Error saving badges", variant: "destructive" }); }
+    setSaving(false);
+  };
+
+  const toggleBadge = (b: string) => setActiveBadges(prev =>
+    prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-blue-600" /> Company Badges</CardTitle>
+          <CardDescription>Assign verification and feature badges to companies. They appear as colored pills on cards and profiles.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-2 block">Search company</label>
+              <input className="w-full border rounded-lg px-3 py-2 text-sm mb-3" placeholder="Company name…" value={search} onChange={e => setSearch(e.target.value)} />
+              <div className="border rounded-xl overflow-hidden max-h-64 overflow-y-auto divide-y">
+                {isLoading ? <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
+                : (data?.data || []).map((c: any) => (
+                  <button key={c.id} onClick={() => selectCompany(c)}
+                    className={`w-full text-left px-4 py-3 text-sm hover:bg-muted/30 transition-colors flex items-center justify-between gap-2 ${selected === c.id ? "bg-blue-50 font-semibold text-blue-800" : ""}`}>
+                    <span className="truncate">{c.name}</span>
+                    {c.badges && JSON.parse(c.badges || "[]").length > 0 && (
+                      <span className="text-[10px] text-blue-600 font-bold">★</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-2 block">
+                {selected ? "Badges to assign" : "Select a company first"}
+              </label>
+              <div className="space-y-2">
+                {BADGE_OPTIONS.map(b => (
+                  <label key={b} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${activeBadges.includes(b) ? "border-blue-400 bg-blue-50" : "border-muted hover:border-blue-200"} ${!selected ? "opacity-40 pointer-events-none" : ""}`}>
+                    <input type="checkbox" checked={activeBadges.includes(b)} onChange={() => toggleBadge(b)} className="rounded" />
+                    <div>
+                      <p className="font-semibold text-sm capitalize">{b}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {b === "verified" ? "Official government-verified data" :
+                         b === "featured" ? "Highlighted in directory listings" :
+                         b === "claimed" ? "Business owner has claimed this listing" :
+                         "Premium enhanced profile"}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <Button className="w-full mt-4 gap-2" onClick={saveBadges} disabled={!selected || saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Save Badges
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Users Admin Tab (Phase 29) ───────────────────────────────────────────────
+function UsersAdminTab() {
+  const { data: users = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/users"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/users", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardHeader className="border-b flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg"><Users className="h-5 w-5" /> Registered Users</CardTitle>
+            <CardDescription>{users.length} total registered users</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : users.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">
+              <Users className="h-10 w-10 mx-auto mb-3 opacity-30" /><p className="text-sm">No users yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y max-h-[600px] overflow-y-auto">
+              {users.map((u: any) => (
+                <div key={u.id} className="px-6 py-3.5 flex items-center gap-4 hover:bg-muted/20 transition-colors">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                    {u.profileImageUrl
+                      ? <img src={u.profileImageUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+                      : (u.firstName?.[0] || u.email?.[0] || "?").toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email || u.id}</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground shrink-0">
+                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Import Jobs Tab ──────────────────────────────────────────────────────────
 const JOB_STATUS_STYLE: Record<string, string> = {
   QUEUED:     "bg-yellow-100 text-yellow-800",
@@ -1350,6 +1508,12 @@ export default function AdminDashboard() {
             <TabsTrigger value="bulk-edit" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white">
               <Pencil className="h-4 w-4 mr-2" /> Bulk Edit
             </TabsTrigger>
+            <TabsTrigger value="badges" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+              <ShieldAlert className="h-4 w-4 mr-2" /> Badges
+            </TabsTrigger>
+            <TabsTrigger value="users" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+              <Users className="h-4 w-4 mr-2" /> Users
+            </TabsTrigger>
             <TabsTrigger value="services" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white">
               <Link2 className="h-4 w-4 mr-2" /> Service Links
             </TabsTrigger>
@@ -1404,6 +1568,8 @@ export default function AdminDashboard() {
           <TabsContent value="newsletter"><NewsletterAdminTab /></TabsContent>
           <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
           <TabsContent value="bulk-edit"><BulkEditTab /></TabsContent>
+          <TabsContent value="badges"><BadgesAdminTab /></TabsContent>
+          <TabsContent value="users"><UsersAdminTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
           <TabsContent value="articles"><ArticlesTab /></TabsContent>
           <TabsContent value="blog"><BlogTab /></TabsContent>

@@ -1,156 +1,248 @@
-import { Link } from "wouter";
+import { useState, useRef, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-admin";
-import { Button } from "@/components/ui/button";
-import { Building2, LayoutDashboard, LogOut, User, Upload, Bookmark, Scale } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+  Building2, Globe, LayoutDashboard, LogOut, User,
+  Upload, Bookmark, Scale, Menu, X, ChevronDown, Search,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+
+const COUNTRIES = [
+  { name: "India", code: "in", flag: "🇮🇳" },
+  { name: "Australia", code: "au", flag: "🇦🇺" },
+  { name: "United Kingdom", code: "gb", flag: "🇬🇧" },
+  { name: "Singapore", code: "sg", flag: "🇸🇬" },
+  { name: "USA", code: "us", flag: "🇺🇸" },
+];
+
+const INDUSTRIES = [
+  "Technology", "Manufacturing", "Finance", "Healthcare",
+  "Construction", "Retail", "Education", "Logistics",
+];
+
+function NavDropdown({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-0.5 text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors py-1"
+        aria-expanded={open}
+      >
+        {label}
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
   const { data: adminCheck } = useIsAdmin();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [location] = useLocation();
+
+  useEffect(() => setMobileOpen(false), [location]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
-      <div className="container-width flex h-16 items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-            <Building2 className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold font-display tracking-tight text-foreground">
-              IndiaCorp<span className="text-primary">DB</span>
-            </span>
-          </Link>
-          
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-            <Link href="/" className="text-muted-foreground transition-colors hover:text-foreground">
-              Directory
-            </Link>
-            <Link href="/blog" className="text-muted-foreground transition-colors hover:text-foreground">
-              Blog
-            </Link>
-            <Link href="/articles" className="text-muted-foreground transition-colors hover:text-foreground">
-              Articles
-            </Link>
-            <Link href="/faq" className="text-muted-foreground transition-colors hover:text-foreground">
-              FAQ
-            </Link>
-            <Link href="/about" className="text-muted-foreground transition-colors hover:text-foreground">
-              About
-            </Link>
-            <a 
-              href="https://startupcaservices.com" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 group"
-            >
-              <div className="w-6 h-6 rounded bg-orange-500 flex items-center justify-center text-white text-[10px] font-black group-hover:opacity-80 transition-opacity">CA</div>
-              <span className="text-primary font-semibold group-hover:text-primary/80 transition-colors">StartupCA</span>
-            </a>
-          </nav>
-        </div>
+    <header className="sticky top-0 z-50 w-full bg-white border-b border-slate-200">
+      <div className="container-width flex h-15 items-center justify-between h-[60px]">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+            <Building2 className="h-4.5 w-4.5 text-white h-[18px] w-[18px]" />
+          </div>
+          <span className="text-[17px] font-bold tracking-tight text-slate-900">
+            Address<span className="text-primary">Bay</span>
+          </span>
+        </Link>
 
-        <div className="flex items-center gap-4">
+        {/* Desktop Nav */}
+        <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
+          <Link href="/" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            Directory
+          </Link>
+
+          <NavDropdown label="Countries">
+            {COUNTRIES.map(c => (
+              <Link
+                key={c.code}
+                href={`/countries/${c.code}`}
+                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              >
+                <span className="text-base">{c.flag}</span>
+                {c.name}
+              </Link>
+            ))}
+          </NavDropdown>
+
+          <NavDropdown label="Industries">
+            {INDUSTRIES.map(ind => (
+              <Link
+                key={ind}
+                href={`/industry/${ind.toLowerCase().replace(/\s+/g, "-")}`}
+                className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              >
+                {ind}
+              </Link>
+            ))}
+          </NavDropdown>
+
+          <Link href="/articles" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            Articles
+          </Link>
+          <Link href="/blog" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            Blog
+          </Link>
+          <Link href="/faq" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            FAQ
+          </Link>
+        </nav>
+
+        {/* Right side */}
+        <div className="flex items-center gap-3">
+          {/* Search shortcut */}
+          <Link href="/" aria-label="Search" className="hidden md:flex items-center justify-center w-8 h-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors">
+            <Search className="h-4 w-4" />
+          </Link>
+
           {isAuthenticated ? (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               {adminCheck?.isAdmin && (
                 <div className="hidden md:flex items-center gap-2">
-                  <Link href="/admin?tab=upload">
-                    <Button size="sm" className="gap-2 bg-orange-500 hover:bg-orange-600 text-white shadow shadow-orange-200" data-testid="button-upload-db">
-                      <Upload className="h-4 w-4" />
-                      Upload DB
-                    </Button>
-                  </Link>
                   <Link href="/admin">
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <LayoutDashboard className="h-4 w-4" />
-                      Admin
-                    </Button>
+                    <button className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
+                      <LayoutDashboard className="h-3.5 w-3.5" /> Admin
+                    </button>
                   </Link>
                 </div>
               )}
-              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9 border border-border">
+                  <button className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                    <Avatar className="h-8 w-8 border border-slate-200">
                       <AvatarImage src={user?.profileImageUrl || ""} alt={user?.firstName || "User"} />
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {user?.firstName?.[0] || <User className="h-4 w-4" />}
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                        {user?.firstName?.[0] || <User className="h-3.5 w-3.5" />}
                       </AvatarFallback>
                     </Avatar>
-                  </Button>
+                  </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <div className="flex items-center justify-start gap-2 p-2">
-                    <div className="flex flex-col space-y-1 leading-none">
-                      <p className="font-medium">{user?.firstName} {user?.lastName}</p>
-                      <p className="text-xs leading-none text-muted-foreground truncate">{user?.email}</p>
-                    </div>
+                <DropdownMenuContent className="w-56" align="end">
+                  <div className="px-3 py-2 border-b border-slate-100">
+                    <p className="text-sm font-semibold text-slate-900">{user?.firstName} {user?.lastName}</p>
+                    <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                   </div>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/profile">
-                      <User className="mr-2 h-4 w-4" />
-                      My Profile
-                    </Link>
+                    <Link href="/profile"><User className="mr-2 h-4 w-4" /> My Profile</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/watchlist">
-                      <Bookmark className="mr-2 h-4 w-4" />
-                      Watchlist
-                    </Link>
+                    <Link href="/watchlist"><Bookmark className="mr-2 h-4 w-4" /> Watchlist</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/compare">
-                      <Scale className="mr-2 h-4 w-4" />
-                      Compare
-                    </Link>
+                    <Link href="/compare"><Scale className="mr-2 h-4 w-4" /> Compare</Link>
                   </DropdownMenuItem>
                   {adminCheck?.isAdmin && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link href="/admin?tab=upload">
-                          <Upload className="mr-2 h-4 w-4 text-orange-500" />
-                          Upload Database
-                        </Link>
+                        <Link href="/admin?tab=upload"><Upload className="mr-2 h-4 w-4 text-orange-500" /> Upload Database</Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href="/admin">
-                          <LayoutDashboard className="mr-2 h-4 w-4" />
-                          Admin Panel
-                        </Link>
+                        <Link href="/admin"><LayoutDashboard className="mr-2 h-4 w-4" /> Admin Panel</Link>
                       </DropdownMenuItem>
                     </>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => logout()} className="text-destructive focus:text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
+                  <DropdownMenuItem onClick={() => logout()} className="text-red-600 focus:text-red-600">
+                    <LogOut className="mr-2 h-4 w-4" /> Sign out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <a href="/api/login">Log In</a>
-              </Button>
-              <Button size="sm" asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
-                <a href="/api/login">
-                  Get Started
-                </a>
-              </Button>
+            <div className="hidden md:flex items-center gap-2">
+              <a href="/api/login" className="text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors px-3 py-1.5">
+                Log in
+              </a>
+              <a href="/api/login" className="text-sm font-semibold bg-primary text-white hover:bg-primary/90 px-4 py-1.5 rounded-md transition-colors">
+                Get Started
+              </a>
             </div>
           )}
+
+          {/* Mobile menu toggle */}
+          <button
+            onClick={() => setMobileOpen(o => !o)}
+            className="md:hidden flex items-center justify-center w-8 h-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          >
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="md:hidden border-t border-slate-100 bg-white" aria-label="Mobile navigation">
+          <div className="container-width py-4 space-y-1">
+            <Link href="/" className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">
+              <Search className="h-4 w-4" /> Directory
+            </Link>
+            <div className="px-3 pt-2 pb-1">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Countries</p>
+              <div className="space-y-0.5">
+                {COUNTRIES.map(c => (
+                  <Link key={c.code} href={`/countries/${c.code}`} className="flex items-center gap-2 px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
+                    <span>{c.flag}</span> {c.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+            <div className="px-3 pt-2 pb-1">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Industries</p>
+              <div className="grid grid-cols-2 gap-0.5">
+                {INDUSTRIES.map(ind => (
+                  <Link key={ind} href={`/industry/${ind.toLowerCase().replace(/\s+/g, "-")}`} className="px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
+                    {ind}
+                  </Link>
+                ))}
+              </div>
+            </div>
+            <div className="border-t border-slate-100 pt-2 space-y-0.5">
+              <Link href="/articles" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">Articles</Link>
+              <Link href="/blog" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">Blog</Link>
+              <Link href="/faq" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">FAQ</Link>
+            </div>
+            {!isAuthenticated && (
+              <div className="border-t border-slate-100 pt-3 flex gap-2">
+                <a href="/api/login" className="flex-1 text-center text-sm font-medium py-2.5 border border-slate-200 rounded-md text-slate-700 hover:bg-slate-50">Log in</a>
+                <a href="/api/login" className="flex-1 text-center text-sm font-semibold py-2.5 bg-primary text-white rounded-md hover:bg-primary/90">Get Started</a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

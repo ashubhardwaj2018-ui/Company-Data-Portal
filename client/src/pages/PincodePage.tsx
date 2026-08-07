@@ -7,7 +7,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,7 +94,7 @@ export default function PincodePage() {
           </>
         )}
       </main>
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

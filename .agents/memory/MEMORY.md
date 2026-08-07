@@ -4,3 +4,4 @@
 - [Helmet JSX constraints](helmet-jsx.md) — Helmet must be inside outermost div (not fragment); JSON-LD script must use dangerouslySetInnerHTML not expression children.
 - [Phase route ordering](phase-route-ordering.md) — /api/watchlist/check/:id MUST be registered before /api/watchlist/:id to prevent Express treating "check" as companyId.
 - [Compare/recent route ordering](route-ordering.md) — /api/companies/compare and /api/companies/recent must live before the /:id wildcard; server restart required to pick up route-order changes (HMR does not reorder middleware).
+- [Duplicate import pitfall](route-ordering.md) — When adding imports to existing files, always check what is already imported (especially Link from wouter, useQuery) to avoid duplicate identifier build errors.

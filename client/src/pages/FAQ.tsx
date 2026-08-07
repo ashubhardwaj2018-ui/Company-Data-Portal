@@ -1,6 +1,6 @@
 import { useFaqs, useCompanies } from "@/hooks/use-content";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
@@ -15,10 +15,10 @@ export default function FAQ() {
       <Navbar />
 
       {/* Hero */}
-      <div className="bg-gradient-to-br from-blue-900 to-indigo-900 text-white py-14">
+      <div className="bg-slate-900 text-white py-12">
         <div className="container-width text-center space-y-3">
-          <h1 className="text-4xl font-bold font-display">FAQ & Company Information</h1>
-          <p className="text-blue-200 max-w-xl mx-auto">Browse common questions and explore real company data from our directory.</p>
+          <h1 className="text-3xl font-bold">FAQ &amp; Company Information</h1>
+          <p className="text-slate-300 max-w-xl mx-auto text-sm">Browse common questions and explore real company data from our directory.</p>
         </div>
       </div>
 
@@ -129,7 +129,7 @@ export default function FAQ() {
         </div>
       </main>
 
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }

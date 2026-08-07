@@ -2,7 +2,7 @@ import { useRoute, Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
-import { BacklinkGrid } from "@/components/layout/BacklinkGrid";
+import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,7 +169,7 @@ export default function StatePage() {
         )}
       </div>
 
-      <BacklinkGrid />
+      <Footer />
     </div>
   );
 }
