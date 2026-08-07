@@ -1,0 +1,985 @@
+# MASTER DEVELOPMENT PROMPT — ADDRESSBAY GLOBAL BUSINESS DATA PLATFORM
+
+You are working on an existing production-oriented project called **India Companies Directory**.
+
+The project is being transformed into **AddressBay.com**, a scalable global business information and directory platform.
+
+## 1. NEW PRODUCT VISION
+
+The final product should be:
+
+**AddressBay — Global Business & Company Information Directory**
+
+Initial countries:
+
+1. India
+2. Australia
+3. United Kingdom
+4. Singapore
+
+AddressBay's purpose is to:
+
+* Provide searchable company/business information
+* Provide company profile pages
+* Provide geographic/business information
+* Provide India PIN-code information
+* Generate useful, interconnected information pages
+* Generate organic search traffic
+* Generate Google Ad revenue
+* Generate qualified referral traffic and leads for external partner websites
+* Allow an unlimited/scalable number of external partner websites to be configured from Admin
+* Initially promote Legal Filing India as a major partner
+* Later allow other partners such as astrology, insurance, immigration, accounting, finance, etc.
+
+IMPORTANT:
+
+Do NOT rebuild the application from scratch.
+
+First inspect the existing codebase, database schema, routes, frontend architecture, authentication, import system and current functionality.
+
+Preserve all working functionality.
+
+Before making changes, produce an internal implementation plan based on the actual existing code.
+
+---
+
+# 2. CURRENT TECHNOLOGY
+
+Frontend:
+
+* React 18
+* TypeScript
+* Vite
+* Tailwind CSS
+* Radix UI
+* Framer Motion
+* TanStack Query
+
+Backend:
+
+* Node.js
+* Express 5
+* TypeScript
+
+Database:
+
+* PostgreSQL
+* Drizzle ORM
+
+Authentication:
+
+* Replit OIDC
+* PostgreSQL sessions
+* Admin email allow-list
+
+AI:
+
+* OpenAI GPT-4o-mini
+
+File import:
+
+* Multer
+* Disk storage
+* XLSX
+* XLS
+* CSV
+* XML
+* Current upload limit approximately 2 GB
+* Current timeout approximately 30 minutes
+
+---
+
+# 3. EXISTING IMPORTANT FILES
+
+Inspect these files first:
+
+server/routes.ts
+server/storage.ts
+shared/schema.ts
+client/src/pages/
+client/src/components/companies/FileUpload.tsx
+
+Also inspect:
+
+* authentication middleware
+* database connection
+* Drizzle configuration
+* import implementation
+* sitemap implementation
+* robots.txt implementation
+* SEO/meta implementation
+* admin dashboard
+* company search implementation
+* company profile implementation
+
+Do not assume the current implementation matches documentation. Verify the actual code.
+
+---
+
+# 4. CRITICAL DESIGN PRINCIPLE
+
+Do NOT design the new system as an India-only database.
+
+The database must become **country-aware and extensible**.
+
+Do NOT create four completely independent applications.
+
+Do NOT hard-code India-specific assumptions into the global company model.
+
+The architecture should allow additional countries in the future without redesigning the entire database.
+
+---
+
+# 5. GLOBAL COMPANY MODEL
+
+Design a normalized global company architecture.
+
+The core company entity should support fields such as:
+
+* id
+* country_code
+* registration_number
+* registration_type
+* name
+* normalized_name
+* status
+* company_type
+* incorporation_date
+* address
+* city
+* region/state
+* postal_code
+* email
+* phone
+* industry
+* source
+* created_at
+* updated_at
+
+Do NOT force CIN into the global company table.
+
+Registration identifiers are country-specific.
+
+Examples:
+
+India:
+
+* CIN
+* LLPIN where applicable
+* ROC
+
+Australia:
+
+* ACN
+* ABN
+* ASIC-related information
+
+UK:
+
+* Companies House company number
+* SIC codes
+
+Singapore:
+
+* UEN
+* ACRA-related information
+* SSIC
+
+Create appropriate country-specific detail tables if necessary.
+
+Use a common global company model plus country-specific detail models.
+
+---
+
+# 6. INDIA DATA
+
+India requires additional geographic hierarchy.
+
+Design for:
+
+Country
+→ State
+→ District
+→ City
+→ PIN Code
+→ Post Office/locality
+→ Company
+
+India company data should support:
+
+* CIN
+* Company name
+* Status
+* Class
+* Category
+* Sub-category
+* Authorized capital
+* Paid-up capital
+* ROC
+* Incorporation date
+* Last AGM
+* Last balance sheet
+* Registered address
+* State
+* City
+* District
+* PIN code
+* Email
+* Phone
+
+Do not lose any fields already supported by the existing system.
+
+---
+
+# 7. AUSTRALIA / UK / SINGAPORE
+
+The architecture must support country-specific information without polluting the global company table with hundreds of nullable fields.
+
+Use normalized country-specific tables where appropriate.
+
+The frontend company profile must dynamically display the correct fields based on country.
+
+For example:
+
+India company:
+CIN / ROC / capital / AGM / balance sheet etc.
+
+Australia:
+ACN / ABN / ASIC / entity information etc.
+
+UK:
+Company Number / Companies House / SIC etc.
+
+Singapore:
+UEN / ACRA / SSIC etc.
+
+Do not invent data fields that are not actually supported by the source dataset.
+
+---
+
+# 8. URL ARCHITECTURE
+
+All company URLs must be country-aware.
+
+Preferred architecture:
+
+/in/company/{slug}
+/au/company/{slug}
+/uk/company/{slug}
+/sg/company/{slug}
+
+Use a collision-safe identifier where necessary.
+
+Do not expose database IDs as the only SEO identifier.
+
+Preserve compatibility with existing URLs through redirects where existing routes already exist.
+
+Future geographic URLs may include:
+
+/in/companies
+/in/companies/{state}
+/in/companies/{state}/{city}
+/in/pincode/{pincode}
+
+/au/companies
+/uk/companies
+/sg/companies
+
+Do NOT generate unlimited filter combinations automatically.
+
+SEO pages must be controlled.
+
+---
+
+# 9. SEO PAGE ENGINE
+
+Create an architecture for controlled dynamic SEO pages.
+
+Conceptually support:
+
+seo_pages
+
+Fields may include:
+
+* id
+* entity_type
+* entity_id
+* country_code
+* slug
+* title
+* meta_title
+* meta_description
+* canonical_url
+* indexable
+* robots
+* schema_type
+* generated_at
+* updated_at
+
+The system must distinguish:
+
+INDEXABLE pages
+from
+NOINDEX pages.
+
+Do not generate millions of thin/duplicate pages merely because database combinations exist.
+
+---
+
+# 10. INTERNAL LINKING ENGINE
+
+AddressBay should have a strong entity relationship structure.
+
+Example:
+
+Company
+→ Address
+→ PIN Code
+→ City
+→ State
+→ Country
+→ Industry
+→ Related companies
+→ Related searches
+→ Relevant services
+
+Company pages should link naturally to related geographic and business information.
+
+Example:
+
+Company page:
+
+"Companies in Mumbai"
+
+"Companies in Maharashtra"
+
+"Companies registered with ROC Mumbai"
+
+"Companies in this industry"
+
+"Related companies"
+
+These should be generated from real database relationships.
+
+Do NOT generate artificial keyword-stuffed links.
+
+---
+
+# 11. PIN CODE SYSTEM
+
+India PIN codes are an important part of AddressBay.
+
+Build the architecture for:
+
+* PIN code
+* Post office
+* Locality
+* District
+* State
+* Companies associated with PIN
+* Related PIN codes
+
+Example URL:
+
+/in/pincode/110001
+
+A PIN page should provide useful information and links to related companies and locations.
+
+Do not create a page for a PIN unless useful data exists.
+
+---
+
+# 12. EXTERNAL PARTNER / REFERRAL LINK ENGINE
+
+This is a CORE FEATURE.
+
+Do NOT hard-code Legal Filing India.
+
+Create a generic partner system.
+
+Suggested entity:
+
+external_partners
+
+Possible fields:
+
+* id
+* name
+* domain
+* destination_url
+* logo_url
+* image_url
+* description
+* category
+* country_code
+* priority
+* placement
+* active
+* start_date
+* end_date
+* rel_type
+* utm_parameters
+* created_at
+* updated_at
+
+The system must allow an arbitrary number of partner websites.
+
+Examples:
+
+Partner 1:
+Legal Filing India
+
+Partner 2:
+Future Astrology Website
+
+Partner 3:
+Future Insurance Website
+
+Partner 4:
+Future Immigration Website
+
+Partner 5:
+Future Accounting Website
+
+Do NOT assume there will only be one partner.
+
+---
+
+# 13. PARTNER TARGETING
+
+Partners must not automatically appear on every page.
+
+Create a configurable targeting mechanism.
+
+Partners may be targeted by:
+
+* country
+* state/region
+* city
+* company type
+* industry
+* page type
+* entity type
+* service category
+* placement
+* priority
+
+Example:
+
+Indian company pages:
+
+Legal Filing India → relevant business services
+
+Australian company pages:
+
+Australia-specific partner → relevant services
+
+Astrology article:
+
+Astrology partner → relevant article placement
+
+The system should support multiple partners on the same page when appropriate.
+
+---
+
+# 14. PARTNER PLACEMENTS
+
+Create configurable placements such as:
+
+COMPANY_SIDEBAR
+COMPANY_BOTTOM
+PINCODE_SIDEBAR
+CITY_PAGE
+STATE_PAGE
+ARTICLE_SIDEBAR
+ARTICLE_BOTTOM
+SEARCH_PAGE
+HOME_PAGE
+
+The exact implementation can be improved based on the existing frontend architecture.
+
+Admin should be able to activate/deactivate partners without code changes.
+
+---
+
+# 15. PARTNER LINKS AND SEO
+
+The purpose is legitimate referral traffic and lead generation.
+
+Do NOT build a system intended to manipulate search rankings through mass repetitive links.
+
+Partner links should be:
+
+* contextually relevant
+* useful to visitors
+* naturally placed
+* configurable
+
+Where a link represents paid/sponsored promotion, support appropriate `rel="sponsored"` / `nofollow` behavior.
+
+Do not use deceptive or keyword-stuffed anchor text.
+
+---
+
+# 16. CLICK TRACKING
+
+Add partner click tracking.
+
+Create a partner_clicks/event system capable of recording:
+
+* partner_id
+* page/entity
+* country
+* placement
+* timestamp
+* referrer/page
+* optional UTM information
+
+Admin dashboard should eventually show:
+
+Partner
+Impressions
+Clicks
+CTR
+Top pages
+Top countries
+Top placements
+
+Avoid storing unnecessary personal information.
+
+---
+
+# 17. LEGAL FILING INDIA
+
+Legal Filing India is the initial important commercial partner.
+
+Do NOT hard-code it into the application.
+
+Instead configure it through the partner system.
+
+Example:
+
+Partner:
+Legal Filing India
+
+Category:
+Business Services
+
+Country:
+India
+
+Possible services:
+
+* Company Registration
+* GST Registration
+* Trademark Registration
+* ROC Compliance
+* Accounting
+* Tax Services
+
+The destination should be configurable from Admin.
+
+The system should allow different destination URLs for different services.
+
+---
+
+# 18. MASS DATA IMPORT
+
+This is one of the highest-priority technical areas.
+
+The application must support very large datasets.
+
+Current target:
+
+1.3 GB+ XML
+
+Potentially millions of records.
+
+Do NOT load the entire XML file into Node.js memory.
+
+Do NOT use:
+
+readFile()
+
+to load the complete XML document into memory.
+
+Do NOT parse millions of records into one giant JavaScript array.
+
+Use streaming XML parsing.
+
+Preferred architecture:
+
+Upload file to disk
+→ create import job
+→ stream parser
+→ normalize record
+→ validate
+→ batch records
+→ PostgreSQL bulk insert/upsert
+→ clear batch
+→ continue
+
+Batch size should be configurable, for example 1,000–5,000 records, and benchmarked against the actual database.
+
+---
+
+# 19. BACKGROUND IMPORT JOBS
+
+Long imports should eventually run independently of the browser request.
+
+Create an import_jobs table.
+
+Suggested fields:
+
+* id
+* country_code
+* dataset_type
+* filename
+* file_size
+* status
+* started_at
+* completed_at
+* total_records
+* processed_records
+* inserted_records
+* updated_records
+* skipped_records
+* error_records
+* error_message
+* created_by
+
+Statuses:
+
+PENDING
+UPLOADING
+QUEUED
+PROCESSING
+COMPLETED
+FAILED
+CANCELLED
+
+The browser should be able to close without killing a running import.
+
+---
+
+# 20. IMPORT ERROR LOG
+
+Create import_errors.
+
+Store enough information to diagnose bad records without storing unnecessarily huge raw data.
+
+Possible fields:
+
+* import_job_id
+* record_number
+* error_type
+* error_message
+* identifier
+* created_at
+
+Admin should be able to inspect skipped/error records.
+
+---
+
+# 21. DUPLICATE HANDLING
+
+Mass imports must not blindly create duplicate companies.
+
+Define country-specific unique identifiers.
+
+Examples:
+
+India:
+country + CIN
+
+Australia:
+country + ACN where available
+
+UK:
+country + company number
+
+Singapore:
+country + UEN
+
+Use PostgreSQL constraints/upsert logic where appropriate.
+
+Do NOT rely only on JavaScript duplicate checks.
+
+---
+
+# 22. SEARCH PERFORMANCE
+
+The system may eventually contain tens of millions of companies.
+
+Do not use inefficient:
+
+ILIKE '%query%'
+
+queries everywhere without indexes.
+
+Evaluate PostgreSQL:
+
+* B-tree indexes
+* pg_trgm
+* full-text search
+* normalized search columns
+
+depending on actual query requirements.
+
+Company name search must remain fast as the database grows.
+
+---
+
+# 23. DATABASE INDEXES
+
+Review and optimize indexes for:
+
+* country_code
+* registration_number
+* normalized_name
+* name
+* status
+* state/region
+* city
+* postal_code
+* industry
+* incorporation_date
+* ROC or equivalent
+
+Do not create excessive indexes without measuring their impact on bulk imports.
+
+---
+
+# 24. GOOGLE ADS
+
+AddressBay should be designed to support Google Ad placement without destroying user experience.
+
+Potential placements:
+
+* company page
+* search results
+* geographic pages
+* articles
+* informational pages
+
+Do NOT place excessive ads above useful content.
+
+Maintain a clear separation between:
+
+Informational content
+Ads
+Partner/service recommendations
+
+---
+
+# 25. SITEMAPS
+
+The current dynamic sitemap must be redesigned for scale.
+
+Use sitemap index architecture.
+
+Example:
+
+/sitemap.xml
+
+→ /sitemaps/in-companies-1.xml
+→ /sitemaps/in-companies-2.xml
+→ /sitemaps/in-pincodes.xml
+→ /sitemaps/au-companies-1.xml
+→ /sitemaps/uk-companies-1.xml
+→ /sitemaps/sg-companies-1.xml
+→ /sitemaps/services.xml
+→ /sitemaps/articles.xml
+
+Follow search-engine sitemap limits.
+
+Do not generate a giant sitemap containing every URL in one response.
+
+---
+
+# 26. ADMIN DASHBOARD
+
+Eventually add these modules:
+
+Dashboard
+Companies
+Imports
+Import Jobs
+PIN Codes
+Blog
+Articles
+FAQs
+Services
+External Partners
+Partner Analytics
+SEO Manager
+Admins
+Settings
+
+External Partners should support:
+
+Add Partner
+Edit Partner
+Activate/Deactivate
+Targeting
+Placement
+Destination URL
+Tracking
+Analytics
+
+---
+
+# 27. AUTHORIZATION
+
+Current authentication uses Replit OIDC.
+
+Do not assume that being logged in automatically means admin.
+
+Admin authorization must verify the authenticated user's email against the admins table.
+
+Preserve the existing fix where:
+
+GET /api/admin/check
+
+correctly identifies:
+
+[ashubhardwaj2018@gmail.com](mailto:ashubhardwaj2018@gmail.com)
+
+as an administrator.
+
+Audit all `/api/admin/*` routes to ensure unauthorized logged-in users cannot access admin APIs.
+
+Do not rely solely on frontend hiding buttons.
+
+Authorization must be enforced server-side.
+
+---
+
+# 28. DO NOT BREAK EXISTING FEATURES
+
+Before modifying anything, verify:
+
+* Homepage
+* Company search
+* Filters
+* Pagination
+* Company details
+* Login
+* Admin login
+* Blog
+* Articles
+* FAQs
+* Services
+* SEO
+* Sitemap
+* Robots.txt
+* Existing company upload
+* Existing database queries
+
+Run the existing tests/build where available.
+
+---
+
+# 29. IMPLEMENTATION ORDER
+
+Do NOT implement everything in one uncontrolled change.
+
+Use this order:
+
+PHASE 1:
+Inspect existing code and database.
+
+PHASE 2:
+Design and migrate global country-aware database architecture.
+
+PHASE 3:
+Build robust import job + streaming/batch importer.
+
+PHASE 4:
+Implement country-aware company routes and profiles.
+
+PHASE 5:
+Implement India PIN-code architecture.
+
+PHASE 6:
+Implement SEO/entity/internal-link architecture.
+
+PHASE 7:
+Implement external partner system.
+
+PHASE 8:
+Implement Legal Filing India partner configuration.
+
+PHASE 9:
+Implement partner click analytics.
+
+PHASE 10:
+Optimize search/database performance.
+
+PHASE 11:
+Scale sitemap architecture.
+
+PHASE 12:
+Improve Google Ad placements.
+
+---
+
+# 30. IMPORTANT DEVELOPMENT RULE
+
+Before changing code:
+
+1. Inspect the existing implementation.
+2. Identify reusable code.
+3. Identify migrations required.
+4. Identify possible breaking changes.
+5. Explain the planned change.
+6. Implement incrementally.
+7. Run TypeScript/build checks.
+8. Test the affected APIs.
+9. Do not silently rewrite unrelated files.
+
+Do not claim a feature is implemented unless you have verified it in the actual code.
+
+---
+
+# 31. FIRST TASK — DO NOT CODE YET
+
+For this first task, inspect the entire existing project and return a technical architecture assessment.
+
+Specifically report:
+
+A. Current database schema
+
+B. Current company table and its limitations for four countries
+
+C. Current XML/XLSX/CSV importer implementation
+
+D. Whether XML parsing currently loads the entire file into memory
+
+E. Whether imports currently run inside the HTTP request
+
+F. Current admin authorization implementation
+
+G. Current URL structure
+
+H. Current sitemap implementation
+
+I. Current company search implementation and indexes
+
+J. Existing service system
+
+K. Existing SEO system
+
+L. Existing frontend company profile architecture
+
+M. Exact files that must be changed
+
+N. Database migrations required
+
+O. Potential scalability bottlenecks
+
+P. Recommended implementation order
+
+DO NOT make destructive changes during this inspection.
+
+After the assessment, wait for the next implementation instruction.
