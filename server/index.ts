@@ -60,6 +60,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Mark any import jobs that were PROCESSING when the server last died as FAILED
+  const { storage } = await import("./storage");
+  await storage.markStaleJobsFailed();
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

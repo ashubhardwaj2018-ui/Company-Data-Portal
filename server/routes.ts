@@ -5,17 +5,15 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
-import * as xlsx from "xlsx";
 import * as fs from "fs";
 import * as os from "os";
-import * as path from "path";
-import { parseStringPromise } from "xml2js";
 import {
   insertCompanySchema, insertServiceSchema, insertPostSchema, insertFaqSchema,
-  insertArticleSchema, companies, type InsertCompany,
+  insertArticleSchema, companies,
 } from "@shared/schema";
 import { db } from "./db";
 import { count } from "drizzle-orm";
+import { processImportJob } from "./importProcessor";
 
 // Disk storage — avoids OOM for large files, writes to OS temp dir
 const upload = multer({
@@ -83,94 +81,54 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.status(204).send();
   });
 
+  // ── File Upload → creates background import job ────────────────────────────
   app.post(api.companies.upload.path, requireAdmin, upload.single("file"), async (req, res) => {
-    // Allow up to 30 minutes for very large files
-    req.setTimeout(1_800_000);
-    res.setTimeout(1_800_000);
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    const filePath = (req.file as any).path;
-    const originalName: string = (req.file as any).originalname || "";
-    const isXml = originalName.toLowerCase().endsWith(".xml");
+    const filePath   = (req.file as any).path as string;
+    const origName   = ((req.file as any).originalname as string) || "";
+    const fileSize   = ((req.file as any).size as number) || 0;
+    const createdBy  = (req.user as any)?.claims?.email || "unknown";
+    const ext        = origName.toLowerCase().split(".").pop() || "unknown";
+    const allowedExt = ["xml", "xlsx", "xls", "csv"];
+    if (!allowedExt.includes(ext)) {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ message: `Unsupported file type: .${ext}. Allowed: ${allowedExt.join(", ")}` });
+    }
+
     try {
-      let rawData: any[] = [];
-
-      if (isXml) {
-        // Parse XML — supports MCA / any flat-record XML
-        const xmlContent = fs.readFileSync(filePath, "utf8");
-        const parsed = await parseStringPromise(xmlContent, { explicitArray: false, mergeAttrs: true });
-        // Walk the parsed tree to find the array of records
-        const findArray = (obj: any): any[] => {
-          if (Array.isArray(obj)) return obj;
-          if (typeof obj === "object" && obj !== null) {
-            for (const key of Object.keys(obj)) {
-              const found = findArray(obj[key]);
-              if (found.length > 0) return found;
-            }
-          }
-          return [];
-        };
-        rawData = findArray(parsed);
-      } else {
-        const workbook = xlsx.readFile(filePath, { cellDates: true });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        rawData = xlsx.utils.sheet_to_json(sheet);
-      }
-
-      const validCompanies: InsertCompany[] = [];
-      const skippedRows: { row: number; reason: string }[] = [];
-
-      rawData.forEach((row: any, index: number) => {
-        // Flatten any single-value objects (xml2js wraps text nodes)
-        const g = (keys: string[]): string | undefined => {
-          for (const k of keys) {
-            const v = row[k];
-            if (v !== undefined && v !== null && v !== "") return typeof v === "object" ? v._ || v["#text"] || undefined : String(v);
-          }
-          return undefined;
-        };
-        const gNum = (keys: string[]): number | undefined => {
-          const v = g(keys);
-          if (!v) return undefined;
-          const n = Number(String(v).replace(/[^0-9.]/g, ""));
-          return isNaN(n) ? undefined : n;
-        };
-        const mapped = {
-          cin: g(["CIN", "cin", "Registration Number", "RegistrationNumber", "CORP_REG_NO"]),
-          name: g(["Name", "name", "Company Name", "company_name", "CORP_NAME", "CompanyName"]),
-          status: g(["Status", "status", "CORP_STATUS", "CompanyStatus"]),
-          class: g(["Class", "class", "Company Class", "CompanyClass", "CORP_CLASS"]),
-          category: g(["Category", "category", "CORP_CATEGORY"]),
-          subCategory: g(["Sub Category", "sub_category", "SubCategory", "SUB_CATEGORY"]),
-          state: g(["State", "state", "CORP_STATE"]),
-          city: g(["City", "city", "CORP_CITY"]),
-          pincode: g(["Pincode", "pincode", "Pin Code", "PIN_CODE"]),
-          email: g(["Email", "email", "EMAIL"]),
-          phone: g(["Phone", "phone", "Mobile", "MOBILE", "PHONE"]),
-          address: g(["Address", "address", "Registered Address", "REG_ADDRESS"]),
-          roc: g(["ROC", "roc", "Registrar of Companies", "ROC_CODE"]),
-          country: g(["Country", "country", "COUNTRY"]) || "India",
-          incorporationDate: g(["Incorporation Date", "incorporation_date", "Date of Incorporation", "DATE_OF_INC"]) || undefined,
-          lastAgmDate: g(["Last AGM Date", "last_agm_date", "LAST_AGM_DATE"]) || undefined,
-          lastBalanceSheetDate: g(["Last Balance Sheet Date", "last_balance_sheet_date", "LAST_BS_DATE"]) || undefined,
-          authorizedCapital: gNum(["Authorized Capital", "authorized_capital", "AUTH_CAP"]),
-          paidUpCapital: gNum(["Paid Up Capital", "paid_up_capital", "PAIDUP_CAP"]),
-          customQna: g(["Custom QnA", "custom_qna"]),
-        };
-        if (!mapped.name) { skippedRows.push({ row: index + 2, reason: "Missing Company Name" }); return; }
-        const parsedRow = insertCompanySchema.safeParse(mapped);
-        if (parsedRow.success) validCompanies.push(parsedRow.data);
-        else skippedRows.push({ row: index + 2, reason: parsedRow.error.errors[0]?.message || "Validation failed" });
+      const job = await storage.createImportJob({
+        countryCode: "IN",
+        datasetType: ext,
+        filename: origName,
+        fileSize,
+        status: "QUEUED",
+        createdBy,
       });
 
-      await storage.bulkCreateCompanies(validCompanies);
-      res.json({ message: "Upload complete", totalRows: rawData.length, inserted: validCompanies.length, skipped: skippedRows.length, skippedDetails: skippedRows.slice(0, 20) });
-    } catch (e) {
-      console.error("Upload error:", e);
-      res.status(500).json({ message: "Failed to process file. Check format and try again." });
-    } finally {
-      // Clean up temp file from disk
-      if (filePath) fs.unlink(filePath, () => {});
+      // Respond immediately — browser can now close safely
+      res.json({ jobId: job.id, message: "Import queued. Track progress via jobId." });
+
+      // Fire-and-forget background processing
+      setImmediate(() => {
+        processImportJob(job.id, filePath, origName, "IN").catch((err) => {
+          console.error(`[import:${job.id}] Unhandled error:`, err);
+        });
+      });
+    } catch (e: any) {
+      fs.unlink(filePath, () => {});
+      res.status(500).json({ message: "Failed to queue import job." });
     }
+  });
+
+  // ── Import Job status endpoints ─────────────────────────────────────────────
+  app.get("/api/admin/import-jobs", requireAdmin, async (_req, res) => {
+    res.json(await storage.listImportJobs(50));
+  });
+
+  app.get("/api/admin/import-jobs/:id", requireAdmin, async (req, res) => {
+    const job = await storage.getImportJob(Number(req.params.id));
+    if (!job) return res.status(404).json({ message: "Import job not found" });
+    res.json(job);
   });
 
   // ── Blog Posts ─────────────────────────────────────────────────────────────

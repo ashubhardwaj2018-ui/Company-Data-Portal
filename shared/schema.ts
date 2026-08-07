@@ -147,3 +147,40 @@ export const siteSettings = pgTable("site_settings", {
 export const insertSiteSettingSchema = createInsertSchema(siteSettings).omit({ id: true, updatedAt: true });
 export type SiteSetting = typeof siteSettings.$inferSelect;
 export type InsertSiteSetting = z.infer<typeof insertSiteSettingSchema>;
+
+// ─── Import Jobs ──────────────────────────────────────────────────────────────
+// Statuses: QUEUED → PROCESSING → COMPLETED | FAILED | CANCELLED
+export const importJobs = pgTable("import_jobs", {
+  id: serial("id").primaryKey(),
+  countryCode: varchar("country_code", { length: 2 }).default("IN"),
+  datasetType: text("dataset_type"),           // xml | xlsx | csv
+  filename: text("filename"),
+  fileSize: bigint("file_size", { mode: "number" }),
+  status: text("status").notNull().default("QUEUED"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  totalRecords: integer("total_records"),
+  processedRecords: integer("processed_records").default(0),
+  insertedRecords: integer("inserted_records").default(0),
+  updatedRecords: integer("updated_records").default(0),
+  skippedRecords: integer("skipped_records").default(0),
+  errorRecords: integer("error_records").default(0),
+  errorMessage: text("error_message"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertImportJobSchema = createInsertSchema(importJobs).omit({ id: true, createdAt: true });
+export type ImportJob = typeof importJobs.$inferSelect;
+export type InsertImportJob = z.infer<typeof insertImportJobSchema>;
+
+// ─── Import Errors ────────────────────────────────────────────────────────────
+export const importErrors = pgTable("import_errors", {
+  id: serial("id").primaryKey(),
+  importJobId: integer("import_job_id").references(() => importJobs.id, { onDelete: "cascade" }),
+  recordNumber: integer("record_number"),
+  errorType: text("error_type"),       // VALIDATION | PARSE | DUPLICATE
+  errorMessage: text("error_message"),
+  identifier: text("identifier"),      // CIN or whatever ID was in the record
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ImportError = typeof importErrors.$inferSelect;

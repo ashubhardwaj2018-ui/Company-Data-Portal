@@ -7,6 +7,8 @@ import {
   faqs, type Faq, type InsertFaq,
   services, type Service, type InsertService,
   siteSettings, type SiteSetting,
+  importJobs, type ImportJob, type InsertImportJob,
+  importErrors,
 } from "@shared/schema";
 import { eq, ilike, desc, count, sql, asc } from "drizzle-orm";
 
@@ -50,6 +52,14 @@ export interface IStorage {
   // Admin
   isAdmin(email: string): Promise<boolean>;
   addAdmin(email: string): Promise<void>;
+
+  // Import Jobs
+  createImportJob(job: InsertImportJob): Promise<ImportJob>;
+  updateImportJob(id: number, data: Partial<InsertImportJob>): Promise<void>;
+  getImportJob(id: number): Promise<ImportJob | undefined>;
+  listImportJobs(limit?: number): Promise<ImportJob[]>;
+  createImportError(err: { importJobId: number; recordNumber?: number; errorType?: string; errorMessage?: string; identifier?: string }): Promise<void>;
+  markStaleJobsFailed(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -149,6 +159,36 @@ export class DatabaseStorage implements IStorage {
       target: siteSettings.key,
       set: { value, updatedAt: new Date() },
     });
+  }
+
+  // ── Import Jobs ────────────────────────────────────────────────────────────
+  async createImportJob(job: InsertImportJob): Promise<ImportJob> {
+    const [j] = await db.insert(importJobs).values(job).returning();
+    return j;
+  }
+
+  async updateImportJob(id: number, data: Partial<InsertImportJob>): Promise<void> {
+    await db.update(importJobs).set(data).where(eq(importJobs.id, id));
+  }
+
+  async getImportJob(id: number): Promise<ImportJob | undefined> {
+    const [j] = await db.select().from(importJobs).where(eq(importJobs.id, id));
+    return j;
+  }
+
+  async listImportJobs(limit = 50): Promise<ImportJob[]> {
+    return db.select().from(importJobs).orderBy(desc(importJobs.createdAt)).limit(limit);
+  }
+
+  async createImportError(err: { importJobId: number; recordNumber?: number; errorType?: string; errorMessage?: string; identifier?: string }): Promise<void> {
+    await db.insert(importErrors).values(err);
+  }
+
+  // Mark any jobs stuck in PROCESSING as FAILED (called on server startup)
+  async markStaleJobsFailed(): Promise<void> {
+    await db.update(importJobs)
+      .set({ status: "FAILED", errorMessage: "Server restarted during import", completedAt: new Date() })
+      .where(eq(importJobs.status, "PROCESSING"));
   }
 
   // ── Admin ──────────────────────────────────────────────────────────────────
