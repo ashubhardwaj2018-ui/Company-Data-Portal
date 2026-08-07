@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Building2, MapPin, Calendar, FileText,
   Mail, IndianRupee, ArrowLeft, HelpCircle, Phone, ExternalLink, Eye, Scale,
+  Hash, Globe, Clock, BookOpen, ChevronRight, Database, Landmark, TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ShareBar } from "@/components/layout/ShareBar";
