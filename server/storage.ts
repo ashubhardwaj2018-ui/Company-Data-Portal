@@ -673,6 +673,18 @@ export class DatabaseStorage implements IStorage {
   async addAdmin(email: string): Promise<void> {
     await db.insert(admins).values({ email }).onConflictDoNothing();
   }
+
+  async getAdminPasswordHash(email: string): Promise<string | null> {
+    const [admin] = await db.select().from(admins).where(eq(admins.email, email));
+    return admin?.passwordHash ?? null;
+  }
+
+  async setAdminPassword(email: string, passwordHash: string): Promise<void> {
+    await db
+      .insert(admins)
+      .values({ email, passwordHash })
+      .onConflictDoUpdate({ target: admins.email, set: { passwordHash } });
+  }
 }
 
 export const storage = new DatabaseStorage();

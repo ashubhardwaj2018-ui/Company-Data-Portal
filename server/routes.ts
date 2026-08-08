@@ -5,6 +5,7 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
+import bcrypt from "bcryptjs";
 import * as fs from "fs";
 import * as os from "os";
 import {
@@ -30,10 +31,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerAuthRoutes(app);
 
   // ── Middleware ─────────────────────────────────────────────────────────────
-  // requireAdmin: user must be (1) authenticated AND (2) in the admins table.
+  // requireAdmin: accepts (a) local admin session or (b) Replit OAuth session
+  const getAdminEmail = (req: any): string | undefined =>
+    (req.session as any)?.adminEmail ?? (req.user as any)?.claims?.email;
+
   const requireAdmin = async (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
-    const email: string | undefined = (req.user as any)?.claims?.email;
+    const email = getAdminEmail(req);
     if (!email) return res.status(401).json({ message: "Unauthorized" });
     const adminOk = await storage.isAdmin(email);
     if (!adminOk) return res.status(403).json({ message: "Forbidden" });
@@ -204,7 +207,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const filePath   = (req.file as any).path as string;
     const origName   = ((req.file as any).originalname as string) || "";
     const fileSize   = ((req.file as any).size as number) || 0;
-    const createdBy  = (req.user as any)?.claims?.email || "unknown";
+    const createdBy  = getAdminEmail(req) || "unknown";
     const ext        = origName.toLowerCase().split(".").pop() || "unknown";
     const allowedExt = ["xml", "xlsx", "xls", "csv"];
     if (!allowedExt.includes(ext)) {
@@ -351,11 +354,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch { res.status(400).json({ message: "Invalid settings data" }); }
   });
 
+  // ── Local admin login / logout ─────────────────────────────────────────────
+  app.post("/api/admin/login", async (req, res) => {
+    const { email, password } = z.object({
+      email: z.string().email(),
+      password: z.string().min(1),
+    }).parse(req.body);
+
+    const adminOk = await storage.isAdmin(email);
+    if (!adminOk) return res.status(401).json({ message: "Invalid credentials" });
+
+    const hash = await storage.getAdminPasswordHash(email);
+    if (!hash) return res.status(401).json({ message: "Password login not configured for this account" });
+
+    const match = await bcrypt.compare(password, hash);
+    if (!match) return res.status(401).json({ message: "Invalid credentials" });
+
+    (req.session as any).adminEmail = email;
+    res.json({ success: true, email });
+  });
+
+  app.post("/api/admin/logout-local", async (req, res) => {
+    delete (req.session as any).adminEmail;
+    res.json({ success: true });
+  });
+
   // ── Admin Management ───────────────────────────────────────────────────────
   app.get(api.admin.check.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
-    const email: string | undefined = (req.user as any)?.claims?.email;
-    if (!email) return res.status(401).json({ message: "Unauthorized" });
+    const email = getAdminEmail(req);
+    if (!email) return res.json({ isAdmin: false });
     const isAdmin = await storage.isAdmin(email);
     res.json({ isAdmin });
   });

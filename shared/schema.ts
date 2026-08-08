@@ -53,6 +53,7 @@ export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export const admins = pgTable("admins", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
+  passwordHash: text("password_hash"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertAdminSchema = createInsertSchema(admins).omit({ id: true, createdAt: true });

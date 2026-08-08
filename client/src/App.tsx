@@ -16,6 +16,7 @@ import IndustryPage from "@/pages/IndustryPage";
 import PincodePage from "@/pages/PincodePage";
 import ProfilePage from "@/pages/ProfilePage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminLogin from "@/pages/admin/AdminLogin";
 import BlogList from "@/pages/BlogList";
 import BlogPost from "@/pages/BlogPost";
 import FAQ from "@/pages/FAQ";
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/industry/:slug" component={IndustryPage} />
       <Route path="/pincode/:code" component={PincodePage} />
       <Route path="/profile" component={ProfilePage} />
+      <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/import" component={ImportData} />
       <Route path="/blog" component={BlogList} />
