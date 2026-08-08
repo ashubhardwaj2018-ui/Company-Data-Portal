@@ -64,6 +64,24 @@ app.use((req, res, next) => {
   const { storage } = await import("./storage");
   await storage.markStaleJobsFailed();
 
+  // One-time admin password seed — runs on startup if env vars are present.
+  // Safe to leave in: once password_hash is set, subsequent starts skip the update.
+  const initEmail = process.env.ADMIN_INIT_EMAIL;
+  const initPass  = process.env.ADMIN_INIT_PASS;
+  if (initEmail && initPass) {
+    try {
+      const bcrypt = await import("bcryptjs");
+      const existing = await storage.getAdminPasswordHash(initEmail);
+      if (!existing) {
+        const hash = await bcrypt.hash(initPass, 12);
+        await storage.setAdminPassword(initEmail, hash);
+        log(`Admin password seeded for ${initEmail}`, "startup");
+      }
+    } catch (e) {
+      log(`Admin seed skipped: ${(e as Error).message}`, "startup");
+    }
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
