@@ -1,4 +1,5 @@
 import { useRoute, Link } from "wouter";
+import type { Company } from "@shared/schema";
 import { Helmet } from "react-helmet-async";
 import { useCompany, useCompanyBySlug, useRelatedCompanies } from "@/hooks/use-companies";
 import { useAuth } from "@/hooks/use-auth";
