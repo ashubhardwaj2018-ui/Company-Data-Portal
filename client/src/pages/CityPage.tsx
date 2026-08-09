@@ -1,3 +1,4 @@
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { useRoute, Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
@@ -86,15 +87,13 @@ export default function CityPage() {
       </div>
 
       {/* Breadcrumb */}
-      <div className="bg-muted/30 border-b py-2 text-xs text-muted-foreground">
-        <div className="container-width flex items-center gap-1 flex-wrap">
-          <Link href="/" className="hover:underline">Home</Link>
-          <span>/</span>
-          <Link href={`/countries/${countryCode.toLowerCase()}`} className="hover:underline">{meta?.name}</Link>
-          <span>/</span>
-          <Link href={`/countries/${countryCode.toLowerCase()}/${stateSlug}`} className="hover:underline">{stateName}</Link>
-          <span>/</span>
-          <span className="text-foreground font-medium">{cityName}</span>
+      <div className="bg-muted/30 border-b py-2">
+        <div className="container-width [&_nav]:mb-0">
+          <Breadcrumbs items={[
+            { label: meta?.name || countryCode, href: `/countries/${countryCode.toLowerCase()}` },
+            { label: stateName, href: `/countries/${countryCode.toLowerCase()}/${stateSlug}` },
+            { label: cityName },
+          ]} />
         </div>
       </div>
 

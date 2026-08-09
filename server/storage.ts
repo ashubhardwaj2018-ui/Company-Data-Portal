@@ -15,6 +15,7 @@ import {
   companyReviews, type CompanyReview, type InsertReview,
   newsletterSubscribers, type NewsletterSubscriber,
   savedSearches, type SavedSearch,
+  aiTopics, type AiTopic, type InsertAiTopic,
 } from "@shared/schema";
 import { users, type User as AuthUser } from "@shared/models/auth";
 import { eq, ilike, desc, count, sql, asc, gte, lte, and, inArray } from "drizzle-orm";
@@ -56,6 +57,12 @@ export interface IStorage {
   deleteService(id: number): Promise<void>;
 
   // Site Settings
+  getAiTopics(): Promise<AiTopic[]>;
+  createAiTopic(topic: InsertAiTopic): Promise<AiTopic>;
+  deleteAiTopic(id: number): Promise<void>;
+  updateAiTopic(id: number, updates: Partial<AiTopic>): Promise<AiTopic | undefined>;
+  claimNextPendingAiTopic(): Promise<AiTopic | undefined>;
+  recoverStaleAiTopics(maxAgeMs: number): Promise<void>;
   getSetting(key: string): Promise<string | null>;
   getSettings(keys: string[]): Promise<Record<string, string>>;
   setSetting(key: string, value: string): Promise<void>;
@@ -97,7 +104,7 @@ export interface IStorage {
   // Phase 14 — Data correction suggestions
   createSuggestion(suggestion: Omit<InsertSuggestion, "status" | "reviewedBy">): Promise<CompanySuggestion>;
   listSuggestions(status?: string): Promise<(CompanySuggestion & { companyName: string | null })[]>;
-  updateSuggestionStatus(id: number, status: "applied" | "dismissed", reviewedBy: string): Promise<void>;
+  updateSuggestionStatus(id: number, status: "applied" | "dismissed", reviewedBy: string): Promise<{ applied: boolean; fieldName?: string }>;
   listUserSuggestions(userEmail: string): Promise<(CompanySuggestion & { companyName: string | null })[]>;
 
   // Phase 15 — Company comparison
@@ -123,7 +130,8 @@ export interface IStorage {
   getRecentlyUpdated(limit?: number, countryCode?: string): Promise<Company[]>;
 
   // Phase 24 — Bulk company update
-  bulkUpdateCompanies(ids: number[], fields: Partial<Pick<InsertCompany, "status" | "industry" | "source">>): Promise<number>;
+  bulkUpdateCompanies(ids: number[], fields: Partial<InsertCompany>): Promise<number>;
+  applyFieldToCompany(companyId: number, fieldName: string, value: string): Promise<boolean>;
 
   // Phase 26 — Company badges
   updateCompanyBadges(id: number, badges: string[]): Promise<void>;
@@ -330,6 +338,42 @@ export class DatabaseStorage implements IStorage {
   async createService(service: InsertService) { const [s] = await db.insert(services).values(service).returning(); return s; }
   async deleteService(id: number) { await db.delete(services).where(eq(services.id, id)); }
 
+  // ── AI Auto-Blog Topics ────────────────────────────────────────────────────
+  async getAiTopics() { return db.select().from(aiTopics).orderBy(desc(aiTopics.id)); }
+  async createAiTopic(topic: InsertAiTopic) { const [t] = await db.insert(aiTopics).values(topic).returning(); return t; }
+  async deleteAiTopic(id: number) { await db.delete(aiTopics).where(eq(aiTopics.id, id)); }
+  async updateAiTopic(id: number, updates: Partial<AiTopic>) {
+    const [t] = await db.update(aiTopics).set(updates).where(eq(aiTopics.id, id)).returning();
+    return t;
+  }
+  async claimNextPendingAiTopic() {
+    // Atomic claim: only one caller can flip a given row pending → generating.
+    // SKIP LOCKED prevents two concurrent transactions from selecting the same row.
+    const result = await db.execute(sql`
+      UPDATE ai_topics SET status = 'generating', generated_at = NOW()
+      WHERE id = (
+        SELECT id FROM ai_topics WHERE status = 'pending'
+        ORDER BY id ASC LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING *
+    `);
+    const row: any = (result as any).rows?.[0];
+    if (!row) return undefined;
+    return {
+      id: row.id, topic: row.topic, type: row.type, status: row.status,
+      resultSlug: row.result_slug, errorMessage: row.error_message,
+      createdAt: row.created_at, generatedAt: row.generated_at,
+    } as AiTopic;
+  }
+
+  async recoverStaleAiTopics(maxAgeMs: number) {
+    await db.execute(sql`
+      UPDATE ai_topics SET status = 'pending'
+      WHERE status = 'generating' AND generated_at < NOW() - make_interval(secs => ${maxAgeMs / 1000})
+    `);
+  }
+
   // ── Site Settings ──────────────────────────────────────────────────────────
   async getSetting(key: string): Promise<string | null> {
     const [row] = await db.select().from(siteSettings).where(eq(siteSettings.key, key));
@@ -337,7 +381,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSettings(keys: string[]): Promise<Record<string, string>> {
-    const rows = await db.select().from(siteSettings).where(sql`${siteSettings.key} = ANY(${keys})`);
+    const rows = await db.select().from(siteSettings).where(inArray(siteSettings.key, keys));
     return Object.fromEntries(rows.map(r => [r.key, r.value ?? ""]));
   }
 
@@ -410,7 +454,18 @@ export class DatabaseStorage implements IStorage {
     await db.update(companyClaims).set({ status, reviewedBy, reviewedAt: new Date() }).where(eq(companyClaims.id, id));
     if (status === "approved") {
       const [claim] = await db.select().from(companyClaims).where(eq(companyClaims.id, id));
-      if (claim) await db.update(companies).set({ updatedAt: new Date() }).where(eq(companies.id, claim.companyId));
+      if (claim) {
+        // Automatically mark the company as claimed (badge) and refresh timestamp
+        const [company] = await db.select().from(companies).where(eq(companies.id, claim.companyId));
+        if (company) {
+          let badges: string[] = [];
+          try { badges = company.badges ? JSON.parse(company.badges) : []; } catch { badges = []; }
+          if (!badges.includes("claimed")) badges.push("claimed");
+          await db.update(companies)
+            .set({ badges: JSON.stringify(badges), updatedAt: new Date() })
+            .where(eq(companies.id, claim.companyId));
+        }
+      }
     }
   }
 
@@ -597,9 +652,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ── Phase 24: Bulk Update ──────────────────────────────────────────────────
-  async bulkUpdateCompanies(ids: number[], fields: Partial<Pick<InsertCompany, "status" | "industry" | "source">>): Promise<number> {
+  async bulkUpdateCompanies(ids: number[], fields: Partial<InsertCompany>): Promise<number> {
     if (!ids.length || !Object.keys(fields).length) return 0;
-    const result = await db.update(companies).set(fields).where(inArray(companies.id, ids));
+    await db.update(companies).set({ ...fields, updatedAt: new Date() }).where(inArray(companies.id, ids));
     return ids.length;
   }
 
@@ -630,10 +685,50 @@ export class DatabaseStorage implements IStorage {
     return rows as any;
   }
 
-  async updateSuggestionStatus(id: number, status: "applied" | "dismissed", reviewedBy: string): Promise<void> {
+  async updateSuggestionStatus(id: number, status: "applied" | "dismissed", reviewedBy: string): Promise<{ applied: boolean; fieldName?: string }> {
+    const [suggestion] = await db.select().from(companySuggestions).where(eq(companySuggestions.id, id));
+    if (!suggestion) return { applied: false };
+
     await db.update(companySuggestions)
       .set({ status, reviewedBy, reviewedAt: new Date() })
       .where(eq(companySuggestions.id, id));
+
+    // When approved, automatically apply the suggested value to the company record
+    if (status === "applied" && suggestion.fieldName && suggestion.suggestedValue != null) {
+      const applied = await this.applyFieldToCompany(suggestion.companyId, suggestion.fieldName, suggestion.suggestedValue);
+      return { applied, fieldName: suggestion.fieldName };
+    }
+    return { applied: false };
+  }
+
+  /** Whitelisted, normalized mapping of suggestion field names → company columns. */
+  private static SUGGESTION_FIELD_MAP: Record<string, keyof typeof companies.$inferInsert> = {
+    name: "name", status: "status", class: "class", category: "category",
+    subcategory: "subCategory", "sub category": "subCategory", "sub-category": "subCategory",
+    email: "email", phone: "phone", address: "address", state: "state", city: "city",
+    pincode: "pincode", district: "district", industry: "industry", roc: "roc",
+    country: "country",
+    incorporationdate: "incorporationDate", "incorporation date": "incorporationDate",
+    lastagmdate: "lastAgmDate", "last agm date": "lastAgmDate",
+    lastbalancesheetdate: "lastBalanceSheetDate", "last balance sheet date": "lastBalanceSheetDate",
+    authorizedcapital: "authorizedCapital", "authorized capital": "authorizedCapital",
+    paidupcapital: "paidUpCapital", "paid up capital": "paidUpCapital",
+  };
+
+  async applyFieldToCompany(companyId: number, fieldName: string, value: string): Promise<boolean> {
+    const key = fieldName.trim().toLowerCase();
+    const column = DatabaseStorage.SUGGESTION_FIELD_MAP[key];
+    if (!column) return false;
+    let parsed: any = value;
+    if (column === "authorizedCapital" || column === "paidUpCapital") {
+      const n = Number(String(value).replace(/[,₹$\s]/g, ""));
+      if (!Number.isFinite(n)) return false;
+      parsed = n;
+    }
+    await db.update(companies)
+      .set({ [column]: parsed, updatedAt: new Date() } as any)
+      .where(eq(companies.id, companyId));
+    return true;
   }
 
   // ── Phase 26: Company Badges ──────────────────────────────────────────────

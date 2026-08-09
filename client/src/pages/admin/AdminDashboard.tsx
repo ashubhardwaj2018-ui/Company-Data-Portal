@@ -5,7 +5,6 @@ import { useIsAdmin } from "@/hooks/use-admin";
 import { Navbar } from "@/components/layout/Navbar";
 import { FileUpload } from "@/components/companies/FileUpload";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -334,9 +333,13 @@ function SuggestionsTab() {
       });
       if (!res.ok) throw new Error("Failed");
     },
-    onSuccess: () => {
+    onSuccess: (_d: any, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/suggestions"] });
-      toast({ title: "Suggestion updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      toast({
+        title: vars.status === "applied" ? "Correction applied" : "Suggestion dismissed",
+        description: vars.status === "applied" ? "The company record was updated automatically." : undefined,
+      });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -349,7 +352,7 @@ function SuggestionsTab() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <AlertCircle className="h-5 w-5 text-orange-500" /> Data Correction Suggestions
             </CardTitle>
-            <CardDescription className="mt-1">User-flagged corrections to company data. Apply accurate ones, dismiss the rest.</CardDescription>
+            <CardDescription className="mt-1">User-flagged corrections to company data. Clicking <strong>Apply</strong> updates the company record automatically.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {["", "pending", "applied", "dismissed"].map(s => (
@@ -645,12 +648,42 @@ function NewsletterAdminTab() {
 }
 
 // ─── Bulk Edit Tab (Phase 24) ──────────────────────────────────────────────────
+const BULK_EDIT_FIELDS: { key: string; label: string; type?: "select"; options?: string[] }[] = [
+  { key: "status", label: "Status", type: "select", options: ["Active", "Strike-off", "Dissolved", "Under liquidation", "Converted to LLP"] },
+  { key: "industry", label: "Industry" },
+  { key: "source", label: "Source" },
+  { key: "class", label: "Class", type: "select", options: ["Private", "Public", "One Person Company"] },
+  { key: "category", label: "Category" },
+  { key: "subCategory", label: "Sub Category" },
+  { key: "state", label: "State" },
+  { key: "city", label: "City" },
+  { key: "district", label: "District" },
+  { key: "pincode", label: "Pincode" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "address", label: "Address" },
+  { key: "roc", label: "ROC" },
+  { key: "country", label: "Country" },
+  { key: "incorporationDate", label: "Incorporation Date (YYYY-MM-DD)" },
+  { key: "lastAgmDate", label: "Last AGM Date (YYYY-MM-DD)" },
+  { key: "lastBalanceSheetDate", label: "Last Balance Sheet Date (YYYY-MM-DD)" },
+];
+
 function BulkEditTab() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
-  const [statusOverride, setStatusOverride] = useState("");
-  const [industryOverride, setIndustryOverride] = useState("");
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [activeFields, setActiveFields] = useState<string[]>(["status"]);
+
+  const { data: pendingSuggestions = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/suggestions", "pending"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/suggestions?status=pending", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
   const { data, isLoading } = useQuery<{ data: any[]; total: number }>({
     queryKey: ["/api/companies", { search, limit: 50 }],
@@ -663,23 +696,22 @@ function BulkEditTab() {
     },
   });
 
+  const filledOverrides = Object.fromEntries(Object.entries(overrides).filter(([k, v]) => activeFields.includes(k) && v.trim() !== ""));
+
   const bulkMutation = useMutation({
     mutationFn: async () => {
-      const fields: Record<string, string> = {};
-      if (statusOverride) fields.status = statusOverride;
-      if (industryOverride) fields.industry = industryOverride;
       const res = await fetch("/api/admin/companies/bulk", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ids: selected, fields }),
+        body: JSON.stringify({ ids: selected, fields: filledOverrides }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
     onSuccess: (r: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      setSelected([]); setStatusOverride(""); setIndustryOverride("");
+      setSelected([]); setOverrides({}); setActiveFields(["status"]);
       toast({ title: `Updated ${r.updated} companies` });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -696,27 +728,53 @@ function BulkEditTab() {
       <Card className="border-0 shadow-lg">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2 text-lg"><Pencil className="h-5 w-5" /> Bulk Company Edit</CardTitle>
-          <CardDescription>Select companies below, then apply field overrides to all selected records.</CardDescription>
+          <CardDescription>Select companies below, choose any fields to override, and apply to all selected records at once.</CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
-          <div className="flex gap-3 flex-wrap">
-            <div className="flex-1 min-w-48">
-              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Search companies</label>
-              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Company name…"
-                value={search} onChange={e => setSearch(e.target.value)} />
+          {pendingSuggestions.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 text-sm text-orange-800 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span><strong>{pendingSuggestions.length}</strong> pending data correction suggestion{pendingSuggestions.length > 1 ? "s" : ""} — approve them in the <strong>Corrections</strong> tab and the company data updates automatically.</span>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Set status</label>
-              <select className="border rounded-lg px-3 py-2 text-sm" value={statusOverride} onChange={e => setStatusOverride(e.target.value)}>
-                <option value="">No change</option>
-                {["Active","Strike-off","Dissolved","Under liquidation","Converted to LLP"].map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+          )}
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Search companies</label>
+            <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Company name…"
+              value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+
+          {/* Field picker */}
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Fields to edit</label>
+            <div className="flex flex-wrap gap-1.5">
+              {BULK_EDIT_FIELDS.map(f => (
+                <button key={f.key} type="button"
+                  onClick={() => setActiveFields(a => a.includes(f.key) ? a.filter(x => x !== f.key) : [...a, f.key])}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                    activeFields.includes(f.key) ? "bg-slate-900 text-white border-slate-900" : "border-slate-300 text-slate-600 hover:border-slate-500"
+                  }`}>{f.label.replace(/ \(YYYY.*\)/, "")}</button>
+              ))}
             </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Set industry</label>
-              <input className="border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Technology"
-                value={industryOverride} onChange={e => setIndustryOverride(e.target.value)} />
-            </div>
+          </div>
+
+          {/* Value inputs for active fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {BULK_EDIT_FIELDS.filter(f => activeFields.includes(f.key)).map(f => (
+              <div key={f.key}>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">{f.label}</label>
+                {f.type === "select" ? (
+                  <select className="w-full border rounded-lg px-3 py-2 text-sm" value={overrides[f.key] || ""}
+                    onChange={e => setOverrides(o => ({ ...o, [f.key]: e.target.value }))}>
+                    <option value="">No change</option>
+                    {f.options!.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                ) : (
+                  <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="New value…"
+                    value={overrides[f.key] || ""} onChange={e => setOverrides(o => ({ ...o, [f.key]: e.target.value }))} />
+                )}
+              </div>
+            ))}
           </div>
 
           <div className="border rounded-xl overflow-hidden">
@@ -738,12 +796,12 @@ function BulkEditTab() {
           </div>
 
           <Button
-            disabled={!selected.length || (!statusOverride && !industryOverride) || bulkMutation.isPending}
+            disabled={!selected.length || !Object.keys(filledOverrides).length || bulkMutation.isPending}
             onClick={() => bulkMutation.mutate()}
             className="gap-2"
           >
             {bulkMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
-            Apply to {selected.length} selected
+            Apply {Object.keys(filledOverrides).length} field{Object.keys(filledOverrides).length !== 1 ? "s" : ""} to {selected.length} selected
           </Button>
         </CardContent>
       </Card>
@@ -782,9 +840,13 @@ function ClaimsTab() {
       });
       if (!res.ok) throw new Error("Review failed");
     },
-    onSuccess: () => {
+    onSuccess: (_d: any, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/claims"] });
-      toast({ title: "Claim updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      toast({
+        title: vars.status === "approved" ? "Claim approved" : "Claim rejected",
+        description: vars.status === "approved" ? "Company automatically marked with the 'claimed' badge." : undefined,
+      });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -797,7 +859,7 @@ function ClaimsTab() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <ShieldAlert className="h-5 w-5 text-blue-600" /> Business Claim Requests
             </CardTitle>
-            <CardDescription className="mt-1">Review and approve/reject ownership claims submitted by users.</CardDescription>
+            <CardDescription className="mt-1">Review ownership claims. Approving automatically marks the company as <strong>claimed</strong>.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {["", "pending", "approved", "rejected"].map(s => (
@@ -883,7 +945,27 @@ function ServicesTab() {
   const [url, setUrl] = useState("");
   const [icon, setIcon] = useState("🔗");
   const [imageUrl, setImageUrl] = useState("");
+  const [linkMode, setLinkMode] = useState<"url" | "upload">("url");
+  const [position, setPosition] = useState<"auto" | "left" | "right">("auto");
+  const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+
+  const uploadFile = async (file: File, target: "url" | "image") => {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/services/upload", { method: "POST", credentials: "include", body: fd });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any).message || "Upload failed"); }
+      const { url: served } = await res.json();
+      if (target === "url") setUrl(served); else setImageUrl(served);
+      toast({ title: "File uploaded", description: served });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const { data: services = [], isLoading } = useQuery<Service[]>({ queryKey: ["/api/services"] });
 
@@ -891,7 +973,7 @@ function ServicesTab() {
     mutationFn: (data: any) => apiPost("/api/admin/services", { ...data, isActive: true, order: services.length }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
-      setTitle(""); setDescription(""); setUrl(""); setIcon("🔗"); setImageUrl("");
+      setTitle(""); setDescription(""); setUrl(""); setIcon("🔗"); setImageUrl(""); setPosition("auto");
       toast({ title: "Service added!" });
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -908,7 +990,7 @@ function ServicesTab() {
         <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 border-b">
           <CardTitle className="flex items-center gap-2 text-orange-800"><Link2 className="h-5 w-5" /> Add Service Link</CardTitle>
           <CardDescription>
-            Add startup service links from <a href="https://startupcaservices.com" target="_blank" rel="noopener noreferrer" className="text-orange-600 font-semibold hover:underline">startupcaservices.com</a>. They appear in the left/right sidebars on company and article pages.
+            Add service links from any partner website (e.g. legalfilingindia.com). They appear in the left/right sidebars on company and article pages, and in the services section site-wide — grouped automatically by website.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
@@ -923,18 +1005,58 @@ function ServicesTab() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-slate-700">URL *</label>
-            <Input placeholder="https://startupcaservices.com/gst" value={url} onChange={e => setUrl(e.target.value)} data-testid="input-service-url" />
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-slate-700">Service Link *</label>
+              <div className="flex gap-1">
+                {(["url", "upload"] as const).map(m => (
+                  <button key={m} type="button" onClick={() => setLinkMode(m)}
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-all ${
+                      linkMode === m ? "bg-orange-600 text-white border-orange-600" : "border-slate-300 text-slate-600 hover:border-orange-400"
+                    }`}>{m === "url" ? "External URL" : "Upload File"}</button>
+                ))}
+              </div>
+            </div>
+            {linkMode === "url" ? (
+              <Input placeholder="https://legalfilingindia.com/gst-registration" value={url} onChange={e => setUrl(e.target.value)} data-testid="input-service-url" />
+            ) : (
+              <div className="flex items-center gap-3">
+                <Input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip" className="text-sm"
+                  onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0], "url")} disabled={uploading} data-testid="input-service-file" />
+                {uploading && <Loader2 className="h-4 w-4 animate-spin text-orange-500" />}
+              </div>
+            )}
+            {linkMode === "upload" && url && <p className="text-xs text-green-700">Uploaded: {url}</p>}
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-slate-700">Service Image URL <span className="text-xs text-muted-foreground">(shown in sidebar)</span></label>
-            <Input placeholder="https://example.com/image.jpg" value={imageUrl} onChange={e => setImageUrl(e.target.value)} data-testid="input-service-imageurl" />
+            <label className="text-sm font-semibold text-slate-700">Service Image <span className="text-xs text-muted-foreground">(shown in sidebar — paste a URL or upload)</span></label>
+            <div className="flex items-center gap-3">
+              <Input placeholder="https://example.com/image.jpg" value={imageUrl} onChange={e => setImageUrl(e.target.value)} data-testid="input-service-imageurl" />
+              <label className="shrink-0">
+                <input type="file" accept=".png,.jpg,.jpeg,.webp,.gif" className="hidden"
+                  onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0], "image")} disabled={uploading} />
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-medium cursor-pointer hover:bg-muted transition-colors">
+                  <Upload className="h-3.5 w-3.5" /> Upload
+                </span>
+              </label>
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-700">Short Description</label>
             <Input placeholder="Expert GST registration for your business" value={description} onChange={e => setDescription(e.target.value)} data-testid="input-service-description" />
           </div>
-          <Button onClick={() => addMutation.mutate({ title, description, url, icon, imageUrl })} disabled={!title.trim() || !url.trim() || addMutation.isPending} className="bg-orange-600 hover:bg-orange-500 text-white gap-2" data-testid="button-add-service">
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">Page Position</label>
+            <div className="flex gap-1.5">
+              {([["auto", "Auto (balanced)"], ["left", "Left sidebar"], ["right", "Right sidebar"]] as const).map(([val, label]) => (
+                <button key={val} type="button" onClick={() => setPosition(val)} data-testid={`button-position-${val}`}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    position === val ? "bg-orange-600 text-white border-orange-600" : "border-slate-300 text-slate-600 hover:border-orange-400"
+                  }`}>{label}</button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Choose which side of company/article pages this service appears on. Auto balances services across both sides.</p>
+          </div>
+          <Button onClick={() => addMutation.mutate({ title, description, url, icon, imageUrl, position })} disabled={!title.trim() || !url.trim() || addMutation.isPending} className="bg-orange-600 hover:bg-orange-500 text-white gap-2" data-testid="button-add-service">
             {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add Service
           </Button>
         </CardContent>
@@ -966,6 +1088,7 @@ function ServicesTab() {
                       {svc.description && <p className="text-xs text-muted-foreground truncate">{svc.description}</p>}
                       <a href={svc.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 mt-0.5">{svc.url.length > 50 ? svc.url.slice(0, 50) + "…" : svc.url}<ExternalLink className="h-3 w-3" /></a>
                     </div>
+                    <Badge variant="outline" className="text-[10px] capitalize">{(svc as any).position === "left" ? "◀ Left" : (svc as any).position === "right" ? "Right ▶" : "Auto"}</Badge>
                     <Badge variant={svc.isActive ? "default" : "secondary"} className={svc.isActive ? "bg-green-100 text-green-700 border-green-200" : ""}>{svc.isActive ? "Active" : "Hidden"}</Badge>
                     <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(svc.id)} disabled={deleteMutation.isPending} className="text-red-400 hover:text-red-600 hover:bg-red-50" data-testid={`button-delete-service-${svc.id}`}><Trash2 className="h-4 w-4" /></Button>
                   </div>
@@ -1237,7 +1360,7 @@ function AIWritingTab() {
     onError: (e: any) => toast({ title: "Publish failed", description: e.message, variant: "destructive" }),
   });
 
-  const hasKey = settings?.openai_key && settings.openai_key.length > 0;
+  const hasKey = settings?.openai_key_set === "true";
 
   return (
     <div className="space-y-6">
@@ -1334,7 +1457,131 @@ function AIWritingTab() {
           )}
         </CardContent>
       </Card>
+
+      <AutoBlogSchedulerCard hasKey={hasKey} />
     </div>
+  );
+}
+
+// ─── Auto-Blog Scheduler Card ─────────────────────────────────────────────────
+function AutoBlogSchedulerCard({ hasKey }: { hasKey: boolean }) {
+  const [newTopic, setNewTopic] = useState("");
+  const [newType, setNewType] = useState<"blog" | "article">("blog");
+  const { toast } = useToast();
+
+  const { data: settings = {} } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
+  const { data: topics = [] } = useQuery<any[]>({ queryKey: ["/api/admin/ai/topics"] });
+
+  const enabled = settings.auto_blog_enabled === "on";
+  const frequency = settings.auto_blog_frequency || "weekly";
+
+  const saveSettings = useMutation({
+    mutationFn: (vals: Record<string, string>) => apiPost("/api/admin/settings/bulk", vals),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/settings"] }),
+    onError: (e: any) => toast({ title: "Failed to save", description: e.message, variant: "destructive" }),
+  });
+
+  const addTopic = useMutation({
+    mutationFn: () => apiPost("/api/admin/ai/topics", { topic: newTopic, type: newType }),
+    onSuccess: () => { setNewTopic(""); queryClient.invalidateQueries({ queryKey: ["/api/admin/ai/topics"] }); toast({ title: "Topic queued!" }); },
+    onError: (e: any) => toast({ title: "Failed to add topic", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteTopic = useMutation({
+    mutationFn: (id: number) => apiDel(`/api/admin/ai/topics/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/ai/topics"] }),
+  });
+
+  const retryTopic = useMutation({
+    mutationFn: (id: number) => apiPost(`/api/admin/ai/topics/${id}/retry`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/ai/topics"] }),
+  });
+
+  const pending = topics.filter(t => t.status === "pending").length;
+
+  return (
+    <Card className="border-0 shadow-lg">
+      <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
+        <CardTitle className="flex items-center gap-2 text-indigo-900"><Sparkles className="h-5 w-5" /> Auto-Blog Scheduler</CardTitle>
+        <CardDescription>Queue topics and the site will automatically generate and publish posts on schedule — no manual work needed.</CardDescription>
+      </CardHeader>
+      <CardContent className="p-6 space-y-5">
+        {!hasKey && (
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm">Add your OpenAI API key above first — the scheduler needs it to generate content.</p>
+          </div>
+        )}
+
+        {/* Enable + frequency */}
+        <div className="flex flex-wrap items-center gap-4">
+          <button type="button" data-testid="toggle-auto-blog"
+            onClick={() => saveSettings.mutate({ auto_blog_enabled: enabled ? "" : "on" })}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? "bg-indigo-600" : "bg-slate-300"}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+          <span className="text-sm font-semibold text-slate-700">{enabled ? "Auto-publishing is ON" : "Auto-publishing is OFF"}</span>
+          <div className="flex gap-1.5 ml-auto">
+            {(["daily", "weekly"] as const).map(f => (
+              <button key={f} type="button" onClick={() => saveSettings.mutate({ auto_blog_frequency: f })}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border capitalize transition-all ${
+                  frequency === f ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-300 text-slate-600 hover:border-indigo-400"
+                }`}>{f}</button>
+            ))}
+          </div>
+        </div>
+        {settings.auto_blog_last_run && (
+          <p className="text-xs text-muted-foreground">Last auto-published: {new Date(settings.auto_blog_last_run).toLocaleString()}</p>
+        )}
+
+        {/* Add topic */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">Add a topic to the queue</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input placeholder={`E.g. "Step-by-step guide to GST registration for small businesses in India"`}
+              value={newTopic} onChange={e => setNewTopic(e.target.value)} className="flex-1" data-testid="input-auto-topic" />
+            <div className="flex gap-2">
+              {(["blog", "article"] as const).map(t => (
+                <Button key={t} type="button" variant={newType === t ? "default" : "outline"} size="sm"
+                  onClick={() => setNewType(t)} className={newType === t ? "bg-indigo-600 hover:bg-indigo-500" : ""}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </Button>
+              ))}
+              <Button onClick={() => addTopic.mutate()} disabled={newTopic.trim().length < 10 || addTopic.isPending}
+                className="gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white" data-testid="button-add-topic">
+                {addTopic.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "+"} Queue
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Topic queue */}
+        {topics.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-slate-700">{pending} pending topic{pending === 1 ? "" : "s"} · publishes one per {frequency === "daily" ? "day" : "week"}</p>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {topics.map(t => (
+                <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-lg border bg-white text-sm">
+                  <Badge variant="outline" className="text-[10px] capitalize shrink-0">{t.type}</Badge>
+                  <span className="flex-1 truncate" title={t.topic}>{t.topic}</span>
+                  {t.status === "pending" && <Badge className="bg-slate-100 text-slate-600 shrink-0">Queued</Badge>}
+                  {t.status === "generated" && <Badge className="bg-green-100 text-green-700 shrink-0">Published</Badge>}
+                  {t.status === "failed" && (
+                    <>
+                      <Badge className="bg-red-100 text-red-700 shrink-0" title={t.errorMessage}>Failed</Badge>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => retryTopic.mutate(t.id)}>Retry</Button>
+                    </>
+                  )}
+                  {t.status !== "generated" && (
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => deleteTopic.mutate(t.id)} data-testid={`button-delete-topic-${t.id}`}>✕</Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1421,13 +1668,13 @@ function SeoTab() {
       <Card className="border-0 shadow-md">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-slate-500" /> Admin Access</CardTitle>
-          <CardDescription>Add email addresses that should have admin access. Login is via Replit OAuth — use the "Log In" button at the top.</CardDescription>
+          <CardDescription>Add email addresses that should have admin access. Admins can log in with a password at /admin/login, or via Replit OAuth.</CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
           <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
             <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <div>
-              <strong>How to log in as admin:</strong> Click "Log In" in the top navbar. Sign in with your Replit account. If your Replit account email matches an email in this list, you'll have admin access. Your account <strong>ashubhardwaj2018@gmail.com</strong> is already added.
+              <strong>How to log in as admin:</strong> Go to <strong>/admin/login</strong> and sign in with your admin email and password, or use Replit OAuth via the "Log In" button in the navbar. You can change your password in the <strong>Account</strong> tab.
             </div>
           </div>
           <div className="flex gap-2">
@@ -1442,17 +1689,239 @@ function SeoTab() {
   );
 }
 
+// ─── Site Settings Tab ────────────────────────────────────────────────────────
+function SiteSettingsTab() {
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    site_name: "", contact_email: "", support_phone: "", footer_text: "",
+    announcement: "", maintenance_mode: "", social_twitter: "", social_linkedin: "", social_facebook: "",
+  });
+
+  const { data: settings, isLoading } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
+  useEffect(() => {
+    if (settings) setForm(p => ({
+      ...p,
+      ...Object.fromEntries(Object.keys(p).map(k => [k, (settings as any)[k] ?? ""])),
+    }));
+  }, [settings]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => apiPost("/api/admin/settings/bulk", form),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings"] }); toast({ title: "Site settings saved!" }); },
+    onError: (e: any) => toast({ title: "Failed to save", description: e.message, variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  const field = (key: keyof typeof form, label: string, placeholder: string, hint?: string) => (
+    <div className="space-y-1.5">
+      <label className="text-sm font-semibold text-slate-700">{label}</label>
+      <Input placeholder={placeholder} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 border-b">
+          <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5 text-slate-600" /> Site Settings</CardTitle>
+          <CardDescription>General site configuration — name, contact details, announcements and social links.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {field("site_name", "Site Name", "AddressBay")}
+            {field("contact_email", "Contact Email", "support@addressbay.com")}
+            {field("support_phone", "Support Phone", "+91 98765 43210")}
+            {field("footer_text", "Footer Text", "© AddressBay. All rights reserved.")}
+          </div>
+          {field("announcement", "Announcement Banner", "e.g. New: UK company data now available!", "Shown site-wide when set. Leave empty to hide.")}
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">Maintenance Mode</label>
+            <select className="border rounded-lg px-3 py-2 text-sm w-full sm:w-64"
+              value={form.maintenance_mode} onChange={e => setForm(p => ({ ...p, maintenance_mode: e.target.value }))}>
+              <option value="">Off</option>
+              <option value="on">On — show maintenance notice</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {field("social_twitter", "Twitter / X URL", "https://x.com/addressbay")}
+            {field("social_linkedin", "LinkedIn URL", "https://linkedin.com/company/addressbay")}
+            {field("social_facebook", "Facebook URL", "https://facebook.com/addressbay")}
+          </div>
+          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-2">
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Save Site Settings
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Account Tab (change password, session) ──────────────────────────────────
+function AccountTab() {
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [show, setShow] = useState(false);
+
+  const changeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any).message || "Failed to change password"); }
+    },
+    onSuccess: () => {
+      setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+      toast({ title: "Password changed", description: "Use your new password next time you log in." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const logout = async () => {
+    await fetch("/api/admin/logout-local", { method: "POST", credentials: "include" });
+    queryClient.invalidateQueries();
+    setLocation("/admin/login");
+  };
+
+  const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+          <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-blue-600" /> Change Password</CardTitle>
+          <CardDescription>Update the password you use at /admin/login.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">Current Password</label>
+            <Input type={show ? "text" : "password"} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} data-testid="input-current-password" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">New Password</label>
+            <Input type={show ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} data-testid="input-new-password" />
+            <p className="text-xs text-muted-foreground">At least 8 characters.</p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">Confirm New Password</label>
+            <Input type={show ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} data-testid="input-confirm-password" />
+            {mismatch && <p className="text-xs text-red-600">Passwords do not match.</p>}
+          </div>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <input type="checkbox" checked={show} onChange={e => setShow(e.target.checked)} className="rounded" /> Show passwords
+          </label>
+          <Button
+            disabled={!currentPassword || newPassword.length < 8 || newPassword !== confirmPassword || changeMutation.isPending}
+            onClick={() => changeMutation.mutate()}
+            className="gap-2" data-testid="button-change-password">
+            {changeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Change Password
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-md">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2 text-base"><XCircle className="h-5 w-5 text-red-500" /> Session</CardTitle>
+          <CardDescription>Sign out of the admin portal on this device.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6">
+          <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50" onClick={logout} data-testid="button-logout">
+            Log Out
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Sidebar navigation config ───────────────────────────────────────────────
+const NAV_SECTIONS: { label: string; items: { value: string; label: string; icon: any }[] }[] = [
+  {
+    label: "Company Data",
+    items: [
+      { value: "upload", label: "Data Import", icon: Upload },
+      { value: "import-jobs", label: "Import Jobs", icon: ClipboardList },
+      { value: "bulk-edit", label: "Bulk Edit", icon: Pencil },
+      { value: "badges", label: "Badges", icon: ShieldAlert },
+    ],
+  },
+  {
+    label: "Moderation",
+    items: [
+      { value: "claims", label: "Claims", icon: ShieldAlert },
+      { value: "suggestions", label: "Corrections", icon: AlertCircle },
+      { value: "reviews", label: "Reviews", icon: Star },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
+      { value: "articles", label: "Articles", icon: FileText },
+      { value: "blog", label: "Blog Posts", icon: BookOpen },
+      { value: "ai", label: "AI Writing", icon: Sparkles },
+      { value: "services", label: "Service Links", icon: Link2 },
+    ],
+  },
+  {
+    label: "Audience",
+    items: [
+      { value: "analytics", label: "Analytics", icon: BarChart2 },
+      { value: "users", label: "Users", icon: Users },
+      { value: "newsletter", label: "Newsletter", icon: Mail },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { value: "seo", label: "SEO & Admins", icon: Search },
+      { value: "site-settings", label: "Site Settings", icon: Settings },
+      { value: "account", label: "Account", icon: Users },
+    ],
+  },
+];
+
+const TAB_TITLES: Record<string, { title: string; subtitle: string }> = {
+  "upload": { title: "Data Import", subtitle: "Upload country-specific company data files." },
+  "import-jobs": { title: "Import Jobs", subtitle: "Track the status of background imports." },
+  "bulk-edit": { title: "Bulk Edit", subtitle: "Update any field across many companies at once." },
+  "badges": { title: "Badges", subtitle: "Assign verified, featured, claimed and premium badges." },
+  "claims": { title: "Claim Requests", subtitle: "Approving marks the company as claimed automatically." },
+  "suggestions": { title: "Data Corrections", subtitle: "Approving applies the change to the company record." },
+  "reviews": { title: "Reviews", subtitle: "Moderate user-submitted company reviews." },
+  "articles": { title: "Articles", subtitle: "Create and manage knowledge articles." },
+  "blog": { title: "Blog Posts", subtitle: "Create and manage blog content." },
+  "ai": { title: "AI Writing", subtitle: "Generate blog and article content with AI." },
+  "services": { title: "Service Links", subtitle: "Add sidebar services via external URL or file upload." },
+  "analytics": { title: "Analytics", subtitle: "Directory statistics at a glance." },
+  "users": { title: "Users", subtitle: "Registered user accounts." },
+  "newsletter": { title: "Newsletter", subtitle: "Subscriber list and export." },
+  "seo": { title: "SEO & Admins", subtitle: "Meta tags, robots.txt and admin access." },
+  "site-settings": { title: "Site Settings", subtitle: "Site name, contact details and social links." },
+  "account": { title: "Account", subtitle: "Change your password and manage your session." },
+};
+
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const defaultTab = new URLSearchParams(search).get("tab") || "upload";
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { data: adminCheck, isLoading: adminLoading } = useIsAdmin();
 
   useEffect(() => {
-    if (!authLoading && !adminLoading && !isAuthenticated) setLocation("/");
-  }, [authLoading, adminLoading, isAuthenticated, setLocation]);
+    // Redirect to admin login if neither OAuth-authenticated nor a password-session admin
+    if (!authLoading && !adminLoading && !isAuthenticated && !adminCheck?.isAdmin) {
+      setLocation("/admin/login");
+    }
+  }, [authLoading, adminLoading, isAuthenticated, adminCheck, setLocation]);
 
   if (authLoading || adminLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
@@ -1465,117 +1934,133 @@ export default function AdminDashboard() {
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
           <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
           <h1 className="text-3xl font-bold font-display mb-2">Access Denied</h1>
-          <p className="text-muted-foreground max-w-md">You do not have administrative privileges.</p>
+          <p className="text-muted-foreground max-w-md mb-4">You do not have administrative privileges.</p>
+          <Button onClick={() => setLocation("/admin/login")}>Go to Admin Login</Button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <Navbar />
-      <div className="container-width py-12">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+  const selectTab = (value: string) => {
+    setActiveTab(value);
+    window.history.replaceState(null, "", `/admin?tab=${value}`);
+  };
+
+  const header = TAB_TITLES[activeTab] || TAB_TITLES["upload"];
+
+  const renderTab = () => {
+    switch (activeTab) {
+      case "upload": return (
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="md:col-span-2">
+            <Card className="border-0 shadow-lg overflow-hidden">
+              <CardHeader className="bg-white border-b">
+                <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5 text-primary" /> Bulk Data Import</CardTitle>
+                <CardDescription>Upload Excel (.xlsx, .xls), CSV or XML files containing company records.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 bg-slate-50/50"><FileUpload /></CardContent>
+            </Card>
+          </div>
           <div>
-            <h1 className="text-3xl font-bold font-display tracking-tight text-slate-900">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Manage company data, content, SEO and service links.</p>
+            <Card className="border-0 shadow-md">
+              <CardHeader className="bg-blue-50/50 border-b border-blue-100 pb-3">
+                <CardTitle className="text-blue-900 text-base">Supported Columns</CardTitle>
+                <CardDescription className="text-xs">Column names are flexible — the system auto-detects common variations.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 text-xs space-y-3">
+                {[["Required", ["Name", "Company Name"]], ["Identification", ["CIN", "Registration Number", "ACN", "UEN", "Company Number"]], ["Company Info", ["Status", "Class", "Category", "ROC", "Country"]], ["Financials", ["Authorized Capital", "Paid Up Capital"]], ["Location", ["State", "City", "Pincode", "Address"]], ["Dates", ["Incorporation Date", "Last AGM Date", "Last Balance Sheet Date"]]].map(([label, cols]: any) => (
+                  <div key={label}>
+                    <p className="font-semibold text-slate-700 mb-1.5 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> {label}</p>
+                    <div className="flex flex-wrap gap-1">{cols.map((c: string) => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}</div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           </div>
         </div>
+      );
+      case "import-jobs": return <ImportJobsTab />;
+      case "claims": return <ClaimsTab />;
+      case "suggestions": return <SuggestionsTab />;
+      case "reviews": return <ReviewsAdminTab />;
+      case "newsletter": return <NewsletterAdminTab />;
+      case "analytics": return <AnalyticsTab />;
+      case "bulk-edit": return <BulkEditTab />;
+      case "badges": return <BadgesAdminTab />;
+      case "users": return <UsersAdminTab />;
+      case "services": return <ServicesTab />;
+      case "articles": return <ArticlesTab />;
+      case "blog": return <BlogTab />;
+      case "ai": return <AIWritingTab />;
+      case "seo": return <SeoTab />;
+      case "site-settings": return <SiteSettingsTab />;
+      case "account": return <AccountTab />;
+      default: return null;
+    }
+  };
 
-        <Tabs defaultValue={defaultTab} className="space-y-8">
-          <TabsList className="bg-background border p-1 rounded-xl shadow-sm flex-wrap h-auto gap-1">
-            <TabsTrigger value="upload" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Upload className="h-4 w-4 mr-2" /> Data Import
-            </TabsTrigger>
-            <TabsTrigger value="import-jobs" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-              <ClipboardList className="h-4 w-4 mr-2" /> Import Jobs
-            </TabsTrigger>
-            <TabsTrigger value="claims" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white">
-              <ShieldAlert className="h-4 w-4 mr-2" /> Claims
-            </TabsTrigger>
-            <TabsTrigger value="suggestions" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
-              <AlertCircle className="h-4 w-4 mr-2" /> Corrections
-            </TabsTrigger>
-            <TabsTrigger value="reviews" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
-              <Star className="h-4 w-4 mr-2" /> Reviews
-            </TabsTrigger>
-            <TabsTrigger value="newsletter" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white">
-              <Mail className="h-4 w-4 mr-2" /> Newsletter
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
-              <BarChart2 className="h-4 w-4 mr-2" /> Analytics
-            </TabsTrigger>
-            <TabsTrigger value="bulk-edit" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white">
-              <Pencil className="h-4 w-4 mr-2" /> Bulk Edit
-            </TabsTrigger>
-            <TabsTrigger value="badges" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-              <ShieldAlert className="h-4 w-4 mr-2" /> Badges
-            </TabsTrigger>
-            <TabsTrigger value="users" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">
-              <Users className="h-4 w-4 mr-2" /> Users
-            </TabsTrigger>
-            <TabsTrigger value="services" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white">
-              <Link2 className="h-4 w-4 mr-2" /> Service Links
-            </TabsTrigger>
-            <TabsTrigger value="articles" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <FileText className="h-4 w-4 mr-2" /> Articles
-            </TabsTrigger>
-            <TabsTrigger value="blog" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <BookOpen className="h-4 w-4 mr-2" /> Blog Posts
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
-              <Sparkles className="h-4 w-4 mr-2" /> AI Writing
-            </TabsTrigger>
-            <TabsTrigger value="seo" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">
-              <Settings className="h-4 w-4 mr-2" /> SEO & Settings
-            </TabsTrigger>
-          </TabsList>
+  return (
+    <div className="min-h-screen bg-slate-100">
+      <Navbar />
+      <div className="flex">
+        {/* ── Left sidebar ── */}
+        <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-slate-900 text-slate-300 min-h-[calc(100vh-4rem)] sticky top-16 self-start">
+          <div className="px-5 py-5 border-b border-slate-800">
+            <p className="text-white font-bold font-display text-lg leading-tight">Admin Panel</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">AddressBay control center</p>
+          </div>
+          <nav className="flex-1 overflow-y-auto py-4 space-y-5">
+            {NAV_SECTIONS.map(section => (
+              <div key={section.label}>
+                <p className="px-5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{section.label}</p>
+                <div className="space-y-0.5 px-2">
+                  {section.items.map(item => {
+                    const Icon = item.icon;
+                    const active = activeTab === item.value;
+                    return (
+                      <button key={item.value} onClick={() => selectTab(item.value)}
+                        data-testid={`nav-${item.value}`}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          active
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-900/40"
+                            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                        }`}>
+                        <Icon className={`h-4 w-4 ${active ? "text-white" : "text-slate-400"}`} />
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+          <div className="px-5 py-4 border-t border-slate-800 text-[11px] text-slate-500">
+            Signed in as admin
+          </div>
+        </aside>
 
-          <TabsContent value="upload" className="space-y-6">
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="md:col-span-2">
-                <Card className="border-0 shadow-lg overflow-hidden">
-                  <CardHeader className="bg-white border-b">
-                    <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5 text-primary" /> Bulk Data Import</CardTitle>
-                    <CardDescription>Upload Excel (.xlsx, .xls) or CSV files containing company records.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-8 bg-slate-50/50"><FileUpload /></CardContent>
-                </Card>
-              </div>
-              <div>
-                <Card className="border-0 shadow-md">
-                  <CardHeader className="bg-blue-50/50 border-b border-blue-100 pb-3">
-                    <CardTitle className="text-blue-900 text-base">Supported Columns</CardTitle>
-                    <CardDescription className="text-xs">Column names are flexible — the system auto-detects common variations.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 text-xs space-y-3">
-                    {[["Required", ["Name", "Company Name"]], ["Identification", ["CIN", "Registration Number"]], ["Company Info", ["Status", "Class", "Category", "ROC", "Country"]], ["Financials", ["Authorized Capital", "Paid Up Capital"]], ["Location", ["State", "City", "Pincode", "Address"]], ["Dates", ["Incorporation Date", "Last AGM Date", "Last Balance Sheet Date"]]].map(([label, cols]: any) => (
-                      <div key={label}>
-                        <p className="font-semibold text-slate-700 mb-1.5 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> {label}</p>
-                        <div className="flex flex-wrap gap-1">{cols.map((c: string) => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}</div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              </div>
+        {/* ── Main content ── */}
+        <main className="flex-1 min-w-0">
+          {/* Mobile nav: horizontal scroll pills */}
+          <div className="lg:hidden sticky top-16 z-10 bg-white border-b px-4 py-2 overflow-x-auto">
+            <div className="flex gap-1.5 w-max">
+              {NAV_SECTIONS.flatMap(s => s.items).map(item => (
+                <button key={item.value} onClick={() => selectTab(item.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all ${
+                    activeTab === item.value ? "bg-slate-900 text-white border-slate-900" : "border-slate-300 text-slate-600"
+                  }`}>{item.label}</button>
+              ))}
             </div>
-          </TabsContent>
+          </div>
 
-          <TabsContent value="import-jobs"><ImportJobsTab /></TabsContent>
-          <TabsContent value="claims"><ClaimsTab /></TabsContent>
-          <TabsContent value="suggestions"><SuggestionsTab /></TabsContent>
-          <TabsContent value="reviews"><ReviewsAdminTab /></TabsContent>
-          <TabsContent value="newsletter"><NewsletterAdminTab /></TabsContent>
-          <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
-          <TabsContent value="bulk-edit"><BulkEditTab /></TabsContent>
-          <TabsContent value="badges"><BadgesAdminTab /></TabsContent>
-          <TabsContent value="users"><UsersAdminTab /></TabsContent>
-          <TabsContent value="services"><ServicesTab /></TabsContent>
-          <TabsContent value="articles"><ArticlesTab /></TabsContent>
-          <TabsContent value="blog"><BlogTab /></TabsContent>
-          <TabsContent value="ai"><AIWritingTab /></TabsContent>
-          <TabsContent value="seo"><SeoTab /></TabsContent>
-        </Tabs>
+          <div className="px-4 sm:px-8 py-8 max-w-6xl">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold font-display tracking-tight text-slate-900">{header.title}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">{header.subtitle}</p>
+            </div>
+            {renderTab()}
+          </div>
+        </main>
       </div>
     </div>
   );

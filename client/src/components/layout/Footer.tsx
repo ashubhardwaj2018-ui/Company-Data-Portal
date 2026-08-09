@@ -1,4 +1,6 @@
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import type { Service } from "@shared/schema";
 import { Building2, Globe, ExternalLink } from "lucide-react";
 
 const COUNTRIES = [
@@ -43,26 +45,36 @@ const LEGAL = [
   { name: "Contact Us", href: "/contact" },
 ];
 
+function PartnerStrip() {
+  const { data: services = [] } = useQuery<Service[]>({ queryKey: ["/api/services"] });
+  const domains = Array.from(new Set(
+    services.filter(s => s.isActive).map(s => {
+      try { return new URL(s.url).hostname.replace(/^www\./, ""); } catch { return ""; }
+    }).filter(Boolean)
+  ));
+  if (domains.length === 0) return null;
+  return (
+    <div className="border-b border-slate-800">
+      <div className="container-width py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p className="text-xs font-medium text-slate-500">Compliance &amp; registration services powered by</p>
+        <div className="flex flex-wrap items-center gap-4">
+          {domains.map(d => (
+            <a key={d} href={`https://${d}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 group">
+              <span className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">{d}</span>
+              <ExternalLink className="h-3.5 w-3.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Footer() {
   return (
     <footer className="bg-slate-900 text-slate-400">
-      {/* Partner strip */}
-      <div className="border-b border-slate-800">
-        <div className="container-width py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs font-medium text-slate-500">Compliance &amp; registration services powered by</p>
-          <a
-            href="https://startupcaservices.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 group"
-          >
-            <span className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">
-              StartupCA Services
-            </span>
-            <ExternalLink className="h-3.5 w-3.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
-          </a>
-        </div>
-      </div>
+      {/* Partner strip — driven by service links added in the admin panel */}
+      <PartnerStrip />
 
       {/* Main columns */}
       <div className="container-width py-12">

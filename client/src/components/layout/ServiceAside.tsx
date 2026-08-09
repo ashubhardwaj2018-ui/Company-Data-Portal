@@ -14,14 +14,18 @@ export function ServiceAside({ side = "right" }: Props) {
   const active = services.filter(s => s.isActive);
   if (active.length === 0) return null;
 
-  const half = Math.ceil(active.length / 2);
-  const items = side === "left" ? active.slice(0, half) : active.slice(half);
+  // Services pinned to this side, plus an even split of the "auto" ones
+  const pinned = active.filter(s => (s as any).position === side);
+  const auto = active.filter(s => !(s as any).position || (s as any).position === "auto");
+  const half = Math.ceil(auto.length / 2);
+  const autoItems = side === "left" ? auto.slice(0, half) : auto.slice(half);
+  const items = [...pinned, ...autoItems];
   if (items.length === 0) return null;
 
   return (
     <aside className="hidden xl:flex flex-col gap-3 w-48 flex-shrink-0" aria-label={`${side} service links`}>
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">
-        Startup Services
+        Services
       </p>
       {items.map(svc => (
         <a
@@ -57,14 +61,17 @@ export function ServiceAside({ side = "right" }: Props) {
           </div>
         </a>
       ))}
-      <a
-        href="https://startupcaservices.com"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-[10px] text-center text-orange-400 hover:text-orange-600 font-medium underline underline-offset-2"
-      >
-        startupcaservices.com →
-      </a>
+      {Array.from(new Set(items.map(s => { try { return new URL(s.url).hostname.replace(/^www\./, ""); } catch { return ""; } }).filter(Boolean))).map(d => (
+        <a
+          key={d}
+          href={`https://${d}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-center text-orange-400 hover:text-orange-600 font-medium underline underline-offset-2"
+        >
+          {d} →
+        </a>
+      ))}
     </aside>
   );
 }

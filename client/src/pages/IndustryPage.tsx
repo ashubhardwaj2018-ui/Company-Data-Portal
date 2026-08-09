@@ -1,3 +1,4 @@
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 /**
  * Phase 18 — Industry Browse Page
  * URL: /industry/:slug
@@ -64,11 +65,9 @@ export default function IndustryPage() {
         </div>
       </div>
 
-      <div className="bg-muted/30 border-b py-2 text-xs text-muted-foreground">
-        <div className="container-width flex gap-1">
-          <Link href="/" className="hover:underline">Home</Link>
-          <span>/</span>
-          <span className="text-foreground font-medium">{industryName}</span>
+      <div className="bg-muted/30 border-b py-2">
+        <div className="container-width [&_nav]:mb-0">
+          <Breadcrumbs items={[{ label: "Industries" }, { label: industryName }]} />
         </div>
       </div>
 

@@ -13,7 +13,9 @@ import * as fs from "fs";
 // sax is a CJS module — import default to avoid require() in ESM scope
 import saxLib from "sax";
 const sax = saxLib as any;
-import * as xlsx from "xlsx";
+// CJS/ESM mismatch: xlsx must be default-imported or readFile is undefined (same as sax)
+import xlsxLib from "xlsx";
+const xlsx = xlsxLib as any;
 import { storage } from "./storage";
 import { insertCompanySchema, type InsertCompany } from "@shared/schema";
 
@@ -62,7 +64,7 @@ function mapRecord(
 ): { data: InsertCompany; errors: string[] } | { data: null; errors: string[] } {
   const mapped: any = {
     countryCode,
-    registrationNumber: g(row, ["CIN", "cin", "Registration Number", "RegistrationNumber", "CORP_REG_NO", "ACN", "UEN", "CompanyNumber"]),
+    registrationNumber: g(row, ["CIN", "cin", "Registration Number", "RegistrationNumber", "CORP_REG_NO", "ACN", "UEN", "CompanyNumber", "Company Number", "COMPANY_NUMBER", "acn", "uen"]),
     cin: g(row, ["CIN", "cin", "CORP_REG_NO"]),
     name: g(row, ["Name", "name", "Company Name", "company_name", "CORP_NAME", "CompanyName", "COMPANY_NAME"]),
     source: g(row, ["source", "SOURCE"]) || (countryCode === "IN" ? "MCA" : "IMPORT"),
@@ -78,7 +80,8 @@ function mapRecord(
     phone: g(row, ["Phone", "phone", "Mobile", "MOBILE", "PHONE"]),
     address: g(row, ["Address", "address", "Registered Address", "REG_ADDRESS", "ADDRESS"]),
     roc: g(row, ["ROC", "roc", "Registrar of Companies", "ROC_CODE"]),
-    country: g(row, ["Country", "country", "COUNTRY"]) || "India",
+    country: g(row, ["Country", "country", "COUNTRY"]) ||
+      ({ IN: "India", AU: "Australia", GB: "United Kingdom", SG: "Singapore", US: "United States" } as Record<string, string>)[countryCode] || undefined,
     incorporationDate: g(row, ["Incorporation Date", "incorporation_date", "Date of Incorporation", "DATE_OF_INC"]) || undefined,
     lastAgmDate: g(row, ["Last AGM Date", "last_agm_date", "LAST_AGM_DATE"]) || undefined,
     lastBalanceSheetDate: g(row, ["Last Balance Sheet Date", "last_balance_sheet_date", "LAST_BS_DATE"]) || undefined,

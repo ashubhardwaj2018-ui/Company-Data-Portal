@@ -8,10 +8,12 @@ import multer from "multer";
 import bcrypt from "bcryptjs";
 import * as fs from "fs";
 import * as os from "os";
+import * as path from "path";
 import {
   insertCompanySchema, insertServiceSchema, insertPostSchema, insertFaqSchema,
-  insertArticleSchema, companies,
+  insertArticleSchema, insertAiTopicSchema, companies,
 } from "@shared/schema";
+import { generateAIContent } from "./aiWriter";
 import { db } from "./db";
 import { count } from "drizzle-orm";
 import { processImportJob } from "./importProcessor";
@@ -21,7 +23,8 @@ import { limits } from "./rateLimit";
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
-    filename: (_req, file, cb) => cb(null, `upload_${Date.now()}_${file.originalname}`),
+    // SECURITY: never use untrusted originalname in the path — random server-side name only
+    filename: (_req, _file, cb) => cb(null, `upload_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`),
   }),
   limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB max
 });
@@ -215,9 +218,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ message: `Unsupported file type: .${ext}. Allowed: ${allowedExt.join(", ")}` });
     }
 
+    const SUPPORTED_UPLOAD_COUNTRIES = ["IN", "AU", "GB", "SG", "US"];
+    const rawCountry = (req.body as any)?.countryCode;
+    const countryCode = rawCountry ? String(rawCountry).toUpperCase() : "IN"; // omitted → default IN
+    if (!SUPPORTED_UPLOAD_COUNTRIES.includes(countryCode)) {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ message: `Unsupported country code: ${countryCode}. Allowed: ${SUPPORTED_UPLOAD_COUNTRIES.join(", ")}` });
+    }
+
     try {
       const job = await storage.createImportJob({
-        countryCode: "IN",
+        countryCode,
         datasetType: ext,
         filename: origName,
         fileSize,
@@ -230,7 +241,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Fire-and-forget background processing
       setImmediate(() => {
-        processImportJob(job.id, filePath, origName, "IN").catch((err) => {
+        processImportJob(job.id, filePath, origName, countryCode).catch((err) => {
           console.error(`[import:${job.id}] Unhandled error:`, err);
         });
       });
@@ -334,10 +345,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.status(204).send();
   });
 
+  // Upload a service asset (image / PDF / doc) — returns a served URL that can
+  // be used as the service link instead of an external URL.
+  app.post("/api/admin/services/upload", requireAdmin, upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const tmpPath = (req.file as any).path as string;
+    const origName = ((req.file as any).originalname as string) || "file";
+    const fileSize = ((req.file as any).size as number) || 0;
+    const ext = origName.toLowerCase().split(".").pop() || "";
+    // SVG excluded: same-origin stored active content risk
+    const allowedExt = ["png", "jpg", "jpeg", "webp", "gif", "pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "zip"];
+    if (!allowedExt.includes(ext)) {
+      fs.unlink(tmpPath, () => {});
+      return res.status(400).json({ message: `Unsupported file type: .${ext}` });
+    }
+    if (fileSize > 20 * 1024 * 1024) {
+      fs.unlink(tmpPath, () => {});
+      return res.status(400).json({ message: "File too large (max 20 MB)" });
+    }
+    try {
+      const uploadsDir = path.join(process.cwd(), "public", "uploads", "services");
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      const safeName = origName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const fileName = `${Date.now()}_${safeName}`;
+      fs.copyFileSync(tmpPath, path.join(uploadsDir, fileName));
+      fs.unlink(tmpPath, () => {});
+      res.json({ url: `/uploads/services/${fileName}` });
+    } catch (e) {
+      fs.unlink(tmpPath, () => {});
+      res.status(500).json({ message: "Failed to store file" });
+    }
+  });
+
   // ── Site Settings (SEO) ────────────────────────────────────────────────────
   app.get("/api/settings", async (req, res) => {
-    const keys = ["site_title", "site_description", "site_keywords", "og_image", "robots_txt", "openai_key"];
-    res.json(await storage.getSettings(keys));
+    const keys = [
+      "site_title", "site_description", "site_keywords", "og_image", "robots_txt",
+      "site_name", "contact_email", "support_phone", "footer_text", "announcement", "maintenance_mode",
+      "social_twitter", "social_linkedin", "social_facebook",
+      "auto_blog_enabled", "auto_blog_frequency", "auto_blog_last_run",
+    ];
+    const settings = await storage.getSettings(keys);
+    // SECURITY: never expose the stored API key publicly — only whether it is set
+    const openaiKey = process.env.OPENAI_API_KEY || (await storage.getSetting("openai_key"));
+    res.json({ ...settings, openai_key_set: openaiKey ? "true" : "" });
   });
   app.post("/api/admin/settings", requireAdmin, async (req, res) => {
     try {
@@ -379,6 +430,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ success: true });
   });
 
+  // ── Admin change password ──────────────────────────────────────────────────
+  app.post("/api/admin/change-password", requireAdmin, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(8, "New password must be at least 8 characters"),
+      }).parse(req.body);
+
+      const email = getAdminEmail(req);
+      if (!email) return res.status(401).json({ message: "Unauthorized" });
+
+      const hash = await storage.getAdminPasswordHash(email);
+      if (hash) {
+        const match = await bcrypt.compare(currentPassword, hash);
+        if (!match) return res.status(401).json({ message: "Current password is incorrect" });
+      }
+      const newHash = await bcrypt.hash(newPassword, 12);
+      await storage.setAdminPassword(email, newHash);
+      res.json({ success: true });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
   // ── Admin Management ───────────────────────────────────────────────────────
   app.get(api.admin.check.path, async (req, res) => {
     const email = getAdminEmail(req);
@@ -401,37 +477,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         type: z.enum(["blog", "article"]).default("blog"),
       }).parse(req.body);
 
-      const openaiKey = await storage.getSetting("openai_key");
-      if (!openaiKey) return res.status(400).json({ message: "OpenAI API key not configured. Set it in Admin → SEO & Settings → AI Key." });
-
-      const systemPrompt = `You are an expert content writer for IndiaCorpDB, a directory of Indian companies. Write high-quality, SEO-friendly ${type} content for Indian entrepreneurs, business owners, and professionals. Return JSON with fields: title, slug, content (markdown), excerpt (1-2 sentences), metaTitle, metaDescription, metaKeywords (comma separated), category.`;
-
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.7,
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        return res.status(502).json({ message: `OpenAI error: ${(err as any).error?.message || "Unknown error"}` });
-      }
-
-      const data: any = await response.json();
-      const generated = JSON.parse(data.choices[0].message.content);
+      const generated = await generateAIContent(prompt, type);
       res.json(generated);
     } catch (err: any) {
       console.error("AI generate error:", err);
       res.status(500).json({ message: err.message || "AI generation failed" });
     }
+  });
+
+  // ── AI Auto-Blog Scheduler ───────────────────────────────────────────────
+  app.get("/api/admin/ai/topics", requireAdmin, async (_req, res) => res.json(await storage.getAiTopics()));
+  app.post("/api/admin/ai/topics", requireAdmin, async (req, res) => {
+    try {
+      const parsed = insertAiTopicSchema.parse(req.body);
+      if (parsed.topic.trim().length < 10) return res.status(400).json({ message: "Topic must be at least 10 characters" });
+      res.status(201).json(await storage.createAiTopic(parsed));
+    } catch (err: any) { res.status(400).json({ message: err.message }); }
+  });
+  app.delete("/api/admin/ai/topics/:id", requireAdmin, async (req, res) => {
+    await storage.deleteAiTopic(Number(req.params.id));
+    res.status(204).end();
+  });
+  app.post("/api/admin/ai/topics/:id/retry", requireAdmin, async (req, res) => {
+    const t = await storage.updateAiTopic(Number(req.params.id), { status: "pending", errorMessage: null });
+    if (!t) return res.status(404).json({ message: "Topic not found" });
+    res.json(t);
   });
 
   // ── Phase 15: Company comparison (already registered early, stub removed) ──
@@ -671,7 +741,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { ids, fields } = req.body;
       if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ message: "ids[] required" });
       if (!fields || !Object.keys(fields).length) return res.status(400).json({ message: "fields required" });
-      const allowed = ["status", "industry", "source"];
+      const allowed = [
+        "status", "industry", "source", "class", "category", "subCategory",
+        "state", "city", "district", "pincode", "email", "phone", "address",
+        "roc", "country", "incorporationDate", "lastAgmDate", "lastBalanceSheetDate",
+      ];
       const safeFields = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
       const updated = await storage.bulkUpdateCompanies(ids.map(Number), safeFields);
       res.json({ updated });
@@ -738,9 +812,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { status } = req.body;
       if (!["applied", "dismissed"].includes(status))
         return res.status(400).json({ message: "status must be applied or dismissed" });
-      const email: string = (req.user as any)?.claims?.email || "admin";
-      await storage.updateSuggestionStatus(id, status, email);
-      res.json({ ok: true });
+      const email: string = getAdminEmail(req) || "admin";
+      const result = await storage.updateSuggestionStatus(id, status, email);
+      res.json({ ok: true, ...result });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }
   });
 
@@ -775,7 +849,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { status } = req.body;
       if (!["approved", "rejected"].includes(status))
         return res.status(400).json({ message: "status must be approved or rejected" });
-      const email: string = (req.user as any)?.claims?.email || "admin";
+      const email: string = getAdminEmail(req) || "admin";
       await storage.updateClaimStatus(id, status, email);
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: "Internal Server Error" }); }

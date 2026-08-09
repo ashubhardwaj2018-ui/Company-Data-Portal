@@ -1,3 +1,4 @@
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { useRoute, Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
@@ -73,6 +74,9 @@ export default function StatePage() {
       {/* Header */}
       <div className="bg-slate-900 text-white py-16">
         <div className="container-width">
+          <div className="[&_ol]:text-white/50 [&_a:hover]:text-white [&_span[aria-current]]:text-white">
+            <Breadcrumbs items={[{ label: meta?.name || countryCode, href: `/countries/${countryCode.toLowerCase()}` }, { label: stateName }]} />
+          </div>
           <Link href={`/countries/${countryCode.toLowerCase()}`}>
             <Button variant="ghost" className="text-white/60 hover:text-white mb-6 pl-0 hover:bg-transparent">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -95,17 +99,6 @@ export default function StatePage() {
       </div>
 
       <div className="container-width py-12">
-
-        {/* Breadcrumb links */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8">
-          <Link href="/" className="hover:text-primary transition-colors">Directory</Link>
-          <ChevronRight className="h-3.5 w-3.5" />
-          <Link href={`/countries/${countryCode.toLowerCase()}`} className="hover:text-primary transition-colors">
-            {meta?.flag} {meta?.name}
-          </Link>
-          <ChevronRight className="h-3.5 w-3.5" />
-          <span className="text-foreground font-medium">{stateName}</span>
-        </div>
 
         {/* City quick-links derived from current page results */}
         {!isLoading && data?.data && data.data.length > 0 && (() => {

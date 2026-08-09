@@ -142,6 +142,7 @@ export const services = pgTable("services", {
   url: text("url").notNull(),
   icon: text("icon").default("🔗"),
   imageUrl: text("image_url"),
+  position: text("position").default("auto"), // "left" | "right" | "auto"
   order: integer("order").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -283,3 +284,18 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
   unsubscribedAt: timestamp("unsubscribed_at"),
 });
 export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
+
+// ─── AI Auto-Blog Topics ──────────────────────────────────────────────────────
+export const aiTopics = pgTable("ai_topics", {
+  id: serial("id").primaryKey(),
+  topic: text("topic").notNull(),
+  type: text("type").notNull().default("blog"),       // blog | article
+  status: text("status").notNull().default("pending"), // pending | generated | failed
+  resultSlug: text("result_slug"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  generatedAt: timestamp("generated_at"),
+});
+export const insertAiTopicSchema = createInsertSchema(aiTopics).omit({ id: true, createdAt: true, generatedAt: true, status: true, resultSlug: true, errorMessage: true });
+export type AiTopic = typeof aiTopics.$inferSelect;
+export type InsertAiTopic = z.infer<typeof insertAiTopicSchema>;

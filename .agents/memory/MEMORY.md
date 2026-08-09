@@ -1,6 +1,7 @@
 - [Route ordering](route-ordering.md) — static /api/companies/* paths MUST be registered before /api/companies/:id or Express matches word-segments as NaN IDs.
 - [View dedup pattern](view-dedup.md) — view-count increment is fire-and-forget; response returns stale count, next request shows updated count. IP+id dedup key prevents duplicate increments within 30 min.
-- [SAX import CJS fix](sax-cjs-fix.md) — sax package must be imported as `import saxLib from "sax"; const sax = saxLib as any` due to CJS/ESM mismatch.
+- [CJS/ESM default imports](cjs-esm-default-imports.md) — CJS packages (sax, xlsx) must be default-imported (`import lib from "pkg"`) or their functions are undefined at runtime.
+- [Public settings endpoint](public-settings-security.md) — GET /api/settings is public; never add secret keys (openai_key etc.) to its key list — expose only a "_set" boolean flag.
 - [Helmet JSX constraints](helmet-jsx.md) — Helmet must be inside outermost div (not fragment); JSON-LD script must use dangerouslySetInnerHTML not expression children.
 - [Phase route ordering](phase-route-ordering.md) — /api/watchlist/check/:id MUST be registered before /api/watchlist/:id to prevent Express treating "check" as companyId.
 - [Compare/recent route ordering](route-ordering.md) — /api/companies/compare and /api/companies/recent must live before the /:id wildcard; server restart required to pick up route-order changes (HMR does not reorder middleware).

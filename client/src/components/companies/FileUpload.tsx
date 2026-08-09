@@ -10,21 +10,47 @@ import { Badge } from "@/components/ui/badge";
 import { queryClient } from "@/lib/queryClient";
 import { api } from "@shared/routes";
 
-function downloadSampleTemplate() {
-  const headers = [
-    "CIN","Name","Status","Class","Category","Sub Category",
-    "Authorized Capital","Paid Up Capital","State","City","Pincode",
-    "Email","Phone","Address","ROC","Country",
-    "Incorporation Date","Last AGM Date","Last Balance Sheet Date",
-  ];
-  const sampleRows = [
-    ["U12345MH2010PTC123456","Acme Technologies Private Limited","Active","Private","Company limited by shares","Non-govt company","1000000","500000","Maharashtra","Mumbai","400001","info@acme.com","9876543210","123 Business Park, Andheri East","RoC-Mumbai","India","2010-05-15","2023-09-30","2023-03-31"],
-    ["U67890DL2015PLC654321","Global Exports Limited","Active","Public","Company limited by shares","Non-govt company","5000000","2000000","Delhi","New Delhi","110001","contact@globalexports.com","9123456789","456 Trade Tower, Connaught Place","RoC-Delhi","India","2015-01-20","2023-09-30","2023-03-31"],
-  ];
-  const csv = [headers, ...sampleRows].map(r => r.join(",")).join("\n");
+// ── Country-specific upload templates ────────────────────────────────────────
+export const UPLOAD_COUNTRIES = [
+  { code: "IN", label: "🇮🇳 India", regLabel: "CIN" },
+  { code: "AU", label: "🇦🇺 Australia", regLabel: "ACN" },
+  { code: "GB", label: "🇬🇧 United Kingdom", regLabel: "Company Number" },
+  { code: "SG", label: "🇸🇬 Singapore", regLabel: "UEN" },
+  { code: "US", label: "🇺🇸 United States", regLabel: "Registration Number" },
+] as const;
+
+const TEMPLATE_BY_COUNTRY: Record<string, { headers: string[]; rows: string[][] }> = {
+  IN: {
+    headers: ["CIN","Name","Status","Class","Category","Sub Category","Authorized Capital","Paid Up Capital","State","City","Pincode","Email","Phone","Address","ROC","Country","Incorporation Date","Last AGM Date","Last Balance Sheet Date"],
+    rows: [
+      ["U12345MH2010PTC123456","Acme Technologies Private Limited","Active","Private","Company limited by shares","Non-govt company","1000000","500000","Maharashtra","Mumbai","400001","info@acme.com","9876543210","123 Business Park, Andheri East","RoC-Mumbai","India","2010-05-15","2023-09-30","2023-03-31"],
+      ["U67890DL2015PLC654321","Global Exports Limited","Active","Public","Company limited by shares","Non-govt company","5000000","2000000","Delhi","New Delhi","110001","contact@globalexports.com","9123456789","456 Trade Tower, Connaught Place","RoC-Delhi","India","2015-01-20","2023-09-30","2023-03-31"],
+    ],
+  },
+  AU: {
+    headers: ["ACN","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
+    rows: [["123456789","Koala Digital Pty Ltd","Active","Private","Proprietary company","New South Wales","Sydney","2000","hello@koala.com.au","+61 2 9000 0000","1 Market St, Sydney","Australia","2015-03-10"]],
+  },
+  GB: {
+    headers: ["Company Number","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
+    rows: [["09876543","Thames Analytics Ltd","Active","Private","Private limited company","Greater London","London","EC1A 1BB","info@thames.co.uk","+44 20 7000 0000","10 Fleet St, London","United Kingdom","2012-07-01"]],
+  },
+  SG: {
+    headers: ["UEN","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
+    rows: [["201512345K","Merlion Tech Pte Ltd","Active","Private","Exempt private company","Singapore","Singapore","049315","contact@merlion.sg","+65 6000 0000","1 Raffles Pl","Singapore","2015-06-15"]],
+  },
+  US: {
+    headers: ["Registration Number","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
+    rows: [["7654321","Liberty Software Inc","Active","Private","C Corporation","Delaware","Wilmington","19801","info@liberty.io","+1 302 000 0000","1209 Orange St","United States","2018-01-05"]],
+  },
+};
+
+function downloadSampleTemplate(countryCode: string) {
+  const t = TEMPLATE_BY_COUNTRY[countryCode] || TEMPLATE_BY_COUNTRY.IN;
+  const csv = [t.headers, ...t.rows].map(r => r.join(",")).join("\n");
   const a = Object.assign(document.createElement("a"), {
     href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })),
-    download: "company_upload_template.csv",
+    download: `company_upload_template_${countryCode.toLowerCase()}.csv`,
   });
   a.click();
 }
@@ -60,6 +86,7 @@ function fmt(n: number | null | undefined) {
 
 export function FileUpload() {
   const [file, setFile]       = useState<File | null>(null);
+  const [countryCode, setCountryCode] = useState("IN");
   const [stage, setStage]     = useState<Stage>("idle");
   const [uploadPct, setUploadPct] = useState(0);
   const [jobId, setJobId]     = useState<number | null>(null);
@@ -135,6 +162,7 @@ export function FileUpload() {
     setUploadPct(0);
 
     const formData = new FormData();
+    formData.append("countryCode", countryCode); // must precede file so multer parses it before the stream
     formData.append("file", file);
 
     const xhr = new XMLHttpRequest();
@@ -246,14 +274,29 @@ export function FileUpload() {
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-4">
+      {/* Country selector */}
+      <div className="bg-muted/40 border rounded-xl p-4 space-y-1.5">
+        <label className="text-sm font-semibold">Import Country</label>
+        <p className="text-xs text-muted-foreground">Data fields and the template are specific to the selected country ({UPLOAD_COUNTRIES.find(c => c.code === countryCode)?.regLabel} is used as the registration ID).</p>
+        <select
+          className="w-full sm:w-64 border rounded-lg px-3 py-2 text-sm bg-background"
+          value={countryCode}
+          onChange={e => setCountryCode(e.target.value)}
+          disabled={stage !== "idle"}
+          data-testid="select-upload-country"
+        >
+          {UPLOAD_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+        </select>
+      </div>
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted-foreground flex items-center gap-1.5">
           <Info className="h-3.5 w-3.5" /> Supports .xlsx, .xls, .csv, .xml up to 2 GB
         </p>
-        <Button variant="ghost" size="sm" onClick={downloadSampleTemplate}
+        <Button variant="ghost" size="sm" onClick={() => downloadSampleTemplate(countryCode)}
           className="text-primary hover:text-primary/80 text-xs gap-1.5">
-          <Download className="h-3.5 w-3.5" /> Download Template
+          <Download className="h-3.5 w-3.5" /> Download {countryCode} Template
         </Button>
       </div>
 

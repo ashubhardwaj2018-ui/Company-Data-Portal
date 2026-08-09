@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { startAutoBlogScheduler } from "./aiWriter";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -21,6 +22,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Serve admin-uploaded assets (service files, etc.)
+app.use("/uploads", express.static("public/uploads"));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -83,6 +87,7 @@ app.use((req, res, next) => {
   }
 
   await registerRoutes(httpServer, app);
+  startAutoBlogScheduler();
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

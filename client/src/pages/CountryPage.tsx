@@ -1,3 +1,4 @@
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { useRoute, Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
@@ -99,6 +100,9 @@ export default function CountryPage() {
       {/* Header */}
       <div className="bg-slate-900 text-white py-16">
         <div className="container-width">
+          <div className="[&_ol]:text-white/50 [&_a:hover]:text-white [&_span[aria-current]]:text-white">
+            <Breadcrumbs items={[{ label: "Countries" }, { label: meta.name }]} />
+          </div>
           <Link href="/">
             <Button variant="ghost" className="text-white/60 hover:text-white mb-6 pl-0 hover:bg-transparent">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Directory
