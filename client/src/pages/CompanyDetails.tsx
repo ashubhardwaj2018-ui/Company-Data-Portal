@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { BadgesDisplay, parseBadges } from "@/components/companies/BadgesDisplay";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,15 @@ import {
   Hash, Globe, Clock, BookOpen, ChevronRight, Database, Landmark, TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
+import { ShareBar } from "@/components/layout/ShareBar";
+import { ServiceAside } from "@/components/layout/ServiceAside";
+import { ClaimModal } from "@/components/companies/ClaimModal";
+import { WatchlistButton } from "@/components/companies/WatchlistButton";
+import { SuggestCorrectionModal } from "@/components/companies/SuggestCorrectionModal";
+import { ReviewsSection } from "@/components/companies/ReviewsSection";
+import { SharePrintBar } from "@/components/companies/SharePrintBar";
+import { CompareToggle } from "@/components/companies/CompareToggle";
+import { InsightsWidget } from "@/components/companies/InsightsWidget";
 
 // ── Country code → display name ───────────────────────────────────────────────
 const COUNTRY_NAMES: Record<string, string> = {
