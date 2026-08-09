@@ -6,6 +6,7 @@ import { Link } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
+import { CompanyCardSkeleton } from "@/components/companies/CompanyCardSkeleton";
 import { SearchAutocomplete } from "@/components/companies/SearchAutocomplete";
 import { AdvancedFiltersDrawer } from "@/components/companies/AdvancedFiltersDrawer";
 import { NewsletterSignup } from "@/components/layout/NewsletterSignup";
@@ -630,9 +631,9 @@ export default function Home() {
 
           {/* Results grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-52 bg-slate-100 rounded-lg animate-pulse" />
+                <CompanyCardSkeleton key={i} />
               ))}
             </div>
           ) : isError ? (
