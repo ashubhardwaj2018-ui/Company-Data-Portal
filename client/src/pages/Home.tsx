@@ -9,7 +9,6 @@ import { CompanyCard } from "@/components/companies/CompanyCard";
 import { CompanyCardSkeleton } from "@/components/companies/CompanyCardSkeleton";
 import { SearchAutocomplete } from "@/components/companies/SearchAutocomplete";
 import { AdvancedFiltersDrawer } from "@/components/companies/AdvancedFiltersDrawer";
-import { NewsletterSignup } from "@/components/layout/NewsletterSignup";
 import {
   Loader2, ChevronLeft, ChevronRight, ArrowRight, TrendingUp,
   Building2, Globe, Shield, Database, Filter, X, ChevronDown,
@@ -319,13 +318,13 @@ export default function Home() {
 
       {/* ── HERO ──────────────────────────────────────────────── */}
       {showHero && (
-        <section className="bg-slate-900 text-white">
+        <section className="ab-hero text-white relative overflow-hidden">
           <div className="container-width py-16 md:py-24 text-center">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Global Business Intelligence</p>
               <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white leading-tight">
                 Discover Companies &amp;{" "}
-                <span className="text-amber-400">Businesses</span>
+               <span className="text-orange-300">Businesses</span>
                 {" "}Worldwide
               </h1>
               <p className="mt-4 text-base md:text-lg text-slate-300 max-w-2xl mx-auto">
@@ -351,7 +350,7 @@ export default function Home() {
               transition={{ delay: 0.15, duration: 0.4 }}
               className="max-w-3xl mx-auto mt-10"
             >
-              <div className="flex items-center bg-white rounded-lg shadow-xl overflow-hidden border border-slate-200">
+               <div className="flex items-center bg-white rounded-2xl shadow-2xl shadow-indigo-950/30 overflow-hidden border-2 border-white/70">
                 <CountrySelector value={selectedCountry} onChange={handleCountrySelect} />
                 <div className="flex-1">
                   <SearchAutocomplete
@@ -380,7 +379,7 @@ export default function Home() {
                       setAlphabet(undefined);
                       setPage(1);
                     }}
-                    className="text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
+                     className="text-xs px-3 py-1.5 rounded-full bg-white/10 text-indigo-100 hover:bg-orange-400 hover:text-slate-950 transition-all border border-white/20"
                   >
                     {q}
                   </button>
@@ -393,47 +392,34 @@ export default function Home() {
 
       {/* ── COUNTRY CARDS ─────────────────────────────────────── */}
       {showHero && (
-        <section className="border-b border-slate-100 bg-slate-50">
+        <section className="border-b border-amber-100 bg-[#fffaf1]">
           <div className="container-width py-12">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-slate-900">Browse by Country</h2>
               <span className="text-xs text-slate-500">{COUNTRIES.length} countries available</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 ab-stagger">
               {COUNTRIES.map(country => (
                 <div
                   key={country.code}
-                  className="bg-white rounded-lg border border-slate-200 p-5 hover:border-primary/40 hover:shadow-md transition-all cursor-pointer group"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 cursor-pointer group flex flex-col items-center gap-1.5 hover:border-primary/40 hover:shadow-md transition-all"
                   onClick={() => handleCountrySelect(country.code)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={e => e.key === "Enter" && handleCountrySelect(country.code)}
                   aria-label={`Browse ${country.name} companies`}
+                  data-testid={`button-country-${country.code.toLowerCase()}`}
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-3xl">{country.flag}</span>
-                    <span className="text-xs font-bold text-primary bg-primary/8 px-2 py-0.5 rounded-full">
-                      {country.count}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-sm mb-0.5 group-hover:text-primary transition-colors">
+                  <img
+                    src={`https://flagcdn.com/w160/${country.code.toLowerCase()}.png`}
+                    srcSet={`https://flagcdn.com/w320/${country.code.toLowerCase()}.png 2x`}
+                    alt={`${country.name} flag`}
+                    loading="lazy"
+                    className="h-9 w-auto rounded shadow-sm ring-1 ring-black/10 group-hover:scale-105 transition-transform"
+                  />
+                  <span className="text-xs font-semibold text-slate-800 text-center group-hover:text-primary transition-colors">
                     {country.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-3">{country.desc}</p>
-                  <div className="flex flex-wrap gap-1 mb-4">
-                    {country.cities.slice(0, 2).map(city => (
-                      <span key={city} className="text-[10px] px-1.5 py-0.5 bg-slate-50 rounded text-slate-500 border border-slate-100">
-                        {city}
-                      </span>
-                    ))}
-                  </div>
-                  <Link
-                    href={country.href}
-                    onClick={e => e.stopPropagation()}
-                    className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
-                  >
-                    Explore <ArrowRight className="h-3 w-3" />
-                  </Link>
+                  </span>
                 </div>
               ))}
             </div>
@@ -564,18 +550,19 @@ export default function Home() {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-3">
+              <div className="ab-filter-bar flex flex-wrap items-center gap-3 rounded-2xl p-2 sm:p-3">
               {/* Status */}
-              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-1 py-1">
+                <div className="ab-status-tabs flex items-center gap-1.5 border rounded-xl px-1 py-1 overflow-x-auto max-w-full">
                 {["", "Active", "Strike-off", "Dissolved"].map(s => (
                   <button
                     key={s}
                     onClick={() => { setStatusFilter(s); setPage(1); }}
-                    className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+                    className={`text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap ${
                       statusFilter === s
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:bg-slate-50"
+                        ? "is-active"
+                        : ""
                     }`}
+                    data-status={s === "" ? "all" : s === "Active" ? "active" : s === "Strike-off" ? "strike" : "dissolved"}
                   >
                     {s || "All Status"}
                   </button>
@@ -585,7 +572,7 @@ export default function Home() {
               {/* Advanced filters */}
               <button
                 onClick={() => setShowFilters(true)}
-                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2.5 rounded-lg border transition-colors ${
+                    className={`ab-filter-button flex items-center gap-1.5 text-xs font-medium px-3 py-2.5 rounded-xl border transition-all ${
                   advActiveCount > 0
                     ? "border-primary text-primary bg-primary/5"
                     : "border-slate-200 text-slate-600 hover:border-slate-300 bg-white"
@@ -604,15 +591,15 @@ export default function Home() {
             </div>
 
             {/* Alphabet strip */}
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5 rounded-2xl bg-violet-50/45 p-2 border border-violet-100/80">
               {alphabets.map(letter => (
                 <button
                   key={letter}
                   onClick={() => handleAlphabetClick(letter)}
-                  className={`w-7 h-7 text-xs font-semibold rounded transition-colors ${
+                  className={`ab-letter-chip w-7 h-7 text-xs font-semibold rounded-lg border ${
                     alphabet === letter
-                      ? "bg-slate-900 text-white"
-                      : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                      ? "is-active"
+                      : ""
                   }`}
                 >
                   {letter}
@@ -741,13 +728,12 @@ export default function Home() {
         </section>
       )}
 
-      {/* ── NEWSLETTER ────────────────────────────────────────── */}
-      <NewsletterSignup />
-
       <AdvancedFiltersDrawer
         filters={advFilters}
         onChange={(f: typeof advFilters) => { setAdvFilters(f); setPage(1); }}
         activeCount={advActiveCount}
+        open={showFilters}
+        onOpenChange={setShowFilters}
       />
 
       <Footer />

@@ -41,14 +41,14 @@ function NavDropdown({ label, children }: { label: string; children: React.React
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-0.5 text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors py-1"
+        className="flex items-center gap-0.5 text-sm text-slate-600 hover:text-violet-700 font-medium transition-colors py-1"
         aria-expanded={open}
       >
         {label}
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1">
+        <div className="absolute top-full left-0 mt-2 bg-white border border-amber-100 rounded-xl shadow-xl z-50 min-w-[200px] py-1">
           {children}
         </div>
       )}
@@ -65,11 +65,11 @@ export function Navbar() {
   useEffect(() => setMobileOpen(false), [location]);
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-slate-200">
+    <header className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b border-amber-100">
       <div className="container-width flex h-15 items-center justify-between h-[60px]">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+          <div className="w-9 h-9 bg-gradient-to-br from-violet-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
             <Building2 className="h-4.5 w-4.5 text-white h-[18px] w-[18px]" />
           </div>
           <span className="text-[17px] font-bold tracking-tight text-slate-900">
@@ -88,7 +88,7 @@ export function Navbar() {
               <Link
                 key={c.code}
                 href={`/countries/${c.code}`}
-                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
               >
                 <span className="text-base">{c.flag}</span>
                 {c.name}
@@ -101,7 +101,7 @@ export function Navbar() {
               <Link
                 key={ind}
                 href={`/industry/${ind.toLowerCase().replace(/\s+/g, "-")}`}
-                className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                className="block px-4 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 transition-colors"
               >
                 {ind}
               </Link>
@@ -185,7 +185,7 @@ export function Navbar() {
               <a href="/api/login" className="text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors px-3 py-1.5">
                 Log in
               </a>
-              <a href="/api/login" className="text-sm font-semibold bg-primary text-white hover:bg-primary/90 px-4 py-1.5 rounded-md transition-colors">
+              <a href="/api/login" className="text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-500 text-white hover:from-orange-500 hover:to-pink-500 px-4 py-1.5 rounded-lg shadow-md shadow-indigo-200 transition-all">
                 Get Started
               </a>
             </div>

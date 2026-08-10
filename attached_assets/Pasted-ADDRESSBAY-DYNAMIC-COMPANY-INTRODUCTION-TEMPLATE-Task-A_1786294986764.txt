@@ -1,0 +1,311 @@
+ADDRESSBAY — DYNAMIC COMPANY INTRODUCTION TEMPLATE
+
+Task:
+Add a dynamically generated company introduction paragraph at the TOP of the company detail page, immediately ABOVE the existing "Overview" section.
+
+IMPORTANT:
+DO NOT redesign the page.
+DO NOT change the existing company card, header, navigation, buttons, colors, spacing, typography, Overview section, tables, sections, footer, or any existing functionality.
+DO NOT remove or rename any existing fields.
+DO NOT change the current page structure except inserting this new paragraph section immediately before the existing Overview section.
+
+The only new UI/content should be this dynamically generated company introduction.
+
+==================================================
+1. UNIVERSAL TEMPLATE
+==================================================
+
+The template must be generic and work for companies from:
+
+- India
+- United States
+- United Kingdom
+- Australia
+- Singapore
+- Future countries
+
+Do NOT hard-code Indian terminology such as CIN, ROC, MCA, PIN code, etc.
+
+Use the actual database field values and the country's applicable registration terminology.
+
+Generate ONE natural-language paragraph using the available company data.
+
+Template logic:
+
+"{{company_name}} is a {{entity_type}} registered in {{city}}, {{region}}, {{country}}. The company was {{registration_action}} on {{registration_date}} and is registered with {{registration_authority}} under {{registration_number_label}} {{registration_number}}. Its current registration status is {{company_status}} and its registered or principal business address is {{registered_address}}."
+
+Where:
+
+company_name
+= company legal/business name from database
+
+entity_type
+= company/entity type from database
+
+city
+= city/locality field
+
+region
+= state/province/region/county equivalent
+
+country
+= country
+
+registration_action
+= country/entity appropriate wording such as:
+- incorporated
+- registered
+- established
+
+registration_date
+= incorporation/registration date
+
+registration_authority
+= relevant authority
+
+registration_number_label
+= country-specific label:
+India → CIN
+USA → Entity/File/Registration Number as applicable
+UK → Company Number
+Australia → ACN/ABN as applicable
+Singapore → UEN
+etc.
+
+registration_number
+= actual registration number
+
+company_status
+= actual status
+
+registered_address
+= actual registered/principal address
+
+==================================================
+2. EXAMPLE — INDIA
+==================================================
+
+For an Indian company, the generated paragraph could look like:
+
+"Infosys Limited is a Public Limited Company registered in Bengaluru, Karnataka, India. The company was incorporated on 2 July 1981 and is registered with the Registrar of Companies under CIN L72200KA1996PLC019635. Its current registration status is Active and its registered office is located in Bengaluru, Karnataka, India."
+
+The exact wording must be generated from the database values, NOT hard-coded for Infosys.
+
+==================================================
+3. EXAMPLE — UNITED KINGDOM
+==================================================
+
+For a UK company:
+
+"ABC Limited is a Private Limited Company registered in London, England, United Kingdom. The company was incorporated on 10 January 2020 and is registered with Companies House under Company Number 12345678. Its current registration status is Active and its registered office is located in London, England, United Kingdom."
+
+Again, values must come from database fields.
+
+==================================================
+4. EXAMPLE — UNITED STATES
+==================================================
+
+For a US company:
+
+"ABC LLC is a Limited Liability Company registered in California, United States. The company was registered on 10 January 2020 with the California Secretary of State under Entity Number 1234567. Its current registration status is Active and its principal business address is located in Los Angeles, California, United States."
+
+Use the actual available database fields.
+
+==================================================
+5. EXAMPLE — SINGAPORE
+==================================================
+
+For Singapore:
+
+"ABC PTE. LTD. is a Private Company Limited by Shares registered in Singapore. The company was incorporated on 10 January 2020 and is registered with the Accounting and Corporate Regulatory Authority under UEN 202012345A. Its current registration status is Live and its registered office is located in Singapore."
+
+==================================================
+6. MISSING DATA RULE
+==================================================
+
+NEVER display:
+
+undefined
+null
+N/A
+Unknown
+empty commas
+broken sentences
+placeholder text
+
+If a field is missing, intelligently omit that part of the sentence.
+
+For example, if registration authority is unavailable:
+
+BAD:
+"The company was incorporated on 2 July 1981 and is registered with undefined under CIN..."
+
+GOOD:
+"The company was incorporated on 2 July 1981 under CIN L72200KA1996PLC019635."
+
+If the registration number is unavailable, omit the registration-number sentence completely.
+
+The paragraph must always remain grammatically correct.
+
+==================================================
+7. DATA-DRIVEN COUNTRY MAPPING
+==================================================
+
+Create/reuse a country/entity configuration or mapping layer rather than hard-coding country-specific logic inside the React component.
+
+The mapping should determine:
+
+registration number label
+registration authority label
+registration action
+address terminology
+region terminology
+status terminology
+
+Examples:
+
+India:
+registration number → CIN
+authority → Registrar of Companies / MCA
+action → incorporated
+
+UK:
+registration number → Company Number
+authority → Companies House
+action → incorporated
+
+Singapore:
+registration number → UEN
+authority → ACRA
+action → incorporated
+
+Australia:
+registration number → ACN / ABN depending on available data
+authority → relevant Australian registration authority
+action → registered/incorporated
+
+USA:
+registration number → Entity Number / File Number depending on state/data
+authority → relevant state authority
+action → registered/incorporated
+
+Do NOT assume every country uses the same registration number or authority.
+
+==================================================
+8. POSITION ON PAGE
+==================================================
+
+Current page:
+
+Company Header/Card
+↓
+[NEW DYNAMIC COMPANY INTRODUCTION PARAGRAPH]
+↓
+Existing Overview section
+↓
+Everything else remains exactly as it currently is
+
+The new paragraph must appear ABOVE the existing "Overview" heading.
+
+Do not replace the Overview content.
+
+Do not duplicate the Overview.
+
+==================================================
+9. DESIGN
+==================================================
+
+Keep the design extremely minimal and consistent with the existing AddressBay UI.
+
+Use the existing page typography, spacing, text color and responsive layout.
+
+Do NOT create a large new card.
+
+Prefer a clean paragraph block/container that visually feels like part of the company profile.
+
+On mobile it must remain fully responsive.
+
+==================================================
+10. SEO
+==================================================
+
+The paragraph should be server-rendered or otherwise present in the initial HTML where technically possible.
+
+It must contain naturally readable company-specific information.
+
+Do NOT keyword stuff.
+
+Do NOT generate artificial SEO phrases.
+
+Do NOT repeat the company name excessively.
+
+Do NOT create thousands of identical paragraphs with only the company name changed.
+
+The paragraph must be based on the actual database fields.
+
+==================================================
+11. DATA INTEGRITY
+==================================================
+
+Use the existing company detail API/database source.
+
+Do NOT create duplicate company data.
+
+Do NOT add fake/default company information.
+
+Do NOT modify existing database records.
+
+Do NOT change the existing API contract unless absolutely necessary.
+
+First inspect the existing company detail page and identify the actual field names available in the database/API.
+
+Map the existing fields into the universal template.
+
+==================================================
+12. IMPLEMENTATION REQUIREMENT
+==================================================
+
+Before coding:
+
+1. Inspect the existing company detail route/page.
+2. Identify the existing company data object.
+3. Identify all available registration, location, status and address fields.
+4. Identify whether country information already exists.
+5. Reuse existing data fetching.
+6. Create a small reusable dynamic company-introduction component/helper.
+7. Insert it immediately before the existing Overview section.
+8. Keep everything else unchanged.
+
+Do NOT make unrelated changes.
+
+==================================================
+13. FINAL ACCEPTANCE TEST
+==================================================
+
+Test at least:
+
+1. Indian company
+2. US company
+3. UK company
+4. Singapore company
+5. Australian company if data exists
+6. Company with missing optional fields
+
+Verify:
+
+- Paragraph is above Overview.
+- Company data is dynamically populated.
+- No undefined/null values appear.
+- Grammar remains correct when fields are missing.
+- Country-specific registration terminology is correct.
+- Existing page UI is unchanged.
+- Existing Overview remains unchanged.
+- Existing company cards/header/navigation remain unchanged.
+- Mobile layout remains unchanged.
+- Desktop layout remains unchanged.
+
+IMPORTANT FINAL RULE:
+
+THIS TASK IS ONLY TO ADD THE DYNAMIC COMPANY INTRODUCTION PARAGRAPH ABOVE THE EXISTING OVERVIEW.
+
+DO NOT MODIFY ANY OTHER PAGE CONTENT OR UI.

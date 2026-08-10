@@ -284,7 +284,17 @@ export class DatabaseStorage implements IStorage {
       ? and(ne(companies.id, excludeId), eq(companies.countryCode, countryCode.toUpperCase()), geoMatch)
       : and(ne(companies.id, excludeId), eq(companies.countryCode, countryCode.toUpperCase()));
 
-    return db.select().from(companies).where(whereClause).orderBy(desc(companies.id)).limit(limit);
+    const local = await db.select().from(companies).where(whereClause).orderBy(desc(companies.id)).limit(limit);
+    if (local.length >= limit) return local;
+
+    // Fill remaining slots with suggestions from anywhere (rest of country + other countries)
+    const excludeIds = [excludeId, ...local.map(c => c.id)];
+    const { notInArray } = await import("drizzle-orm");
+    const global = await db.select().from(companies)
+      .where(notInArray(companies.id, excludeIds))
+      .orderBy(desc(companies.viewCount), desc(companies.id))
+      .limit(limit - local.length);
+    return [...local, ...global];
   }
 
   async createCompany(company: InsertCompany) {

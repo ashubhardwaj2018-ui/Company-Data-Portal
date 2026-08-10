@@ -2,10 +2,10 @@
  * Phase 25 — Advanced Search Filters Drawer
  * Capital range, incorporation date range, sort order.
  */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SlidersHorizontal, X } from "lucide-react";
+import { X } from "lucide-react";
 
 interface Filters {
   minCapital?: string;
@@ -19,6 +19,8 @@ interface Props {
   filters: Filters;
   onChange: (f: Filters) => void;
   activeCount: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 const SORT_OPTIONS = [
@@ -30,25 +32,20 @@ const SORT_OPTIONS = [
   { value: "recent",      label: "Recently updated" },
 ];
 
-export function AdvancedFiltersDrawer({ filters, onChange, activeCount }: Props) {
-  const [open, setOpen] = useState(false);
+export function AdvancedFiltersDrawer({ filters, onChange, activeCount, open, onOpenChange }: Props) {
+  const setOpen = onOpenChange;
   const [local, setLocal] = useState<Filters>(filters);
+  const prevOpen = useRef(open);
+  useEffect(() => {
+    if (open && !prevOpen.current) setLocal(filters);
+    prevOpen.current = open;
+  }, [open, filters]);
 
   const apply = () => { onChange(local); setOpen(false); };
   const clear = () => { const empty: Filters = {}; setLocal(empty); onChange(empty); setOpen(false); };
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        className={`gap-2 ${activeCount > 0 ? "border-primary text-primary" : ""}`}
-        onClick={() => { setLocal(filters); setOpen(true); }}
-      >
-        <SlidersHorizontal className="h-4 w-4" />
-        Filters{activeCount > 0 ? ` (${activeCount})` : ""}
-      </Button>
-
       {open && (
         <div className="fixed inset-0 z-50 flex" onClick={() => setOpen(false)}>
           <div className="ml-auto w-80 h-full bg-white shadow-2xl border-l flex flex-col" onClick={e => e.stopPropagation()}>

@@ -98,7 +98,7 @@ export default function CountryPage() {
       <Navbar />
 
       {/* Header */}
-      <div className="bg-slate-900 text-white py-16">
+      <div className="ab-hero text-white py-16 relative overflow-hidden">
         <div className="container-width">
           <div className="[&_ol]:text-white/50 [&_a:hover]:text-white [&_span[aria-current]]:text-white">
             <Breadcrumbs items={[{ label: "Countries" }, { label: meta.name }]} />
@@ -139,7 +139,7 @@ export default function CountryPage() {
                 <Link
                   key={state}
                   href={`/countries/${countryCode.toLowerCase()}/${stateSlug(state!)}`}
-                  className="group flex flex-col items-start p-4 bg-white rounded-xl border border-border hover:border-primary/50 hover:shadow-md transition-all"
+                  className="group flex flex-col items-start p-4 bg-white rounded-2xl border border-orange-100 hover:border-orange-300 hover:shadow-xl hover:shadow-orange-100 transition-all"
                 >
                   <span className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors leading-tight">
                     {state}
@@ -182,7 +182,7 @@ export default function CountryPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
+              <div className="ab-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
                 {data?.data.map(company => (
                   <CompanyCard key={company.id} company={company} />
                 ))}

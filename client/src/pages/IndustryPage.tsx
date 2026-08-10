@@ -51,7 +51,7 @@ export default function IndustryPage() {
       </Helmet>
       <Navbar />
 
-      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white py-14">
+       <div className="ab-hero text-white py-14 relative overflow-hidden">
         <div className="container-width">
           <Link href="/"><button className="flex items-center gap-2 text-indigo-300 hover:text-white text-sm mb-6 transition-colors"><ArrowLeft className="h-4 w-4" /> Directory</button></Link>
           <div className="flex items-start gap-4">

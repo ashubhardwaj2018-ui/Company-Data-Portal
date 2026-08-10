@@ -13,10 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Building2, MapPin, Calendar, FileText,
-  Mail, IndianRupee, ArrowLeft, HelpCircle, Phone, ExternalLink, Eye, Scale,
+  Mail, IndianRupee, ArrowLeft, HelpCircle, Phone, ExternalLink, Eye, Scale, Printer,
   Hash, Globe, Clock, BookOpen, ChevronRight, Database, Landmark, TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
+import { buildCompanyIntro } from "@/lib/companyIntro";
+import { DynamicServicesParagraph } from "@/components/companies/DynamicServicesParagraph";
 import { ShareBar } from "@/components/layout/ShareBar";
 import { ServiceAside } from "@/components/layout/ServiceAside";
 import { ClaimModal } from "@/components/companies/ClaimModal";
@@ -137,33 +139,45 @@ function CompanyFaqSection({ company }: { company: Company }) {
 }
 
 // ── Related Companies ─────────────────────────────────────────────────────────
+const SUGGESTION_FLAGS: Record<string, string> = { IN: "🇮🇳", AU: "🇦🇺", GB: "🇬🇧", SG: "🇸🇬", US: "🇺🇸" };
+
 function RelatedCompanies({ company }: { company: Company }) {
   const { data: related = [] } = useRelatedCompanies(company.id);
   if (!related.length) return null;
   return (
-    <div className="ab-card overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+    <div className="ab-card overflow-hidden" data-testid="section-suggested-companies">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/80 to-purple-50/60">
         <Globe className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
-          {company.state ? `More Companies in ${company.state}` : "Related Companies"}
+          Suggested Companies
         </h2>
+        <span className="ml-auto text-[11px] text-slate-400 normal-case tracking-normal">from all countries</span>
       </div>
       <div className="divide-y divide-slate-100">
-        {related.map(c => (
-          <Link key={c.id} href={canonicalUrl(c)}
-            className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors group">
-            <div className="min-w-0">
-              <p className="font-medium text-sm text-slate-800 group-hover:text-primary transition-colors truncate">{c.name}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{c.city}{c.city && c.state ? ", " : ""}{c.state}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 ml-3">
-              {c.status && (
-                <StatusPill status={c.status} />
-              )}
-              <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover:text-primary" />
-            </div>
-          </Link>
-        ))}
+        {related.map(c => {
+          const cc = (c.countryCode || "IN").toUpperCase();
+          return (
+            <Link key={c.id} href={canonicalUrl(c)}
+              className="flex items-center justify-between px-5 py-3 hover:bg-indigo-50/40 transition-colors group"
+              data-testid={`link-suggested-company-${c.id}`}>
+              <div className="min-w-0 flex items-center gap-3">
+                <span className="text-lg shrink-0" title={c.country || cc}>{SUGGESTION_FLAGS[cc] || "🌐"}</span>
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-slate-800 group-hover:text-primary transition-colors truncate">{c.name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
+                    {[c.city, c.state, c.country || cc].filter(Boolean).join(", ")}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-3">
+                {c.status && (
+                  <StatusPill status={c.status} />
+                )}
+                <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover:text-primary" />
+              </div>
+            </Link>
+          );
+        })}
       </div>
       <div className="px-5 py-4 border-t border-slate-100 flex flex-wrap gap-2">
         {company.state && (
@@ -270,7 +284,7 @@ export default function CompanyDetails() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="ab-details-page min-h-screen">
       <Helmet>
         <title>{pageTitle}</title>
         <meta name="description" content={pageDesc} />
@@ -288,10 +302,10 @@ export default function CompanyDetails() {
       <Navbar />
 
       {/* ── Company header ─────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="ab-hero text-white border-b border-indigo-900">
         <div className="container-width py-6">
           {/* Breadcrumb */}
-          <div className="mb-5">
+            <div className="mb-5">
             <Breadcrumb company={company} countryName={countryName} />
           </div>
 
@@ -303,7 +317,7 @@ export default function CompanyDetails() {
                 <BadgesDisplay badges={companyBadges} size="md" className="mb-3" />
               )}
 
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight mb-3">
+              <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight mb-3">
                 {company.name}
               </h1>
 
@@ -322,7 +336,7 @@ export default function CompanyDetails() {
                 </span>
 
                 {company.city && (
-                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-white/15 text-white ring-1 ring-white/20">
                     <MapPin className="h-3 w-3" />{[company.city, company.state].filter(Boolean).join(", ")}
                   </span>
                 )}
@@ -336,7 +350,7 @@ export default function CompanyDetails() {
             </div>
 
             {/* Action column */}
-            <div className="flex flex-wrap lg:flex-col items-start gap-2 lg:items-end shrink-0">
+            <div className="flex flex-wrap lg:flex-col items-start gap-2 lg:items-end shrink-0 ab-company-actions">
               <div className="flex flex-wrap gap-2">
                 <WatchlistButton companyId={company.id} isLoggedIn={!!user} />
                 <ClaimModal companyId={company.id} companyName={company.name} isLoggedIn={!!user} />
@@ -366,9 +380,9 @@ export default function CompanyDetails() {
                   href={`${pageCanonical}/report`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-slate-400 hover:text-primary transition-colors underline underline-offset-2"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-100 hover:text-orange-300 transition-colors underline underline-offset-2"
                 >
-                  📄 Print Report
+                  <Printer className="h-3.5 w-3.5" /> Print Report
                 </a>
               </div>
             </div>
@@ -384,10 +398,23 @@ export default function CompanyDetails() {
 
           {/* ── Main content ── */}
           <div className="lg:col-span-2 space-y-5">
+            {/* Dynamic company introduction */}
+            {(() => {
+              const intro = buildCompanyIntro(company);
+              return intro ? (
+                <p className="text-sm leading-relaxed text-slate-600 px-1" data-testid="text-company-intro">
+                  {intro}
+                </p>
+              ) : null;
+            })()}
+
             {/* Country-specific data sections */}
             {company.countryCode === "IN"
               ? <IndiaOverviewSection company={company} />
               : <GlobalOverviewSection company={company} />}
+
+            {/* Dynamic services paragraph */}
+            <DynamicServicesParagraph company={company} />
 
             {/* Share & print bar */}
             <div className="ab-card p-4">
@@ -419,9 +446,9 @@ export default function CompanyDetails() {
           <div className="space-y-5">
             {/* Contact card */}
             {(company.email || company.phone || company.address || company.city) && (
-              <div className="ab-card overflow-hidden">
-                <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-                  <Phone className="h-4 w-4 text-primary" />
+              <div className="ab-card ab-contact-card overflow-hidden">
+                <div className="ab-color-head flex items-center gap-2.5 px-5 py-4 border-b">
+                  <Phone className="h-4 w-4" />
                   <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Contact Details</h2>
                 </div>
                 <div className="px-5 py-4 space-y-4">
@@ -463,9 +490,9 @@ export default function CompanyDetails() {
 
             {/* Quick data card for sidebar */}
             {(company.incorporationDate || company.source) && (
-              <div className="ab-card overflow-hidden">
-                <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-                  <BookOpen className="h-4 w-4 text-primary" />
+              <div className="ab-card ab-keyfacts-card overflow-hidden">
+                <div className="ab-color-head flex items-center gap-2.5 px-5 py-4 border-b">
+                  <BookOpen className="h-4 w-4" />
                   <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Key Facts</h2>
                 </div>
                 <div className="px-5 py-4 space-y-3">
@@ -564,7 +591,7 @@ function DataRow({ label, value, icon }: { label: string; value?: string | numbe
   if (value === undefined || value === null || value === "") return null;
   return (
     <tr className="border-b border-slate-100 last:border-0">
-      <td className="py-3 pr-4 pl-0 w-44 text-sm text-slate-500 font-medium whitespace-nowrap align-top">
+      <td className="ab-data-label py-3 pr-4 pl-0 w-44 text-sm text-slate-500 font-medium whitespace-nowrap align-top">
         <span className="flex items-center gap-1.5">{icon}{label}</span>
       </td>
       <td className="py-3 text-sm text-slate-900 font-medium align-top">{value}</td>
@@ -576,9 +603,9 @@ function SectionCard({
   title, icon, children,
 }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="ab-card overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-        <span className="text-primary">{icon}</span>
+    <div className={`ab-card ab-section-card ab-section-${title.toLowerCase().replace(/\s+/g, "-")} overflow-hidden`}>
+      <div className="ab-section-head flex items-center gap-2.5 px-5 py-4 border-b">
+        <span className="ab-section-icon flex h-8 w-8 items-center justify-center rounded-xl">{icon}</span>
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">{title}</h2>
       </div>
       <div className="px-5 py-2">
@@ -703,16 +730,16 @@ function Breadcrumb({ company, countryName }: { company: Company; countryName: s
   items.push({ label: company.name });
 
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center flex-wrap gap-0.5 text-sm text-slate-500">
+    <nav aria-label="Breadcrumb" className="flex items-center flex-wrap gap-0.5 text-sm text-indigo-100/70">
       {items.map((item, i) => (
         <span key={i} className="flex items-center gap-0.5">
-          {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0" />}
+            {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-indigo-200/50 shrink-0" />}
           {item.href ? (
-            <Link href={item.href} className="hover:text-primary transition-colors truncate max-w-[160px]">
+            <Link href={item.href} className="text-indigo-100/75 hover:text-orange-300 transition-colors truncate max-w-[160px]">
               {item.label}
             </Link>
           ) : (
-            <span className="text-slate-800 font-medium truncate max-w-[200px]">{item.label}</span>
+            <span aria-current="page" className="text-white font-semibold truncate max-w-[200px]">{item.label}</span>
           )}
         </span>
       ))}

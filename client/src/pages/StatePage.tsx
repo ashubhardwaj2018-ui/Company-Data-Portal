@@ -72,7 +72,7 @@ export default function StatePage() {
       <Navbar />
 
       {/* Header */}
-      <div className="bg-slate-900 text-white py-16">
+      <div className="ab-hero text-white py-16 relative overflow-hidden">
         <div className="container-width">
           <div className="[&_ol]:text-white/50 [&_a:hover]:text-white [&_span[aria-current]]:text-white">
             <Breadcrumbs items={[{ label: meta?.name || countryCode, href: `/countries/${countryCode.toLowerCase()}` }, { label: stateName }]} />
@@ -140,7 +140,7 @@ export default function StatePage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
+             <div className="ab-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
               {data?.data.map(company => (
                 <CompanyCard key={company.id} company={company} />
               ))}

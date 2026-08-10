@@ -1,0 +1,382 @@
+ADDRESSBAY — DYNAMIC SERVICES PARAGRAPH ABOVE “SHARE THIS PROFILE”
+
+TASK:
+
+Add a dynamic, automatically generated services paragraph immediately ABOVE the existing “Share this profile” tab/button on the company profile page.
+
+IMPORTANT:
+- Do NOT redesign the page.
+- Do NOT move or modify the existing “Share this profile” tab/button.
+- Do NOT change the company profile layout.
+- Do NOT change the existing Overview or company information sections.
+- Do NOT hard-code service names or URLs.
+- Use the existing service/link configuration or service data available in the application.
+- The paragraph must automatically update whenever the available services or their URLs are changed.
+- This must work for all countries and all company pages.
+
+==================================================
+1. PURPOSE
+==================================================
+
+The paragraph should naturally connect the company profile with relevant AddressBay services.
+
+It should read like useful contextual navigation, NOT like an advertisement block and NOT like keyword stuffing.
+
+Example:
+
+"Looking for professional business and compliance services? Explore our services for company registration, business compliance, trademark registration and related business needs."
+
+The individual service names should be clickable links.
+
+Example:
+
+"Looking for professional business and compliance services? Explore our
+Company Registration,
+Trademark Registration,
+GST Registration
+and other business services."
+
+Each service name must link to its configured service URL.
+
+==================================================
+2. DYNAMIC TEMPLATE
+==================================================
+
+Use this generic template:
+
+"Looking for services related to {{company_context}}? Explore {{service_links}} and other business services available through AddressBay."
+
+Where:
+
+{{company_context}}
+
+is generated from available company data when appropriate, such as:
+
+- company registration
+- business compliance
+- company formation
+- business services
+
+Do NOT make unsupported claims about what the company actually needs.
+
+{{service_links}}
+
+is dynamically generated from the currently available service links.
+
+==================================================
+3. SERVICE LINK GENERATION
+==================================================
+
+DO NOT hard-code:
+
+- service names
+- URLs
+- number of services
+- service order
+
+Instead, retrieve services from the existing service configuration/data source.
+
+For example, if the current service configuration contains:
+
+Company Registration → /services/company-registration
+Trademark Registration → /services/trademark-registration
+GST Registration → /services/gst-registration
+LLP Registration → /services/llp-registration
+
+the paragraph should automatically render:
+
+"Looking for business registration and compliance services? Explore Company Registration, Trademark Registration, GST Registration and LLP Registration services available through AddressBay."
+
+Where each service name is a clickable link.
+
+If the service configuration changes to:
+
+Company Registration
+Trademark Registration
+Business Tax Services
+
+the paragraph must automatically change accordingly without modifying the component/template.
+
+==================================================
+4. LINK RULES
+==================================================
+
+Every service name shown in the paragraph must use its actual configured URL.
+
+Do NOT construct URLs manually if a service URL already exists in the system.
+
+Do NOT create broken links.
+
+Before rendering a service link, verify:
+
+- service name exists
+- URL exists
+- URL is valid
+- service is active/published
+- service is intended for public users
+
+Inactive/unpublished services must not appear.
+
+==================================================
+5. NUMBER OF SERVICES
+==================================================
+
+Do not display an unnecessarily long list.
+
+Use the configured priority/order of services.
+
+Recommended:
+
+1–3 services:
+show all naturally.
+
+4+ services:
+show the highest-priority/relevant services and then use wording such as:
+
+"Explore Company Registration, Trademark Registration, GST Registration and other business services available through AddressBay."
+
+The exact number can be controlled by the existing service configuration.
+
+Do not hard-code a fixed list into the component.
+
+==================================================
+6. GENERIC COUNTRY SUPPORT
+==================================================
+
+This must work for:
+
+India
+United States
+United Kingdom
+Australia
+Singapore
+and future countries.
+
+Do NOT write:
+
+"Indian companies can..."
+
+unless the company/country data actually indicates India.
+
+Do NOT hard-code Indian services into the template.
+
+The same component must work with country-specific services.
+
+Example:
+
+India company:
+"Explore company registration, GST registration, trademark registration and other business services..."
+
+UK company:
+"Explore company formation, trademark registration and other business services..."
+
+US company:
+"Explore business registration, trademark registration and other business services..."
+
+These services must come from the service configuration/data, not from hard-coded country logic.
+
+==================================================
+7. COMPANY CONTEXT
+==================================================
+
+The paragraph may use company information where useful:
+
+{{company_name}}
+{{country}}
+{{entity_type}}
+{{city}}
+{{industry}}
+
+But avoid excessive repetition.
+
+For example, do NOT generate:
+
+"Infosys Limited is a company and Infosys Limited can use company services..."
+
+Instead use natural contextual language.
+
+==================================================
+8. MISSING SERVICES
+
+If there are no active service links available:
+
+DO NOT render an empty paragraph.
+
+DO NOT show:
+
+"Explore undefined..."
+
+"Explore null..."
+
+"Explore N/A..."
+
+Simply hide this new section.
+
+==================================================
+9. DUPLICATE LINK PROTECTION
+
+Do not display the same service twice.
+
+Normalize services by service ID or canonical URL.
+
+If duplicate service records exist, show only one.
+
+==================================================
+10. PLACEMENT
+
+The page should become:
+
+Company Profile
+↓
+Company information / existing content
+↓
+Existing sections
+↓
+[ DYNAMIC SERVICES PARAGRAPH ]
+↓
+Share this profile
+↓
+Everything else
+
+The existing “Share this profile” component must remain exactly where it currently is.
+
+Only insert the new paragraph immediately above it.
+
+==================================================
+11. DESIGN
+
+Keep this visually subtle.
+
+Do NOT create a large card.
+
+Do NOT create a new hero section.
+
+Use the existing AddressBay typography, spacing and responsive styles.
+
+The paragraph should look like a natural part of the company profile.
+
+Service names should have the existing AddressBay link treatment.
+
+Example:
+
+Looking for business and compliance services? Explore
+Company Registration,
+Trademark Registration,
+GST Registration
+and other business services available through AddressBay.
+
+==================================================
+12. SEO REQUIREMENTS
+
+The paragraph should provide useful internal navigation.
+
+Use descriptive anchor text.
+
+GOOD:
+Company Registration
+Trademark Registration
+GST Registration
+
+BAD:
+Click here
+Learn more
+Visit this
+Service
+
+Do NOT keyword stuff.
+
+Do NOT generate dozens of links.
+
+Do NOT repeat the same service links elsewhere unnecessarily.
+
+The content should be genuinely useful to visitors.
+
+==================================================
+13. ARCHITECTURE
+
+Create a reusable component/helper, for example:
+
+DynamicServicesParagraph
+
+or
+
+CompanyServicesLinks
+
+The component should receive the company context and available services from the existing data layer.
+
+Do not duplicate service data inside the component.
+
+Recommended conceptual structure:
+
+Company Page
+    ↓
+Company Data
+    ↓
+Active Service Configuration
+    ↓
+DynamicServicesParagraph
+    ↓
+ShareProfile
+
+The service configuration should remain the single source of truth.
+
+==================================================
+14. AUTOMATIC UPDATES
+
+This is critical.
+
+If an administrator:
+
+- adds a new service
+- removes a service
+- changes a service URL
+- changes a service name
+- disables a service
+- changes service priority
+- changes country availability
+
+the company profile paragraph must automatically reflect the new configuration.
+
+No manual editing of individual company pages should be required.
+
+Do NOT store the generated paragraph as static text in every company record.
+
+Generate it at render time from the current service data/configuration.
+
+==================================================
+15. FINAL TEST
+
+Test with:
+
+1. Company having 2 active services.
+2. Company having 5+ active services.
+3. Company with no active services.
+4. Service URL changed.
+5. Service disabled.
+6. New service added.
+7. Duplicate service exists.
+8. India company.
+9. US company.
+10. UK company.
+11. Singapore company.
+12. Australia company if available.
+
+Verify:
+
+- Paragraph appears immediately above Share this profile.
+- Existing Share this profile is unchanged.
+- Service names are clickable.
+- URLs come from the service configuration.
+- No hard-coded service URLs.
+- No undefined/null text.
+- No duplicate services.
+- Disabled services disappear automatically.
+- Newly enabled services appear automatically.
+- Existing page design remains unchanged.
+- Mobile layout remains unchanged.
+- Desktop layout remains unchanged.
+
+IMPORTANT:
+This task ONLY adds the dynamic services paragraph above the existing “Share this profile” component.
+
+DO NOT make unrelated UI, database, SEO, routing, or page-layout changes.

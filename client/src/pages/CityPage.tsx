@@ -62,7 +62,7 @@ export default function CityPage() {
       <Navbar />
 
       {/* Hero */}
-      <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white py-14">
+       <div className="ab-hero text-white py-14 relative overflow-hidden">
         <div className="container-width">
           <Link href={`/countries/${countryCode.toLowerCase()}/${stateSlug}`}>
             <button className="flex items-center gap-2 text-blue-300 hover:text-white text-sm mb-6 transition-colors">

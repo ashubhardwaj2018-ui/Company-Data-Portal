@@ -72,7 +72,7 @@ function PartnerStrip() {
 
 export function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-400">
+    <footer className="bg-[#171633] text-indigo-100/60">
       {/* Partner strip — driven by service links added in the admin panel */}
       <PartnerStrip />
 
@@ -82,11 +82,11 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-3 lg:col-span-2">
             <Link href="/" className="inline-flex items-center gap-2 mb-4 group">
-              <div className="w-7 h-7 bg-primary rounded flex items-center justify-center">
+               <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-pink-500 rounded-lg flex items-center justify-center">
                 <Building2 className="h-4 w-4 text-white" />
               </div>
               <span className="text-base font-bold text-white">
-                Address<span className="text-primary">Bay</span>
+                 Address<span className="text-orange-300">Bay</span>
               </span>
             </Link>
             <p className="text-sm text-slate-400 leading-relaxed max-w-xs">

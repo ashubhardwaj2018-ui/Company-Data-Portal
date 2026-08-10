@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,6 +25,19 @@ import ImportData from "@/pages/ImportData";
 import ArticleList from "@/pages/ArticleList";
 import ArticleDetail from "@/pages/ArticleDetail";
 import CompanyReportPage from "@/pages/CompanyReportPage";
+import PrivacyPolicy from "@/pages/legal/PrivacyPolicy";
+import TermsOfService from "@/pages/legal/TermsOfService";
+import Disclaimer from "@/pages/legal/Disclaimer";
+import ContactUs from "@/pages/legal/ContactUs";
+
+/** Scrolls the window to the top whenever the route changes (e.g. footer links). */
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+  }, [location]);
+  return null;
+}
 
 function Router() {
   return (
@@ -52,6 +66,10 @@ function Router() {
       <Route path="/articles" component={ArticleList} />
       <Route path="/articles/:slug" component={ArticleDetail} />
       <Route path="/faq" component={FAQ} />
+      <Route path="/privacy" component={PrivacyPolicy} />
+      <Route path="/terms" component={TermsOfService} />
+      <Route path="/disclaimer" component={Disclaimer} />
+      <Route path="/contact" component={ContactUs} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -61,6 +79,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <ScrollToTop />
         <Router />
         <CompareBar />
         <Toaster />
