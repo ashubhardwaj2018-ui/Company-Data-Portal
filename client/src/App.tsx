@@ -29,6 +29,8 @@ import PrivacyPolicy from "@/pages/legal/PrivacyPolicy";
 import TermsOfService from "@/pages/legal/TermsOfService";
 import Disclaimer from "@/pages/legal/Disclaimer";
 import ContactUs from "@/pages/legal/ContactUs";
+import LlpDirectory from "@/pages/LlpDirectory";
+import IfscFinder from "@/pages/IfscFinder";
 
 /** Scrolls the window to the top whenever the route changes (e.g. footer links). */
 function ScrollToTop() {
@@ -70,6 +72,8 @@ function Router() {
       <Route path="/terms" component={TermsOfService} />
       <Route path="/disclaimer" component={Disclaimer} />
       <Route path="/contact" component={ContactUs} />
+      <Route path="/llps" component={LlpDirectory} />
+      <Route path="/ifsc" component={IfscFinder} />
       <Route component={NotFound} />
     </Switch>
   );

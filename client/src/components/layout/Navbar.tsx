@@ -108,6 +108,12 @@ export function Navbar() {
             ))}
           </NavDropdown>
 
+          <Link href="/llps" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            LLPs
+          </Link>
+          <Link href="/ifsc" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            IFSC
+          </Link>
           <Link href="/articles" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
             Articles
           </Link>
@@ -230,6 +236,8 @@ export function Navbar() {
               </div>
             </div>
             <div className="border-t border-slate-100 pt-2 space-y-0.5">
+              <Link href="/llps" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">LLP Directory</Link>
+              <Link href="/ifsc" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">IFSC Finder</Link>
               <Link href="/articles" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">Articles</Link>
               <Link href="/blog" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">Blog</Link>
               <Link href="/faq" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">FAQ</Link>

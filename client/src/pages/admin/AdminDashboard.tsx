@@ -17,8 +17,9 @@ import {
   Link2, Plus, Trash2, ExternalLink, Globe, Loader2,
   Settings, Sparkles, FileText, Search, Eye, EyeOff,
   Info, AlertCircle, ClipboardList, XCircle, Clock,
-  Star, Mail, BarChart2, Pencil,
+  Star, Mail, BarChart2, Pencil, Briefcase, Landmark,
 } from "lucide-react";
+import { LlpTab, IfscTab } from "./DatasetTabs";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
@@ -1850,6 +1851,8 @@ const NAV_SECTIONS: { label: string; items: { value: string; label: string; icon
       { value: "import-jobs", label: "Import Jobs", icon: ClipboardList },
       { value: "bulk-edit", label: "Bulk Edit", icon: Pencil },
       { value: "badges", label: "Badges", icon: ShieldAlert },
+      { value: "llps", label: "Indian LLPs", icon: Briefcase },
+      { value: "ifsc", label: "Bank IFSC", icon: Landmark },
     ],
   },
   {
@@ -1899,6 +1902,8 @@ const TAB_TITLES: Record<string, { title: string; subtitle: string }> = {
   "blog": { title: "Blog Posts", subtitle: "Create and manage blog content." },
   "ai": { title: "AI Writing", subtitle: "Generate blog and article content with AI." },
   "services": { title: "Service Links", subtitle: "Add sidebar services via external URL or file upload." },
+  "llps": { title: "Indian LLPs", subtitle: "Manage the Limited Liability Partnership directory." },
+  "ifsc": { title: "Bank IFSC Codes", subtitle: "Manage the Indian bank branch IFSC directory." },
   "analytics": { title: "Analytics", subtitle: "Directory statistics at a glance." },
   "users": { title: "Users", subtitle: "Registered user accounts." },
   "newsletter": { title: "Newsletter", subtitle: "Subscriber list and export." },
@@ -1989,6 +1994,8 @@ export default function AdminDashboard() {
       case "badges": return <BadgesAdminTab />;
       case "users": return <UsersAdminTab />;
       case "services": return <ServicesTab />;
+      case "llps": return <LlpTab />;
+      case "ifsc": return <IfscTab />;
       case "articles": return <ArticlesTab />;
       case "blog": return <BlogTab />;
       case "ai": return <AIWritingTab />;

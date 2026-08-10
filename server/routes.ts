@@ -11,6 +11,7 @@ import * as os from "os";
 import * as path from "path";
 import {
   insertCompanySchema, insertServiceSchema, insertPostSchema, insertFaqSchema,
+  insertLlpSchema, insertIfscSchema,
   insertArticleSchema, insertAiTopicSchema, companies,
 } from "@shared/schema";
 import { generateAIContent } from "./aiWriter";
@@ -332,6 +333,81 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/admin/faqs", requireAdmin, async (req, res) => {
     try { res.status(201).json(await storage.createFaq(insertFaqSchema.parse(req.body))); }
     catch { res.status(400).json({ message: "Invalid FAQ data" }); }
+  });
+
+  // Strict pagination parsing: finite positive integers only, bounded limit.
+  const parsePagination = (q: Record<string, unknown>): { page: number; limit: number } | null => {
+    const toInt = (v: unknown, dflt: number) => {
+      if (v === undefined || v === "") return dflt;
+      const n = Number(v);
+      return Number.isSafeInteger(n) && n >= 1 ? n : null;
+    };
+    const page = toInt(q.page, 1);
+    const limit = toInt(q.limit, 20);
+    if (page === null || limit === null) return null;
+    return { page: Math.min(page, 1_000_000), limit: Math.min(limit, 100) };
+  };
+
+  // ── Indian LLPs ─────────────────────────────────────────────────────────────
+  app.get("/api/llps", async (req, res) => {
+    const pg = parsePagination(req.query as Record<string, unknown>);
+    if (!pg) return res.status(400).json({ message: "Invalid pagination parameters" });
+    const { page, limit } = pg;
+    const { search, state, status } = req.query as Record<string, string | undefined>;
+    const { data, total } = await storage.getLlps(page, limit, search, state, status);
+    res.json({ data, total, page, limit });
+  });
+  app.get("/api/llps/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id" });
+    const llp = await storage.getLlp(id);
+    if (!llp) return res.status(404).json({ message: "LLP not found" });
+    res.json(llp);
+  });
+  app.post("/api/admin/llps", requireAdmin, async (req, res) => {
+    try { res.status(201).json(await storage.createLlp(insertLlpSchema.parse(req.body))); }
+    catch { res.status(400).json({ message: "Invalid LLP data" }); }
+  });
+  app.put("/api/admin/llps/:id", requireAdmin, async (req, res) => {
+    try {
+      const row = await storage.updateLlp(Number(req.params.id), insertLlpSchema.partial().parse(req.body));
+      if (!row) return res.status(404).json({ message: "LLP not found" });
+      res.json(row);
+    } catch { res.status(400).json({ message: "Invalid LLP data" }); }
+  });
+  app.delete("/api/admin/llps/:id", requireAdmin, async (req, res) => {
+    await storage.deleteLlp(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // ── Bank IFSC codes ──────────────────────────────────────────────────────────
+  app.get("/api/ifsc", async (req, res) => {
+    const pg = parsePagination(req.query as Record<string, unknown>);
+    if (!pg) return res.status(400).json({ message: "Invalid pagination parameters" });
+    const { page, limit } = pg;
+    const { search, bank, state } = req.query as Record<string, string | undefined>;
+    const { data, total } = await storage.getIfscCodes(page, limit, search, bank, state);
+    res.json({ data, total, page, limit });
+  });
+  app.get("/api/ifsc/:code", async (req, res) => {
+    const row = await storage.getIfscByCode(String(req.params.code));
+    if (!row) return res.status(404).json({ message: "IFSC code not found" });
+    res.json(row);
+  });
+  app.post("/api/admin/ifsc", requireAdmin, async (req, res) => {
+    try { res.status(201).json(await storage.createIfsc(insertIfscSchema.parse(req.body))); }
+    catch { res.status(400).json({ message: "Invalid IFSC data" }); }
+  });
+  app.put("/api/admin/ifsc/:id", requireAdmin, async (req, res) => {
+    try {
+      const row = await storage.updateIfsc(Number(req.params.id), insertIfscSchema.partial().parse(req.body));
+      if (!row) return res.status(404).json({ message: "IFSC record not found" });
+      res.json(row);
+    } catch { res.status(400).json({ message: "Invalid IFSC data" }); }
+  });
+  app.delete("/api/admin/ifsc/:id", requireAdmin, async (req, res) => {
+    await storage.deleteIfsc(Number(req.params.id));
+    res.status(204).send();
   });
 
   // ── Services ───────────────────────────────────────────────────────────────

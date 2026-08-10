@@ -148,6 +148,43 @@ export const services = pgTable("services", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
+
+// ─── Indian LLPs (Limited Liability Partnerships) ────────────────────────────
+export const llps = pgTable("llps", {
+  id: serial("id").primaryKey(),
+  llpin: varchar("llpin", { length: 21 }).unique(),   // LLP Identification Number
+  name: text("name").notNull(),
+  registrationDate: date("registration_date"),
+  roc: text("roc"),
+  state: text("state"),
+  district: text("district"),
+  status: text("status"),
+  industry: text("industry"),
+  address: text("address"),
+  email: text("email"),
+  totalObligation: bigint("total_obligation", { mode: "number" }), // capital contribution
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertLlpSchema = createInsertSchema(llps).omit({ id: true, createdAt: true, updatedAt: true });
+export type Llp = typeof llps.$inferSelect;
+export type InsertLlp = z.infer<typeof insertLlpSchema>;
+
+// ─── Indian Bank IFSC Codes ──────────────────────────────────────────────────
+export const ifscCodes = pgTable("ifsc_codes", {
+  id: serial("id").primaryKey(),
+  bank: text("bank").notNull(),
+  ifsc: varchar("ifsc", { length: 11 }).notNull().unique(),
+  branch: text("branch"),
+  district: text("district"),
+  state: text("state"),
+  address: text("address"),
+  city: text("city"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertIfscSchema = createInsertSchema(ifscCodes).omit({ id: true, createdAt: true });
+export type IfscCode = typeof ifscCodes.$inferSelect;
+export type InsertIfsc = z.infer<typeof insertIfscSchema>;
 export type Service = typeof services.$inferSelect;
 export type InsertService = z.infer<typeof insertServiceSchema>;
 

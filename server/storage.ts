@@ -16,6 +16,8 @@ import {
   newsletterSubscribers, type NewsletterSubscriber,
   savedSearches, type SavedSearch,
   aiTopics, type AiTopic, type InsertAiTopic,
+  llps, type Llp, type InsertLlp,
+  ifscCodes, type IfscCode, type InsertIfsc,
 } from "@shared/schema";
 import { users, type User as AuthUser } from "@shared/models/auth";
 import { eq, ilike, desc, count, sql, asc, gte, lte, and, inArray } from "drizzle-orm";
@@ -143,6 +145,20 @@ export interface IStorage {
 
   // Phase 29 — User management
   listAllUsers(limit?: number): Promise<AuthUser[]>;
+
+  // ── Indian LLPs ─────────────────────────────────────────────────────────
+  getLlps(page: number, limit: number, search?: string, state?: string, status?: string): Promise<{ data: Llp[]; total: number }>;
+  getLlp(id: number): Promise<Llp | undefined>;
+  createLlp(llp: InsertLlp): Promise<Llp>;
+  updateLlp(id: number, llp: Partial<InsertLlp>): Promise<Llp | undefined>;
+  deleteLlp(id: number): Promise<void>;
+
+  // ── Bank IFSC codes ─────────────────────────────────────────────────────
+  getIfscCodes(page: number, limit: number, search?: string, bank?: string, state?: string): Promise<{ data: IfscCode[]; total: number }>;
+  getIfscByCode(ifsc: string): Promise<IfscCode | undefined>;
+  createIfsc(row: InsertIfsc): Promise<IfscCode>;
+  updateIfsc(id: number, row: Partial<InsertIfsc>): Promise<IfscCode | undefined>;
+  deleteIfsc(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -789,6 +805,74 @@ export class DatabaseStorage implements IStorage {
       .insert(admins)
       .values({ email, passwordHash })
       .onConflictDoUpdate({ target: admins.email, set: { passwordHash } });
+  }
+
+  // ── Indian LLPs ─────────────────────────────────────────────────────────
+  async getLlps(page: number, limit: number, search?: string, state?: string, status?: string) {
+    const offset = (page - 1) * limit;
+    const conds = [];
+    if (search) {
+      const q = `%${search.trim()}%`;
+      conds.push(sql`(${llps.name} ILIKE ${q} OR ${llps.llpin} ILIKE ${q})`);
+    }
+    if (state) conds.push(eq(llps.state, state));
+    if (status) conds.push(eq(llps.status, status));
+    const where = conds.length ? and(...conds) : undefined;
+    const [data, [{ value: total }]] = await Promise.all([
+      db.select().from(llps).where(where).orderBy(asc(llps.name)).limit(limit).offset(offset),
+      db.select({ value: count() }).from(llps).where(where),
+    ]);
+    return { data, total };
+  }
+  async getLlp(id: number) {
+    const [row] = await db.select().from(llps).where(eq(llps.id, id));
+    return row;
+  }
+  async createLlp(llp: InsertLlp) {
+    const [row] = await db.insert(llps).values(llp).returning();
+    return row;
+  }
+  async updateLlp(id: number, llp: Partial<InsertLlp>) {
+    const [row] = await db.update(llps).set({ ...llp, updatedAt: new Date() }).where(eq(llps.id, id)).returning();
+    return row;
+  }
+  async deleteLlp(id: number) {
+    await db.delete(llps).where(eq(llps.id, id));
+  }
+
+  // ── Bank IFSC codes ─────────────────────────────────────────────────────
+  async getIfscCodes(page: number, limit: number, search?: string, bank?: string, state?: string) {
+    const offset = (page - 1) * limit;
+    const conds = [];
+    if (search) {
+      const q = `%${search.trim()}%`;
+      conds.push(sql`(${ifscCodes.ifsc} ILIKE ${q} OR ${ifscCodes.bank} ILIKE ${q} OR ${ifscCodes.branch} ILIKE ${q} OR ${ifscCodes.city} ILIKE ${q})`);
+    }
+    if (bank) conds.push(eq(ifscCodes.bank, bank));
+    if (state) conds.push(eq(ifscCodes.state, state));
+    const where = conds.length ? and(...conds) : undefined;
+    const [data, [{ value: total }]] = await Promise.all([
+      db.select().from(ifscCodes).where(where).orderBy(asc(ifscCodes.bank), asc(ifscCodes.branch)).limit(limit).offset(offset),
+      db.select({ value: count() }).from(ifscCodes).where(where),
+    ]);
+    return { data, total };
+  }
+  async getIfscByCode(ifsc: string) {
+    const [row] = await db.select().from(ifscCodes).where(eq(ifscCodes.ifsc, ifsc.toUpperCase()));
+    return row;
+  }
+  async createIfsc(rowIn: InsertIfsc) {
+    const [row] = await db.insert(ifscCodes).values({ ...rowIn, ifsc: rowIn.ifsc.toUpperCase() }).returning();
+    return row;
+  }
+  async updateIfsc(id: number, rowIn: Partial<InsertIfsc>) {
+    const patch = { ...rowIn };
+    if (patch.ifsc) patch.ifsc = patch.ifsc.toUpperCase();
+    const [row] = await db.update(ifscCodes).set(patch).where(eq(ifscCodes.id, id)).returning();
+    return row;
+  }
+  async deleteIfsc(id: number) {
+    await db.delete(ifscCodes).where(eq(ifscCodes.id, id));
   }
 }
 
