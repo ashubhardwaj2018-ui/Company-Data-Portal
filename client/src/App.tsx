@@ -30,6 +30,7 @@ import TermsOfService from "@/pages/legal/TermsOfService";
 import Disclaimer from "@/pages/legal/Disclaimer";
 import ContactUs from "@/pages/legal/ContactUs";
 import LlpDirectory from "@/pages/LlpDirectory";
+import LlpDetails from "@/pages/LlpDetails";
 import IfscFinder from "@/pages/IfscFinder";
 
 /** Scrolls the window to the top whenever the route changes (e.g. footer links). */
@@ -73,6 +74,7 @@ function Router() {
       <Route path="/disclaimer" component={Disclaimer} />
       <Route path="/contact" component={ContactUs} />
       <Route path="/llps" component={LlpDirectory} />
+      <Route path="/llps/:id" component={LlpDetails} />
       <Route path="/ifsc" component={IfscFinder} />
       <Route component={NotFound} />
     </Switch>

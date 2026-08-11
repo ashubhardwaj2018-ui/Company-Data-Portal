@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Briefcase, Landmark, Loader2, Pencil, Trash2, X } from "lucide-react";
+import { Briefcase, Landmark, Loader2, Pencil, Trash2, Upload, X } from "lucide-react";
+import { useRef } from "react";
 
 async function apiJson(method: string, path: string, body?: unknown) {
   const res = await fetch(path, {
@@ -20,6 +21,83 @@ async function apiJson(method: string, path: string, body?: unknown) {
   });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any).message || "Request failed"); }
   return res.status === 204 ? null : res.json();
+}
+
+// ─── Bulk import card (shared by LLP + IFSC) ─────────────────────────────────
+function BulkImportCard({ endpoint, invalidateKey, label, columnsHint, testId }: {
+  endpoint: string;
+  invalidateKey: string;
+  label: string;
+  columnsHint: string;
+  testId: string;
+}) {
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<{ imported: number; skipped: number; totalRows: number; errors: string[] } | null>(null);
+
+  const handleFile = async (file: File) => {
+    setUploading(true);
+    setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(endpoint, { method: "POST", body: fd });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((body as any).message || "Import failed");
+      setResult(body);
+      queryClient.invalidateQueries({ queryKey: [invalidateKey] });
+      toast({ title: `Imported ${body.imported} ${label} record${body.imported === 1 ? "" : "s"}`, description: body.skipped ? `${body.skipped} row(s) skipped.` : undefined });
+    } catch (e: any) {
+      toast({ title: "Import failed", description: e.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <Card className="border-0 shadow-lg">
+      <CardHeader className="bg-gradient-to-r from-sky-50 to-blue-50 border-b">
+        <CardTitle className="flex items-center gap-2 text-sky-800">
+          <Upload className="h-5 w-5" /> Bulk Import ({label})
+        </CardTitle>
+        <CardDescription>
+          Upload a CSV or Excel file (.csv, .xlsx, .xls). Recognized columns: {columnsHint}.
+          Existing records with the same {label === "LLP" ? "LLPIN" : "IFSC code"} are updated instead of duplicated.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-6 space-y-3">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+          data-testid={`input-file-${testId}`}
+        />
+        <Button onClick={() => inputRef.current?.click()} disabled={uploading} data-testid={`button-import-${testId}`}>
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+          {uploading ? "Importing…" : "Choose CSV / Excel file"}
+        </Button>
+        {result && (
+          <div className="text-sm space-y-1" data-testid={`text-import-result-${testId}`}>
+            <p className="text-emerald-700 font-medium">
+              Imported {result.imported} of {result.totalRows} rows{result.skipped ? ` (${result.skipped} skipped)` : ""}.
+            </p>
+            {result.errors?.length > 0 && (
+              <details className="text-xs text-slate-500">
+                <summary className="cursor-pointer">Skipped row details ({result.errors.length}{result.errors.length >= 20 ? "+" : ""})</summary>
+                <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                  {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 // ─── LLP Manager ──────────────────────────────────────────────────────────────
@@ -86,6 +164,13 @@ export function LlpTab() {
 
   return (
     <div className="space-y-6">
+      <BulkImportCard
+        endpoint="/api/admin/llps/import"
+        invalidateKey="/api/llps"
+        label="LLP"
+        columnsHint="LLPIN, LLP Name, Registration Date, ROC, State, District, Status, Industry, Address, Email, Total Obligation"
+        testId="llp"
+      />
       <Card className="border-0 shadow-lg">
         <CardHeader className="bg-gradient-to-r from-violet-50 to-indigo-50 border-b">
           <CardTitle className="flex items-center gap-2 text-indigo-800">
@@ -221,6 +306,13 @@ export function IfscTab() {
 
   return (
     <div className="space-y-6">
+      <BulkImportCard
+        endpoint="/api/admin/ifsc/import"
+        invalidateKey="/api/ifsc"
+        label="IFSC"
+        columnsHint="BANK, IFSC, BRANCH, CITY, DISTRICT, STATE, ADDRESS"
+        testId="ifsc"
+      />
       <Card className="border-0 shadow-lg">
         <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b">
           <CardTitle className="flex items-center gap-2 text-emerald-800">

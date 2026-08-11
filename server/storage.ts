@@ -20,7 +20,7 @@ import {
   ifscCodes, type IfscCode, type InsertIfsc,
 } from "@shared/schema";
 import { users, type User as AuthUser } from "@shared/models/auth";
-import { eq, ilike, desc, count, sql, asc, gte, lte, and, inArray } from "drizzle-orm";
+import { eq, ilike, desc, count, sql, asc, gte, lte, and, inArray, isNull } from "drizzle-orm";
 import { cache, TTL } from "./cache";
 
 export interface IStorage {
@@ -152,6 +152,7 @@ export interface IStorage {
   createLlp(llp: InsertLlp): Promise<Llp>;
   updateLlp(id: number, llp: Partial<InsertLlp>): Promise<Llp | undefined>;
   deleteLlp(id: number): Promise<void>;
+  bulkUpsertLlps(rows: InsertLlp[]): Promise<{ imported: number }>;
 
   // ── Bank IFSC codes ─────────────────────────────────────────────────────
   getIfscCodes(page: number, limit: number, search?: string, bank?: string, state?: string): Promise<{ data: IfscCode[]; total: number }>;
@@ -159,6 +160,7 @@ export interface IStorage {
   createIfsc(row: InsertIfsc): Promise<IfscCode>;
   updateIfsc(id: number, row: Partial<InsertIfsc>): Promise<IfscCode | undefined>;
   deleteIfsc(id: number): Promise<void>;
+  bulkUpsertIfsc(rows: InsertIfsc[]): Promise<{ imported: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -839,6 +841,55 @@ export class DatabaseStorage implements IStorage {
   async deleteLlp(id: number) {
     await db.delete(llps).where(eq(llps.id, id));
   }
+  async bulkUpsertLlps(rows: InsertLlp[]) {
+    let imported = 0;
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i + 500);
+      const withLlpin = chunk.filter(r => r.llpin);
+      const withoutLlpin = chunk.filter(r => !r.llpin);
+      if (withLlpin.length) {
+        const res = await db.insert(llps).values(withLlpin)
+          .onConflictDoUpdate({
+            target: llps.llpin,
+            set: {
+              name: sql`excluded.name`,
+              registrationDate: sql`excluded.registration_date`,
+              roc: sql`excluded.roc`,
+              state: sql`excluded.state`,
+              district: sql`excluded.district`,
+              status: sql`excluded.status`,
+              industry: sql`excluded.industry`,
+              address: sql`excluded.address`,
+              email: sql`excluded.email`,
+              totalObligation: sql`excluded.total_obligation`,
+              updatedAt: new Date(),
+            },
+          })
+          .returning({ id: llps.id });
+        imported += res.length;
+      }
+      if (withoutLlpin.length) {
+        // No LLPIN to upsert on — match by name so re-imports update instead of duplicating.
+        const names = withoutLlpin.map(r => r.name);
+        const existing = await db.select({ id: llps.id, name: llps.name }).from(llps)
+          .where(and(isNull(llps.llpin), inArray(llps.name, names)));
+        const byName = new Map(existing.map(e => [e.name, e.id]));
+        const toInsert = withoutLlpin.filter(r => !byName.has(r.name));
+        for (const r of withoutLlpin) {
+          const id = byName.get(r.name);
+          if (id !== undefined) {
+            await db.update(llps).set({ ...r, updatedAt: new Date() }).where(eq(llps.id, id));
+            imported += 1;
+          }
+        }
+        if (toInsert.length) {
+          const res = await db.insert(llps).values(toInsert).returning({ id: llps.id });
+          imported += res.length;
+        }
+      }
+    }
+    return { imported };
+  }
 
   // ── Bank IFSC codes ─────────────────────────────────────────────────────
   async getIfscCodes(page: number, limit: number, search?: string, bank?: string, state?: string) {
@@ -873,6 +924,27 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteIfsc(id: number) {
     await db.delete(ifscCodes).where(eq(ifscCodes.id, id));
+  }
+  async bulkUpsertIfsc(rows: InsertIfsc[]) {
+    let imported = 0;
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i + 500);
+      const res = await db.insert(ifscCodes).values(chunk)
+        .onConflictDoUpdate({
+          target: ifscCodes.ifsc,
+          set: {
+            bank: sql`excluded.bank`,
+            branch: sql`excluded.branch`,
+            district: sql`excluded.district`,
+            state: sql`excluded.state`,
+            address: sql`excluded.address`,
+            city: sql`excluded.city`,
+          },
+        })
+        .returning({ id: ifscCodes.id });
+      imported += res.length;
+    }
+    return { imported };
   }
 }
 

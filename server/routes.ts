@@ -12,6 +12,9 @@ import * as path from "path";
 import {
   insertCompanySchema, insertServiceSchema, insertPostSchema, insertFaqSchema,
   insertLlpSchema, insertIfscSchema,
+} from "@shared/schema";
+import { parseLlpFile, parseIfscFile, MAX_IMPORT_FILE_BYTES } from "./datasetImport";
+import {
   insertArticleSchema, insertAiTopicSchema, companies,
 } from "@shared/schema";
 import { generateAIContent } from "./aiWriter";
@@ -364,6 +367,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!llp) return res.status(404).json({ message: "LLP not found" });
     res.json(llp);
   });
+  app.post("/api/admin/llps/import", requireAdmin, upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const filePath = (req.file as any).path as string;
+    const ext = (((req.file as any).originalname as string) || "").toLowerCase().split(".").pop() || "";
+    if (!["csv", "xlsx", "xls"].includes(ext)) {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ message: `Unsupported file type: .${ext}. Allowed: csv, xlsx, xls` });
+    }
+    if (((req.file as any).size as number) > MAX_IMPORT_FILE_BYTES) {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ message: "File too large — maximum import size is 25 MB. Split the file and retry." });
+    }
+    try {
+      const { rows, errors, totalRows } = parseLlpFile(filePath);
+      if (!rows.length) return res.status(400).json({ message: "No valid LLP rows found in file. Ensure it has a name/LLP Name column.", errors, totalRows });
+      const { imported } = await storage.bulkUpsertLlps(rows);
+      res.json({ imported, skipped: totalRows - rows.length, totalRows, errors });
+    } catch (e: any) {
+      console.error("[llp-import]", e);
+      res.status(500).json({ message: "Import failed: " + (e.message || "unknown error") });
+    } finally {
+      fs.unlink(filePath, () => {});
+    }
+  });
   app.post("/api/admin/llps", requireAdmin, async (req, res) => {
     try { res.status(201).json(await storage.createLlp(insertLlpSchema.parse(req.body))); }
     catch { res.status(400).json({ message: "Invalid LLP data" }); }
@@ -393,6 +420,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const row = await storage.getIfscByCode(String(req.params.code));
     if (!row) return res.status(404).json({ message: "IFSC code not found" });
     res.json(row);
+  });
+  app.post("/api/admin/ifsc/import", requireAdmin, upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const filePath = (req.file as any).path as string;
+    const ext = (((req.file as any).originalname as string) || "").toLowerCase().split(".").pop() || "";
+    if (!["csv", "xlsx", "xls"].includes(ext)) {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ message: `Unsupported file type: .${ext}. Allowed: csv, xlsx, xls` });
+    }
+    if (((req.file as any).size as number) > MAX_IMPORT_FILE_BYTES) {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ message: "File too large — maximum import size is 25 MB. Split the file and retry." });
+    }
+    try {
+      const { rows, errors, totalRows } = parseIfscFile(filePath);
+      if (!rows.length) return res.status(400).json({ message: "No valid IFSC rows found in file. Ensure it has BANK and IFSC columns.", errors, totalRows });
+      const { imported } = await storage.bulkUpsertIfsc(rows);
+      res.json({ imported, skipped: totalRows - rows.length, totalRows, errors });
+    } catch (e: any) {
+      console.error("[ifsc-import]", e);
+      res.status(500).json({ message: "Import failed: " + (e.message || "unknown error") });
+    } finally {
+      fs.unlink(filePath, () => {});
+    }
   });
   app.post("/api/admin/ifsc", requireAdmin, async (req, res) => {
     try { res.status(201).json(await storage.createIfsc(insertIfscSchema.parse(req.body))); }

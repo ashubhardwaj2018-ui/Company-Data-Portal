@@ -9,16 +9,10 @@ import { Footer } from "@/components/layout/Footer";
 import { Helmet } from "react-helmet-async";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Briefcase, MapPin, Calendar, Loader2, Search, FileText } from "lucide-react";
-import { format } from "date-fns";
+import { Briefcase, Loader2, Search } from "lucide-react";
+import { LlpCard } from "@/components/llps/LlpCard";
 
 const LIMIT = 20;
-
-function fmtDate(d: string | null) {
-  if (!d) return null;
-  const dt = new Date(d);
-  return isNaN(dt.getTime()) ? null : format(dt, "d MMM yyyy");
-}
 
 export default function LlpDirectory() {
   const [search, setSearch] = useState("");
@@ -80,25 +74,9 @@ export default function LlpDirectory() {
         ) : (
           <>
             <p className="text-sm text-slate-500 mb-4" data-testid="text-llp-count">{data.total} LLP{data.total === 1 ? "" : "s"} found</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {data.data.map(l => (
-                <div key={l.id} className="ab-card p-5 space-y-2.5" data-testid={`card-llp-${l.id}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="font-bold text-slate-900 text-sm">{l.name}</h2>
-                    {l.status && (
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                        /active/i.test(l.status) ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-                      }`}>{l.status}</span>
-                    )}
-                  </div>
-                  <div className="space-y-1 text-xs text-slate-500">
-                    {l.llpin && <p className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5 text-indigo-400" /> LLPIN: <span className="font-mono text-slate-700">{l.llpin}</span></p>}
-                    {(l.district || l.state) && <p className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-rose-400" /> {[l.district, l.state].filter(Boolean).join(", ")}</p>}
-                    {fmtDate(l.registrationDate) && <p className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-amber-500" /> Registered {fmtDate(l.registrationDate)}{l.roc ? ` · ${l.roc}` : ""}</p>}
-                    {l.industry && <p className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5 text-violet-400" /> {l.industry}</p>}
-                  </div>
-                  {l.address && <p className="text-xs text-slate-400 leading-relaxed">{l.address}</p>}
-                </div>
+                <LlpCard key={l.id} llp={l} />
               ))}
             </div>
             {totalPages > 1 && (
