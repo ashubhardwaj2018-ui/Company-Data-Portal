@@ -12,9 +12,64 @@ import { Button } from "@/components/ui/button";
 import { ShareBar } from "@/components/layout/ShareBar";
 import {
   Building2, MapPin, Calendar, FileText, Mail, IndianRupee,
-  ArrowLeft, Hash, Landmark, ChevronRight, Briefcase,
+  ArrowLeft, Hash, Landmark, ChevronRight, Briefcase, Globe, ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
+import type { Company } from "@shared/schema";
+import { ServiceAside } from "@/components/layout/ServiceAside";
+import { SharePrintBar } from "@/components/companies/SharePrintBar";
+import { DynamicServicesParagraph } from "@/components/companies/DynamicServicesParagraph";
+import { LlpInsightsWidget, LlpFaqSection, SuggestedLlps } from "@/components/llps/LlpExtras";
+
+// ── Suggested companies (from the main directory) ────────────────────────────
+const SUGGESTION_FLAGS: Record<string, string> = {
+  IN: "🇮🇳", AU: "🇦🇺", GB: "🇬🇧", SG: "🇸🇬", US: "🇺🇸",
+};
+function companyUrl(c: Company): string {
+  return c.slug && c.countryCode ? `/${c.countryCode.toLowerCase()}/company/${c.slug}` : `/company/${c.id}`;
+}
+function SuggestedCompanies() {
+  const { data } = useQuery<{ data: Company[] }>({
+    queryKey: ["/api/companies", { page: 1, limit: 5, forLlpPage: true }],
+    queryFn: async () => {
+      const res = await fetch("/api/companies?page=1&limit=5");
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+  });
+  const companies = data?.data || [];
+  if (!companies.length) return null;
+  return (
+    <div className="ab-card overflow-hidden" data-testid="section-suggested-companies">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/80 to-purple-50/60">
+        <Globe className="h-4 w-4 text-primary" />
+        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Suggested Companies</h2>
+        <span className="ml-auto text-[11px] text-slate-400 normal-case tracking-normal">from the directory</span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {companies.map(c => {
+          const cc = (c.countryCode || "IN").toUpperCase();
+          return (
+            <Link key={c.id} href={companyUrl(c)}
+              className="flex items-center justify-between px-5 py-3 hover:bg-indigo-50/40 transition-colors group"
+              data-testid={`link-suggested-company-${c.id}`}>
+              <div className="min-w-0 flex items-center gap-3">
+                <span className="text-lg shrink-0" title={c.country || cc}>{SUGGESTION_FLAGS[cc] || "🌐"}</span>
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-slate-800 group-hover:text-primary transition-colors truncate">{c.name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
+                    {[c.city, c.state, c.country || cc].filter(Boolean).join(", ")}
+                  </p>
+                </div>
+              </div>
+              <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover:text-primary shrink-0 ml-3" />
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function StatusPill({ status }: { status?: string | null }) {
   if (!status) return null;
@@ -202,8 +257,12 @@ export default function LlpDetails() {
       </div>
 
       {/* ── Body ── */}
-      <div className="container-width py-8">
-        <div className="max-w-3xl mx-auto space-y-5">
+      <div className="container-width py-8 flex gap-6">
+        <ServiceAside side="left" />
+
+        <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* ── Main content ── */}
+          <div className="lg:col-span-2 space-y-5">
           <p className="text-sm leading-relaxed text-slate-600 px-1" data-testid="text-llp-intro">
             {buildLlpIntro(llp)}
           </p>
@@ -241,6 +300,21 @@ export default function LlpDetails() {
             </SectionCard>
           )}
 
+          {/* Services paragraph (uses admin-configured service links) */}
+          <DynamicServicesParagraph company={{ country: "India" }} />
+
+          {/* Share & print bar */}
+          <div className="ab-card p-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Share this profile</p>
+            <SharePrintBar
+              companyName={llp.name}
+              url={typeof window !== "undefined" ? window.location.href : canonicalFull}
+            />
+          </div>
+
+          {/* FAQ */}
+          <LlpFaqSection llp={llp} />
+
           <div className="pt-2">
             <Link href="/llps">
               <Button variant="outline" size="sm" data-testid="button-back-llps">
@@ -248,7 +322,17 @@ export default function LlpDetails() {
               </Button>
             </Link>
           </div>
+          </div>
+
+          {/* ── Sidebar ── */}
+          <div className="space-y-5">
+            <LlpInsightsWidget llp={llp} />
+            <SuggestedLlps llp={llp} />
+            <SuggestedCompanies />
+          </div>
         </div>
+
+        <ServiceAside side="right" />
       </div>
 
       <Footer />

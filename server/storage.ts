@@ -153,6 +153,7 @@ export interface IStorage {
   updateLlp(id: number, llp: Partial<InsertLlp>): Promise<Llp | undefined>;
   deleteLlp(id: number): Promise<void>;
   bulkUpsertLlps(rows: InsertLlp[]): Promise<{ imported: number }>;
+  getRelatedLlps(excludeId: number, state?: string | null, limit?: number): Promise<Llp[]>;
 
   // ── Bank IFSC codes ─────────────────────────────────────────────────────
   getIfscCodes(page: number, limit: number, search?: string, bank?: string, state?: string): Promise<{ data: IfscCode[]; total: number }>;
@@ -840,6 +841,23 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteLlp(id: number) {
     await db.delete(llps).where(eq(llps.id, id));
+  }
+  async getRelatedLlps(excludeId: number, state?: string | null, limit = 6): Promise<Llp[]> {
+    const { ne } = await import("drizzle-orm");
+    // Prefer same-state LLPs, then fill from anywhere (alphabetical)
+    const results: Llp[] = [];
+    if (state) {
+      results.push(...await db.select().from(llps)
+        .where(and(ne(llps.id, excludeId), ilike(llps.state, state)))
+        .orderBy(asc(llps.name)).limit(limit));
+    }
+    if (results.length < limit) {
+      const excludeIds = [excludeId, ...results.map(r => r.id)];
+      results.push(...await db.select().from(llps)
+        .where(sql`${llps.id} NOT IN (${sql.join(excludeIds.map(id => sql`${id}`), sql`, `)})`)
+        .orderBy(asc(llps.name)).limit(limit - results.length));
+    }
+    return results;
   }
   async bulkUpsertLlps(rows: InsertLlp[]) {
     let imported = 0;

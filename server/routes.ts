@@ -360,6 +360,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { data, total } = await storage.getLlps(page, limit, search, state, status);
     res.json({ data, total, page, limit });
   });
+  app.get("/api/llps/:id/related", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id" });
+    try {
+      const llp = await storage.getLlp(id);
+      if (!llp) return res.status(404).json({ message: "LLP not found" });
+      res.json(await storage.getRelatedLlps(id, llp.state, 6));
+    } catch (e: any) {
+      console.error("[related llps]", e.message);
+      res.status(500).json({ message: "Failed to load related LLPs" });
+    }
+  });
   app.get("/api/llps/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id" });

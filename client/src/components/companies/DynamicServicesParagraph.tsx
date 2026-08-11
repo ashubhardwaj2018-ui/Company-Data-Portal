@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Service, Company } from "@shared/schema";
+import type { Service } from "@shared/schema";
 
 const MAX_LINKS = 3;
 
@@ -27,7 +27,7 @@ function isValidUrl(url: string | null | undefined): url is string {
  * dedupes by canonical URL, shows top-priority links, and hides itself
  * entirely when no valid services exist.
  */
-export function DynamicServicesParagraph({ company }: { company: Company }) {
+export function DynamicServicesParagraph({ company }: { company: { country?: string | null } }) {
   const { data: services = [] } = useQuery<Service[]>({ queryKey: ["/api/services"] });
 
   // Valid + deduped by canonical URL, in configured order
