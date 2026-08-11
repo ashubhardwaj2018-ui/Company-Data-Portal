@@ -428,6 +428,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { data, total } = await storage.getIfscCodes(page, limit, search, bank, state);
     res.json({ data, total, page, limit });
   });
+  app.get("/api/ifsc/:code/related", async (req, res) => {
+    try {
+      const row = await storage.getIfscByCode(req.params.code);
+      if (!row) return res.status(404).json({ message: "IFSC code not found" });
+      res.json(await storage.getRelatedIfsc(row.ifsc, row.bank, row.district, 6));
+    } catch (e: any) {
+      console.error("[related ifsc]", e.message);
+      res.status(500).json({ message: "Failed to load related branches" });
+    }
+  });
   app.get("/api/ifsc/:code", async (req, res) => {
     const row = await storage.getIfscByCode(String(req.params.code));
     if (!row) return res.status(404).json({ message: "IFSC code not found" });

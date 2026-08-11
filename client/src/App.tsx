@@ -32,6 +32,7 @@ import ContactUs from "@/pages/legal/ContactUs";
 import LlpDirectory from "@/pages/LlpDirectory";
 import LlpDetails from "@/pages/LlpDetails";
 import IfscFinder from "@/pages/IfscFinder";
+import IfscDetails from "@/pages/IfscDetails";
 
 /** Scrolls the window to the top whenever the route changes (e.g. footer links). */
 function ScrollToTop() {
@@ -76,6 +77,7 @@ function Router() {
       <Route path="/llps" component={LlpDirectory} />
       <Route path="/llps/:id" component={LlpDetails} />
       <Route path="/ifsc" component={IfscFinder} />
+      <Route path="/ifsc/:code" component={IfscDetails} />
       <Route component={NotFound} />
     </Switch>
   );

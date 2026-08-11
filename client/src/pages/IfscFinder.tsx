@@ -2,6 +2,7 @@
  * Public Indian Bank IFSC code finder — search by IFSC, bank, branch, or city.
  */
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { IfscCode } from "@shared/schema";
 import { Navbar } from "@/components/layout/Navbar";
@@ -93,14 +94,16 @@ export default function IfscFinder() {
             <p className="text-sm text-slate-500 mb-4" data-testid="text-ifsc-count">{data.total} branch{data.total === 1 ? "" : "es"} found</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {data.data.map(r => (
-                <div key={r.id} className="ab-card p-5 space-y-2.5" data-testid={`card-ifsc-${r.id}`}>
+                <div key={r.id} className="ab-card p-5 space-y-2.5 hover:shadow-md transition-shadow" data-testid={`card-ifsc-${r.id}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h2 className="font-bold text-slate-900 text-sm">{r.bank}</h2>
+                      <Link href={`/ifsc/${r.ifsc}`} className="hover:text-primary transition-colors">
+                        <h2 className="font-bold text-slate-900 text-sm hover:text-primary transition-colors">{r.bank}</h2>
+                      </Link>
                       {r.branch && <p className="text-xs text-slate-500">{r.branch} branch</p>}
                     </div>
                     <span className="shrink-0 text-right">
-                      <span className="block font-mono text-sm font-bold text-primary" data-testid={`text-ifsc-code-${r.id}`}>{r.ifsc}</span>
+                      <Link href={`/ifsc/${r.ifsc}`} className="block font-mono text-sm font-bold text-primary hover:underline" data-testid={`text-ifsc-code-${r.id}`}>{r.ifsc}</Link>
                       <CopyIfsc code={r.ifsc} />
                     </span>
                   </div>
@@ -113,6 +116,9 @@ export default function IfscFinder() {
                     )}
                     {r.address && <p className="text-slate-400 leading-relaxed">{r.address}</p>}
                   </div>
+                  <Link href={`/ifsc/${r.ifsc}`} className="inline-block text-xs font-semibold text-primary hover:underline" data-testid={`link-ifsc-details-${r.id}`}>
+                    View branch details →
+                  </Link>
                 </div>
               ))}
             </div>

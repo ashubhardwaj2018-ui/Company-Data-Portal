@@ -158,6 +158,7 @@ export interface IStorage {
   // ── Bank IFSC codes ─────────────────────────────────────────────────────
   getIfscCodes(page: number, limit: number, search?: string, bank?: string, state?: string): Promise<{ data: IfscCode[]; total: number }>;
   getIfscByCode(ifsc: string): Promise<IfscCode | undefined>;
+  getRelatedIfsc(excludeIfsc: string, bank: string, district?: string | null, limit?: number): Promise<IfscCode[]>;
   createIfsc(row: InsertIfsc): Promise<IfscCode>;
   updateIfsc(id: number, row: Partial<InsertIfsc>): Promise<IfscCode | undefined>;
   deleteIfsc(id: number): Promise<void>;
@@ -929,6 +930,33 @@ export class DatabaseStorage implements IStorage {
   async getIfscByCode(ifsc: string) {
     const [row] = await db.select().from(ifscCodes).where(eq(ifscCodes.ifsc, ifsc.toUpperCase()));
     return row;
+  }
+  async getRelatedIfsc(excludeIfsc: string, bank: string, district?: string | null, limit = 6): Promise<IfscCode[]> {
+    const { ne } = await import("drizzle-orm");
+    const exclude = excludeIfsc.toUpperCase();
+    // Prefer same bank + same district, then same bank, then fill from anywhere
+    const results: IfscCode[] = [];
+    if (district) {
+      results.push(...await db.select().from(ifscCodes)
+        .where(and(ne(ifscCodes.ifsc, exclude), ilike(ifscCodes.bank, bank), ilike(ifscCodes.district, district)))
+        .orderBy(asc(ifscCodes.branch)).limit(limit));
+    }
+    if (results.length < limit) {
+      const seen = [exclude, ...results.map(r => r.ifsc)];
+      results.push(...await db.select().from(ifscCodes)
+        .where(and(
+          ilike(ifscCodes.bank, bank),
+          sql`${ifscCodes.ifsc} NOT IN (${sql.join(seen.map(c => sql`${c}`), sql`, `)})`,
+        ))
+        .orderBy(asc(ifscCodes.branch)).limit(limit - results.length));
+    }
+    if (results.length < limit) {
+      const seen = [exclude, ...results.map(r => r.ifsc)];
+      results.push(...await db.select().from(ifscCodes)
+        .where(sql`${ifscCodes.ifsc} NOT IN (${sql.join(seen.map(c => sql`${c}`), sql`, `)})`)
+        .orderBy(asc(ifscCodes.bank), asc(ifscCodes.branch)).limit(limit - results.length));
+    }
+    return results;
   }
   async createIfsc(rowIn: InsertIfsc) {
     const [row] = await db.insert(ifscCodes).values({ ...rowIn, ifsc: rowIn.ifsc.toUpperCase() }).returning();
