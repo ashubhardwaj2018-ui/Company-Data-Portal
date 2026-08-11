@@ -1,5 +1,6 @@
 import { useRoute, Link } from "wouter";
 import type { Company } from "@shared/schema";
+import { getCompanySeoStatus } from "@shared/seo";
 import { Helmet } from "react-helmet-async";
 import { useCompany, useCompanyBySlug, useRelatedCompanies } from "@/hooks/use-companies";
 import { useAuth } from "@/hooks/use-auth";
@@ -237,6 +238,7 @@ export default function CompanyDetails() {
   const countryFlag = COUNTRY_FLAGS[company.countryCode || ""] || "🌐";
   const siteOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const canonicalFull = `${siteOrigin}${pageCanonical}`;
+  const seoStatus = getCompanySeoStatus(company as any);
 
   const pageTitle = `${company.name}${regId ? ` — ${regLabel}: ${regId}` : ""} | ${countryName} Company Details`;
   const pageDesc = [
@@ -288,6 +290,7 @@ export default function CompanyDetails() {
       <Helmet>
         <title>{pageTitle}</title>
         <meta name="description" content={pageDesc} />
+        <meta name="robots" content={seoStatus.robots} />
         <link rel="canonical" href={canonicalFull} />
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDesc} />

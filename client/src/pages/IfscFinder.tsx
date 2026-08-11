@@ -55,6 +55,8 @@ export default function IfscFinder() {
       <Helmet>
         <title>Bank IFSC Code Finder — AddressBay</title>
         <meta name="description" content="Find Indian bank branch IFSC codes — search by IFSC, bank name, branch, or city and get the full branch address." />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={typeof window !== "undefined" ? window.location.origin + "/ifsc" : "/ifsc"} />
       </Helmet>
       <Navbar />
 

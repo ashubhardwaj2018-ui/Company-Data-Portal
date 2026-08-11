@@ -1005,11 +1005,132 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Sitemap ────────────────────────────────────────────────────────────────
+  const SITEMAP_CHUNK = 49950; // URLs per sitemap file (protocol limit is 50,000)
+  // XML-escape a string for safe inclusion in <loc>/text nodes
+  const xmlEsc = (s: string) => s
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  // Encode a single database-derived URL path segment
+  const urlSeg = (s: string) => encodeURIComponent(s);
+  const SITEMAP_COUNTRY_LABELS: Record<string, string> = {
+    in: "Indian Companies", au: "Australian Companies", gb: "UK Companies",
+    sg: "Singapore Companies", us: "US Businesses",
+  };
+
+  async function buildSitemapCatalog(baseUrl: string) {
+    const stats = await storage.getSitemapStats();
+    const chunksOf = (n: number) => Math.max(1, Math.ceil(n / SITEMAP_CHUNK));
+    const categories: { key: string; label: string; count: number; files: string[] }[] = [];
+
+    categories.push({ key: "pages", label: "Static Pages, Blog & Articles", count: 0, files: [`${baseUrl}/sitemaps/pages.xml`] });
+    for (const c of stats.companies) {
+      const cc = c.countryCode;
+      const files = Array.from({ length: chunksOf(c.count) }, (_, i) => `${baseUrl}/sitemaps/companies-${cc}-${i + 1}.xml`);
+      categories.push({ key: `companies-${cc}`, label: SITEMAP_COUNTRY_LABELS[cc] || `${cc.toUpperCase()} Companies`, count: c.count, files });
+    }
+    if (stats.llps > 0) categories.push({
+      key: "llps", label: "Indian LLPs", count: stats.llps,
+      files: Array.from({ length: chunksOf(stats.llps) }, (_, i) => `${baseUrl}/sitemaps/llps-${i + 1}.xml`),
+    });
+    if (stats.ifsc > 0) categories.push({
+      key: "ifsc", label: "Bank IFSC Codes", count: stats.ifsc,
+      files: Array.from({ length: chunksOf(stats.ifsc) }, (_, i) => `${baseUrl}/sitemaps/ifsc-${i + 1}.xml`),
+    });
+    return categories;
+  }
+
+  // Master sitemap index — always up to date with the database
   app.get("/sitemap.xml", async (req, res) => {
     try {
       const baseUrl = `https://${req.headers.host}`;
       const now = new Date().toISOString().split("T")[0];
+      const categories = await buildSitemapCatalog(baseUrl);
+      const entries = categories.flatMap(c => c.files).map(loc =>
+        `<sitemap><loc>${loc}</loc><lastmod>${now}</lastmod></sitemap>`);
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join("\n")}\n</sitemapindex>`;
+      res.header("Content-Type", "application/xml").send(xml);
+    } catch (e) {
+      console.error("[sitemap index]", e);
+      res.status(500).send("Error generating sitemap index");
+    }
+  });
 
+  // Admin SEO diagnostic report — cached to avoid full-table scans on every load
+  let seoReportCache: { data: any; at: number } | null = null;
+  const SEO_REPORT_TTL_MS = 10 * 60 * 1000;
+  app.get("/api/admin/seo-report", requireAdmin, async (req, res) => {
+    try {
+      const force = req.query.refresh === "1";
+      if (!force && seoReportCache && Date.now() - seoReportCache.at < SEO_REPORT_TTL_MS) {
+        return res.json({ ...seoReportCache.data, cached: true });
+      }
+      const data = await storage.getSeoReport();
+      seoReportCache = { data, at: Date.now() };
+      res.json({ ...data, cached: false });
+    } catch (e) {
+      console.error("[seo-report]", e);
+      res.status(500).json({ message: "Failed to build SEO report" });
+    }
+  });
+
+  // JSON API describing all sitemap files (used by the admin Sitemap tab)
+  app.get("/api/sitemap", async (req, res) => {
+    try {
+      const baseUrl = `https://${req.headers.host}`;
+      res.json({
+        sitemapIndex: `${baseUrl}/sitemap.xml`,
+        urlsPerFile: SITEMAP_CHUNK,
+        categories: await buildSitemapCatalog(baseUrl),
+      });
+    } catch (e) {
+      console.error("[sitemap api]", e);
+      res.status(500).json({ message: "Failed to build sitemap catalog" });
+    }
+  });
+
+  // Category sitemap files: pages.xml, companies-<cc>-<n>.xml, llps-<n>.xml, ifsc-<n>.xml
+  app.get("/sitemaps/:file", async (req, res) => {
+    try {
+      const baseUrl = `https://${req.headers.host}`;
+      const now = new Date().toISOString().split("T")[0];
+      const file = req.params.file;
+      const wrap = (urls: string[]) =>
+        res.header("Content-Type", "application/xml").send(
+          `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`);
+
+      let m: RegExpMatchArray | null;
+      if ((m = file.match(/^companies-([a-z]{2})-(\d+)\.xml$/))) {
+        const [, cc, pageStr] = m;
+        const page = Number(pageStr);
+        if (page < 1 || page > 10000) return res.status(404).send("Not found");
+        const rows = await storage.getCompanySitemapRows(cc, (page - 1) * SITEMAP_CHUNK, SITEMAP_CHUNK);
+        return wrap(rows.map(c => {
+          const loc = c.slug && c.countryCode
+            ? `${baseUrl}/${urlSeg(c.countryCode.toLowerCase())}/company/${urlSeg(c.slug)}`
+            : `${baseUrl}/company/${c.id}`;
+          const lastmod = c.updatedAt ? new Date(c.updatedAt).toISOString().split("T")[0] : now;
+          return `<url><loc>${xmlEsc(loc)}</loc><lastmod>${lastmod}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`;
+        }));
+      }
+      if ((m = file.match(/^llps-(\d+)\.xml$/))) {
+        const page = Number(m[1]);
+        if (page < 1 || page > 10000) return res.status(404).send("Not found");
+        const rows = await storage.getLlpSitemapRows((page - 1) * SITEMAP_CHUNK, SITEMAP_CHUNK);
+        return wrap(rows.map(r => {
+          const lastmod = r.updatedAt ? new Date(r.updatedAt).toISOString().split("T")[0] : now;
+          return `<url><loc>${baseUrl}/llps/${r.id}</loc><lastmod>${lastmod}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>`;
+        }));
+      }
+      if ((m = file.match(/^ifsc-(\d+)\.xml$/))) {
+        const page = Number(m[1]);
+        if (page < 1 || page > 10000) return res.status(404).send("Not found");
+        const rows = await storage.getIfscSitemapRows((page - 1) * SITEMAP_CHUNK, SITEMAP_CHUNK);
+        return wrap(rows.map(r =>
+          `<url><loc>${xmlEsc(`${baseUrl}/ifsc/${urlSeg(r.ifsc)}`)}</loc><lastmod>${now}</lastmod><changefreq>yearly</changefreq><priority>0.5</priority></url>`));
+      }
+      if (file !== "pages.xml") return res.status(404).send("Not found");
+
+      // pages.xml — static pages, country/state/city landing pages, blog & articles
       const SUPPORTED_COUNTRIES = ["in", "au", "gb", "sg"];
 
       const [allPosts, allArticles, { data: topCompanies }, globalStats] = await Promise.all([
@@ -1058,25 +1179,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const urlEntries = [
         ...staticPages.map(p => `<url><loc>${baseUrl}${p.loc}</loc><lastmod>${now}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`),
+        `<url><loc>${baseUrl}/llps</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>`,
+        `<url><loc>${baseUrl}/ifsc</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>`,
         ...countryPages,
         ...statePages,
         ...cityPages,
-        ...topCompanies.map((c: any) => {
-          const loc = c.slug && c.countryCode
-            ? `${baseUrl}/${c.countryCode.toLowerCase()}/company/${c.slug}`
-            : `${baseUrl}/company/${c.id}`;
-          const lastmod = c.updatedAt
-            ? new Date(c.updatedAt).toISOString().split("T")[0]
-            : now;
-          return `<url><loc>${loc}</loc><lastmod>${lastmod}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`;
-        }),
-        ...allPosts.filter((p: any) => p.published).map((p: any) => `<url><loc>${baseUrl}/blog/${p.slug}</loc><lastmod>${(p.updatedAt || p.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
-        ...allArticles.filter((a: any) => a.published).map((a: any) => `<url><loc>${baseUrl}/articles/${a.slug}</loc><lastmod>${(a.updatedAt || a.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+        ...allPosts.filter((p: any) => p.published).map((p: any) => `<url><loc>${xmlEsc(`${baseUrl}/blog/${urlSeg(p.slug)}`)}</loc><lastmod>${(p.updatedAt || p.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+        ...allArticles.filter((a: any) => a.published).map((a: any) => `<url><loc>${xmlEsc(`${baseUrl}/articles/${urlSeg(a.slug)}`)}</loc><lastmod>${(a.updatedAt || a.createdAt || now).toString().split("T")[0]}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
       ];
 
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlEntries.join("\n")}\n</urlset>`;
-      res.header("Content-Type", "application/xml").send(xml);
+      return wrap(urlEntries);
     } catch (e) {
+      console.error("[sitemap file]", e);
       res.status(500).send("Error generating sitemap");
     }
   });

@@ -13,11 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const COUNTRIES = [
-  { name: "India", code: "in", flag: "🇮🇳" },
-  { name: "Australia", code: "au", flag: "🇦🇺" },
-  { name: "United Kingdom", code: "gb", flag: "🇬🇧" },
-  { name: "Singapore", code: "sg", flag: "🇸🇬" },
-  { name: "USA", code: "us", flag: "🇺🇸" },
+  { name: "India Company", code: "in", flag: "🇮🇳" },
+  { name: "Australia Company", code: "au", flag: "🇦🇺" },
+  { name: "United Kingdom Company", code: "gb", flag: "🇬🇧" },
+  { name: "Singapore Company", code: "sg", flag: "🇸🇬" },
+  { name: "USA Business", code: "us", flag: "🇺🇸" },
 ];
 
 const INDUSTRIES = [
@@ -83,7 +83,7 @@ export function Navbar() {
             Directory
           </Link>
 
-          <NavDropdown label="Countries">
+          <NavDropdown label="Companies">
             {COUNTRIES.map(c => (
               <Link
                 key={c.code}
@@ -216,7 +216,7 @@ export function Navbar() {
               <Search className="h-4 w-4" /> Directory
             </Link>
             <div className="px-3 pt-2 pb-1">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Countries</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Companies</p>
               <div className="space-y-0.5">
                 {COUNTRIES.map(c => (
                   <Link key={c.code} href={`/countries/${c.code}`} className="flex items-center gap-2 px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">

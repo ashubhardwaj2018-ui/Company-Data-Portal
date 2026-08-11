@@ -159,6 +159,16 @@ export interface IStorage {
   getIfscCodes(page: number, limit: number, search?: string, bank?: string, state?: string): Promise<{ data: IfscCode[]; total: number }>;
   getIfscByCode(ifsc: string): Promise<IfscCode | undefined>;
   getRelatedIfsc(excludeIfsc: string, bank: string, district?: string | null, limit?: number): Promise<IfscCode[]>;
+  getSitemapStats(): Promise<{ companies: { countryCode: string; count: number }[]; llps: number; ifsc: number }>;
+  getCompanySitemapRows(countryCode: string, offset: number, limit: number): Promise<{ id: number; slug: string | null; countryCode: string | null; updatedAt: Date | null }[]>;
+  getLlpSitemapRows(offset: number, limit: number): Promise<{ id: number; updatedAt: Date | null }[]>;
+  getIfscSitemapRows(offset: number, limit: number): Promise<{ ifsc: string }[]>;
+  getSeoReport(): Promise<{
+    companies: { total: number; indexable: number; noindex: number };
+    llps: { total: number; indexable: number; noindex: number };
+    ifsc: { total: number; indexable: number; noindex: number };
+    generatedAt: string;
+  }>;
   createIfsc(row: InsertIfsc): Promise<IfscCode>;
   updateIfsc(id: number, row: Partial<InsertIfsc>): Promise<IfscCode | undefined>;
   deleteIfsc(id: number): Promise<void>;
@@ -957,6 +967,95 @@ export class DatabaseStorage implements IStorage {
         .orderBy(asc(ifscCodes.bank), asc(ifscCodes.branch)).limit(limit - results.length));
     }
     return results;
+  }
+  // ── Sitemap helpers ─────────────────────────────────────────────────────────
+  // SQL mirrors of the quality rules in shared/seo.ts (getCompanySeoStatus etc.)
+  // so sitemap generation stays memory-efficient for millions of rows.
+  // Keep in sync with shared/seo.ts when rules change.
+  private sitemapEligibleCompany = sql`(
+    ${companies.name} IS NOT NULL AND btrim(${companies.name}) <> ''
+    AND (
+      (${companies.cin} IS NOT NULL AND btrim(${companies.cin}) <> '')
+      OR (${companies.registrationNumber} IS NOT NULL AND btrim(${companies.registrationNumber}) <> '')
+      OR (${companies.slug} IS NOT NULL AND btrim(${companies.slug}) <> '')
+    )
+    AND (
+      (${companies.status} IS NOT NULL AND btrim(${companies.status}) <> '')
+      OR (${companies.state} IS NOT NULL AND btrim(${companies.state}) <> '')
+      OR (${companies.city} IS NOT NULL AND btrim(${companies.city}) <> '')
+      OR (${companies.address} IS NOT NULL AND btrim(${companies.address}) <> '')
+      OR ${companies.incorporationDate} IS NOT NULL
+    )
+  )`;
+  private sitemapEligibleLlp = sql`(
+    ${llps.name} IS NOT NULL AND btrim(${llps.name}) <> ''
+    AND (
+      (${llps.llpin} IS NOT NULL AND btrim(${llps.llpin}) <> '')
+      OR (${llps.state} IS NOT NULL AND btrim(${llps.state}) <> '')
+      OR (${llps.district} IS NOT NULL AND btrim(${llps.district}) <> '')
+      OR (${llps.status} IS NOT NULL AND btrim(${llps.status}) <> '')
+      OR (${llps.industry} IS NOT NULL AND btrim(${llps.industry}) <> '')
+      OR ${llps.registrationDate} IS NOT NULL
+    )
+  )`;
+  private sitemapEligibleIfsc = sql`(
+    ${ifscCodes.ifsc} ~ '^[A-Z]{4}0[A-Z0-9]{6}$'
+    AND ${ifscCodes.bank} IS NOT NULL AND btrim(${ifscCodes.bank}) <> ''
+  )`;
+
+  async getSitemapStats() {
+    const [byCountry, [{ value: llpCount }], [{ value: ifscCount }]] = await Promise.all([
+      db.select({ countryCode: companies.countryCode, count: count() }).from(companies)
+        .where(this.sitemapEligibleCompany).groupBy(companies.countryCode),
+      db.select({ value: count() }).from(llps).where(this.sitemapEligibleLlp),
+      db.select({ value: count() }).from(ifscCodes).where(this.sitemapEligibleIfsc),
+    ]);
+    return {
+      companies: byCountry.map(r => ({ countryCode: (r.countryCode || "in").toLowerCase(), count: Number(r.count) })),
+      llps: Number(llpCount),
+      ifsc: Number(ifscCount),
+    };
+  }
+  async getCompanySitemapRows(countryCode: string, offset: number, limit: number) {
+    return db.select({ id: companies.id, slug: companies.slug, countryCode: companies.countryCode, updatedAt: companies.updatedAt })
+      .from(companies)
+      .where(and(ilike(companies.countryCode, countryCode), this.sitemapEligibleCompany))
+      .orderBy(asc(companies.id)).limit(limit).offset(offset);
+  }
+  async getLlpSitemapRows(offset: number, limit: number) {
+    return db.select({ id: llps.id, updatedAt: llps.updatedAt })
+      .from(llps).where(this.sitemapEligibleLlp)
+      .orderBy(asc(llps.id)).limit(limit).offset(offset);
+  }
+  async getIfscSitemapRows(offset: number, limit: number) {
+    return db.select({ ifsc: ifscCodes.ifsc })
+      .from(ifscCodes).where(this.sitemapEligibleIfsc)
+      .orderBy(asc(ifscCodes.id)).limit(limit).offset(offset);
+  }
+  async getSeoReport() {
+    const [[companyTotals], [llpTotals], [ifscTotals]] = await Promise.all([
+      db.select({
+        total: count(),
+        indexable: sql<number>`count(*) FILTER (WHERE ${this.sitemapEligibleCompany})`,
+      }).from(companies),
+      db.select({
+        total: count(),
+        indexable: sql<number>`count(*) FILTER (WHERE ${this.sitemapEligibleLlp})`,
+      }).from(llps),
+      db.select({
+        total: count(),
+        indexable: sql<number>`count(*) FILTER (WHERE ${this.sitemapEligibleIfsc})`,
+      }).from(ifscCodes),
+    ]);
+    const shape = (t: { total: number; indexable: number }) => ({
+      total: Number(t.total), indexable: Number(t.indexable), noindex: Number(t.total) - Number(t.indexable),
+    });
+    return {
+      companies: shape(companyTotals),
+      llps: shape(llpTotals),
+      ifsc: shape(ifscTotals),
+      generatedAt: new Date().toISOString(),
+    };
   }
   async createIfsc(rowIn: InsertIfsc) {
     const [row] = await db.insert(ifscCodes).values({ ...rowIn, ifsc: rowIn.ifsc.toUpperCase() }).returning();

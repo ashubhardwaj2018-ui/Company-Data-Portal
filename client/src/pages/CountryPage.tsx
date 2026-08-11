@@ -86,6 +86,7 @@ export default function CountryPage() {
       <Helmet>
         <title>{pageTitle}</title>
         <meta name="description" content={pageDesc} />
+        <meta name="robots" content="index, follow" />
         <link rel="canonical" href={canonicalFull} />
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDesc} />

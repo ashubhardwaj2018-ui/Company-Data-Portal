@@ -107,6 +107,7 @@ export default function ProfilePage() {
       <Helmet>
         <title>My Profile — AddressBay</title>
         <meta name="description" content="Your AddressBay activity — watchlist, claims and correction history." />
+        <meta name="robots" content="noindex, follow" />
       </Helmet>
       <Navbar />
 

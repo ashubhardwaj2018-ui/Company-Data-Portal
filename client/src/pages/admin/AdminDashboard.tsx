@@ -1884,6 +1884,7 @@ const NAV_SECTIONS: { label: string; items: { value: string; label: string; icon
     label: "Settings",
     items: [
       { value: "seo", label: "SEO & Admins", icon: Search },
+      { value: "sitemap", label: "Sitemap", icon: Globe },
       { value: "site-settings", label: "Site Settings", icon: Settings },
       { value: "account", label: "Account", icon: Users },
     ],
@@ -1908,9 +1909,175 @@ const TAB_TITLES: Record<string, { title: string; subtitle: string }> = {
   "users": { title: "Users", subtitle: "Registered user accounts." },
   "newsletter": { title: "Newsletter", subtitle: "Subscriber list and export." },
   "seo": { title: "SEO & Admins", subtitle: "Meta tags, robots.txt and admin access." },
+  "sitemap": { title: "Sitemap Manager", subtitle: "Auto-generated XML sitemaps by category — updated live with every data upload." },
   "site-settings": { title: "Site Settings", subtitle: "Site name, contact details and social links." },
   "account": { title: "Account", subtitle: "Change your password and manage your session." },
 };
+
+// ─── Sitemap Tab ───────────────────────────────────────────────────────────────
+function SeoReportCard() {
+  const [refreshing, setRefreshing] = useState(false);
+  const { data, refetch, isLoading } = useQuery<{
+    companies: { total: number; indexable: number; noindex: number };
+    llps: { total: number; indexable: number; noindex: number };
+    ifsc: { total: number; indexable: number; noindex: number };
+    generatedAt: string;
+    cached: boolean;
+  }>({
+    queryKey: ["/api/admin/seo-report"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/seo-report", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load SEO report");
+      return res.json();
+    },
+  });
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetch("/api/admin/seo-report?refresh=1", { credentials: "include" });
+      await refetch();
+    } finally { setRefreshing(false); }
+  };
+
+  if (isLoading) return null;
+  if (!data) return null;
+
+  const rows = [
+    { label: "Companies", ...data.companies },
+    { label: "Indian LLPs", ...data.llps },
+    { label: "IFSC Codes", ...data.ifsc },
+  ];
+  const totals = rows.reduce((a, r) => ({ total: a.total + r.total, indexable: a.indexable + r.indexable, noindex: a.noindex + r.noindex }), { total: 0, indexable: 0, noindex: 0 });
+
+  return (
+    <Card className="border-0 shadow-md">
+      <CardHeader className="pb-3 flex flex-row items-start justify-between gap-2">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base"><Search className="h-4 w-4 text-primary" /> SEO Index Report</CardTitle>
+          <CardDescription>Indexable pages get "index, follow" and appear in sitemaps; thin or incomplete records get "noindex, follow" and are excluded. Counts are cached for 10 minutes.</CardDescription>
+        </div>
+        <Button size="sm" variant="outline" onClick={refresh} disabled={refreshing} className="shrink-0 gap-1.5">
+          {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Refresh
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-slate-400 border-b">
+              <th className="py-2 font-medium">Dataset</th>
+              <th className="py-2 font-medium text-right">Total</th>
+              <th className="py-2 font-medium text-right">Indexable / in sitemap</th>
+              <th className="py-2 font-medium text-right">Noindex (thin/incomplete)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.label} className="border-b last:border-0" data-testid={`row-seo-${r.label}`}>
+                <td className="py-2.5 font-medium text-slate-700">{r.label}</td>
+                <td className="py-2.5 text-right tabular-nums">{r.total.toLocaleString()}</td>
+                <td className="py-2.5 text-right tabular-nums text-emerald-600 font-semibold">{r.indexable.toLocaleString()}</td>
+                <td className="py-2.5 text-right tabular-nums text-slate-500">{r.noindex.toLocaleString()}</td>
+              </tr>
+            ))}
+            <tr className="bg-slate-50/60">
+              <td className="py-2.5 font-semibold text-slate-800">Total</td>
+              <td className="py-2.5 text-right tabular-nums font-semibold">{totals.total.toLocaleString()}</td>
+              <td className="py-2.5 text-right tabular-nums font-semibold text-emerald-700">{totals.indexable.toLocaleString()}</td>
+              <td className="py-2.5 text-right tabular-nums font-semibold text-slate-600">{totals.noindex.toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SitemapTab() {
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery<{
+    sitemapIndex: string;
+    urlsPerFile: number;
+    categories: { key: string; label: string; count: number; files: string[] }[];
+  }>({
+    queryKey: ["/api/sitemap"],
+    queryFn: async () => {
+      const res = await fetch("/api/sitemap");
+      if (!res.ok) throw new Error("Failed to load sitemap catalog");
+      return res.json();
+    },
+  });
+
+  const copy = (text: string) => {
+    navigator.clipboard?.writeText(text);
+    toast({ title: "Copied", description: text });
+  };
+
+  if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  if (!data) return <p className="text-sm text-slate-500">Could not load sitemap information.</p>;
+
+  return (
+    <div className="space-y-6">
+      {/* Master index */}
+      <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-50 to-violet-50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-indigo-900 text-base"><Globe className="h-5 w-5" /> Master Sitemap Index</CardTitle>
+          <CardDescription>Submit this single URL to Google Search Console — it automatically lists every category sitemap below. Sitemaps are generated live from the database, so every upload is reflected instantly.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <code className="text-xs bg-white px-3 py-2 rounded-lg border border-indigo-100 font-mono text-indigo-800 break-all" data-testid="text-sitemap-index">{data.sitemapIndex}</code>
+          <Button size="sm" variant="outline" onClick={() => copy(data.sitemapIndex)} data-testid="button-copy-sitemap-index">Copy</Button>
+          <a href="/sitemap.xml" target="_blank" rel="noreferrer">
+            <Button size="sm" variant="outline" className="gap-1.5"><ExternalLink className="h-3.5 w-3.5" /> Open</Button>
+          </a>
+        </CardContent>
+      </Card>
+
+      {/* API link */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-semibold text-slate-700">Sitemap API:</span>
+          <code className="text-xs bg-slate-50 px-2.5 py-1.5 rounded-md border font-mono text-slate-700">/api/sitemap</code>
+          <Button size="sm" variant="ghost" onClick={() => copy(`${window.location.origin}/api/sitemap`)}>Copy link</Button>
+          <span className="text-xs text-slate-400">— returns all sitemap files and URL counts as JSON</span>
+        </CardContent>
+      </Card>
+
+      {/* SEO index diagnostics */}
+      <SeoReportCard />
+
+      {/* Category sitemaps */}
+      <div className="grid md:grid-cols-2 gap-4">
+        {data.categories.map(cat => (
+          <Card key={cat.key} className="border-0 shadow-md" data-testid={`card-sitemap-${cat.key}`}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2"><Link2 className="h-4 w-4 text-primary" /> {cat.label}</span>
+                {cat.count > 0 && <Badge variant="secondary" className="text-[11px]">{cat.count.toLocaleString()} URLs</Badge>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              {cat.files.map(f => {
+                const short = f.replace(/^https?:\/\/[^/]+/, "");
+                return (
+                  <div key={f} className="flex items-center gap-2">
+                    <a href={short} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-600 hover:underline truncate flex-1">{short}</a>
+                    <button className="text-[11px] font-semibold text-slate-400 hover:text-primary shrink-0" onClick={() => copy(f)}>Copy</button>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <p className="text-xs text-slate-400 flex items-start gap-1.5">
+        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        Each sitemap file holds up to {data.urlsPerFile.toLocaleString()} URLs. When a category grows beyond that, extra numbered files appear here and in the master index automatically — no action needed after data uploads.
+      </p>
+    </div>
+  );
+}
 
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
@@ -2000,6 +2167,7 @@ export default function AdminDashboard() {
       case "blog": return <BlogTab />;
       case "ai": return <AIWritingTab />;
       case "seo": return <SeoTab />;
+      case "sitemap": return <SitemapTab />;
       case "site-settings": return <SiteSettingsTab />;
       case "account": return <AccountTab />;
       default: return null;

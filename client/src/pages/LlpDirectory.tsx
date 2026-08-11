@@ -37,6 +37,8 @@ export default function LlpDirectory() {
       <Helmet>
         <title>Indian LLP Directory — AddressBay</title>
         <meta name="description" content="Search Indian Limited Liability Partnerships (LLPs) by name or LLPIN — registration details, ROC, status, and registered address." />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={typeof window !== "undefined" ? window.location.origin + "/llps" : "/llps"} />
       </Helmet>
       <Navbar />
 

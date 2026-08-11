@@ -45,7 +45,8 @@ export default function IndustryPage() {
       <Helmet>
         <title>{title}</title>
         <meta name="description" content={desc} />
-        <link rel="canonical" href={typeof window !== "undefined" ? window.location.href : ""} />
+        <meta name="robots" content={typeof window !== "undefined" && window.location.search ? "noindex, follow" : "index, follow"} />
+        <link rel="canonical" href={typeof window !== "undefined" ? window.location.origin + window.location.pathname : ""} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={desc} />
       </Helmet>

@@ -1,0 +1,385 @@
+Implement a robust SEO indexing-control system for AddressBay, which will have a very large database and potentially millions of dynamically generated pages.
+
+IMPORTANT: Do NOT redesign the website, change the existing UI, remove existing functionality, or change the current database structure unless absolutely necessary. First inspect the existing codebase and understand the current routing, database schema, SEO/meta-tag handling, canonical handling, robots.txt, sitemap generation, and page templates. Then implement the following system using the existing architecture.
+
+1. SEO STATUS SYSTEM
+
+Every dynamically generated database page must have an SEO decision:
+
+* index, follow = page is eligible for Google indexing
+* noindex, follow = page can be crawled and its links can be followed, but should not appear in Google search results
+
+Do NOT use noindex pages in XML sitemaps.
+
+Create a reusable SEO decision function/service, for example:
+
+getPageSeoStatus(pageData, pageType)
+
+It should return:
+
+* robots
+* indexable
+* includeInSitemap
+* canonicalUrl
+* reason
+
+Example:
+
+{
+robots: “index, follow”,
+indexable: true,
+includeInSitemap: true,
+canonicalUrl: “…”,
+reason: “quality_database_page”
+}
+
+or:
+
+{
+robots: “noindex, follow”,
+indexable: false,
+includeInSitemap: false,
+canonicalUrl: “…”,
+reason: “thin_or_incomplete_page”
+}
+
+2. INDEXABLE DATABASE PAGES
+
+A database page should normally receive:
+
+index, follow
+
+ONLY when it meets the project’s quality criteria.
+
+Use appropriate checks such as:
+
+* valid and unique primary identifier
+* valid canonical URL
+* meaningful page title
+* meaningful description/content
+* sufficient useful database information
+* not an empty record
+* not an obvious duplicate
+* not a broken/deleted record
+* not a search/filter URL
+* not a temporary/generated utility URL
+* has meaningful internal linking opportunities
+
+Do not create an arbitrary word-count requirement that could incorrectly block useful structured database pages.
+
+Keep the quality rules configurable so they can be changed later.
+
+3. NOINDEX PAGES
+
+Pages that should normally receive:
+
+noindex, follow
+
+include:
+
+* internal search result pages
+* database search queries
+* filter combinations
+* sort combinations
+* pagination URLs where appropriate
+* empty database records
+* incomplete/low-value records
+* duplicate/near-duplicate pages
+* temporary pages
+* utility URLs
+* URLs with unnecessary query parameters
+* pages that are not intended as landing pages
+
+The system must still allow Google to follow useful internal links from these pages.
+
+Do NOT automatically block these pages in robots.txt merely because they are noindex. Google generally needs to be able to crawl a page to see the noindex directive.
+
+4. CANONICAL URL
+
+Every indexable AddressBay page must generate a self-referencing canonical URL using the clean preferred URL.
+
+For example:
+
+https://addressbay.com/company/example-company
+
+should canonicalize to exactly:
+
+https://addressbay.com/company/example-company
+
+Do not allow tracking parameters, sorting parameters, filter parameters, duplicate slugs, or unnecessary query strings in canonical URLs.
+
+For duplicate/non-indexable URLs, use the appropriate canonical strategy without creating canonical conflicts.
+
+Do not blindly canonicalize unrelated pages to another URL.
+
+5. ROBOTS META TAG
+
+Create one central SEO/meta implementation so that dynamically generated pages output the correct robots directive.
+
+Indexable page:
+
+<meta name="robots" content="index, follow">
+
+Non-indexable page:
+
+<meta name="robots" content="noindex, follow">
+
+Do not create conflicting robots directives from multiple components.
+
+Check the existing application and consolidate duplicate SEO/meta logic where necessary.
+
+6. SITEMAP SYSTEM
+
+Modify the sitemap generation system so that XML sitemaps contain ONLY URLs where:
+
+indexable = true
+
+and:
+
+includeInSitemap = true
+
+Never include URLs marked:
+
+noindex, follow
+
+Do not generate a sitemap containing millions of low-value/noindex URLs.
+
+Use sitemap indexes and split large sitemaps according to Google’s sitemap limits.
+
+The architecture should support:
+
+/sitemap.xml
+
+which can point to sitemap indexes/files such as:
+
+/sitemaps/companies-1.xml
+/sitemaps/companies-2.xml
+/sitemaps/companies-3.xml
+/sitemaps/cities.xml
+/sitemaps/states.xml
+/sitemaps/countries.xml
+/sitemaps/industries.xml
+
+Use the actual AddressBay routes and database structure discovered in the existing project rather than inventing routes.
+
+Do not load millions of database records into memory at once.
+
+Use pagination, batching, streaming, cursors, or another memory-efficient approach appropriate to the existing database.
+
+7. PRIORITY OF SITEMAPS
+
+Create a clear sitemap eligibility hierarchy.
+
+Priority pages:
+
+* important country pages
+* state/region pages
+* city pages
+* important industry/category pages
+* high-quality company/profile pages
+* other genuinely useful landing pages
+
+These should be index, follow and included in sitemap when they meet quality requirements.
+
+Low-value database URLs should remain:
+
+noindex, follow
+
+and should NOT enter the sitemap.
+
+8. DATABASE PERFORMANCE
+
+This system must be designed for millions of records.
+
+DO NOT:
+
+* fetch the entire database into memory
+* generate one enormous sitemap in memory
+* run an expensive SEO-quality calculation for every page on every request if it can be cached
+* perform unnecessary database queries for every page render
+* create N+1 queries
+
+Prefer:
+
+* indexed database queries
+* pagination/cursors
+* batching
+* caching where appropriate
+* precomputed SEO status where useful
+* efficient sitemap generation
+* lazy evaluation
+
+If a new database field is genuinely useful, first inspect the existing schema and migrations and add the smallest appropriate change.
+
+9. INTERNAL LINKS
+
+noindex, follow pages must continue to provide useful internal links.
+
+Do NOT add nofollow to normal internal AddressBay links merely because the source page is noindex.
+
+The objective is:
+
+noindex, follow
+
+NOT:
+
+noindex, nofollow
+
+unless there is a specific reason to prevent link discovery.
+
+10. GOOGLE SEARCH CONSOLE / SITEMAP SUBMISSION
+
+Do NOT build fake or automated Google Search Console submission functionality.
+
+The application should expose clean sitemap URLs that can be submitted through Google Search Console.
+
+Also make sure robots.txt references the main sitemap:
+
+Sitemap: https://addressbay.com/sitemap.xml
+
+Use the actual production domain from the existing configuration rather than hardcoding it if the project already has an APP_URL/site URL configuration.
+
+11. SEO DECISION REASONS
+
+Make the SEO decision explainable.
+
+Possible reasons could include:
+
+* quality_database_page
+* important_landing_page
+* complete_company_profile
+* thin_content
+* incomplete_record
+* duplicate_url
+* search_page
+* filter_page
+* temporary_page
+* invalid_record
+* not_public
+* not_sitemap_eligible
+
+Do not expose internal SEO decision/debug information to normal visitors unless the existing admin system already supports it.
+
+12. ADMIN/DEBUG REPORT
+
+If the project has an admin system, add a lightweight SEO diagnostic/report if practical.
+
+It should allow administrators to see counts such as:
+
+Indexable:
+XXXXX
+
+Noindex:
+XXXXX
+
+Sitemap eligible:
+XXXXX
+
+Incomplete:
+XXXXX
+
+Duplicate:
+XXXXX
+
+Search/filter:
+XXXXX
+
+Do not make this report perform a full-table expensive scan on every page load. Use cached/precomputed statistics or an explicit admin refresh operation.
+
+13. IMPORTANT GOOGLE SEO RULE
+
+Do not attempt to make every database URL indexable simply because the database contains millions of records.
+
+The system must prioritize genuinely useful pages.
+
+The goal is:
+
+HIGH-QUALITY PAGE
+→ index, follow
+→ sitemap
+
+LOW-VALUE/THIN/UTILITY PAGE
+→ noindex, follow
+→ no sitemap
+
+This should be implemented consistently throughout AddressBay.
+
+14. EXISTING ROUTES
+
+Before coding:
+
+1. Inspect all current AddressBay routes.
+2. Identify company/profile routes.
+3. Identify country/state/city/industry/category routes.
+4. Identify search/filter/query routes.
+5. Identify existing sitemap generation.
+6. Identify existing robots.txt.
+7. Identify existing canonical/meta handling.
+8. Identify database tables and relevant fields.
+9. Identify whether any current pages already use noindex/index directives.
+
+Then implement the SEO system using the existing routes and architecture.
+
+15. DO NOT BREAK EXISTING SEO
+
+Before making changes, preserve all currently working:
+
+* titles
+* descriptions
+* Open Graph metadata
+* Twitter metadata
+* structured data/schema.org
+* canonical URLs
+* existing sitemap routes
+* robots.txt
+* internal linking
+* existing page templates
+
+Only modify the parts necessary to implement the new centralized SEO index/noindex and sitemap eligibility system.
+
+16. TESTING
+
+After implementation, test at minimum:
+
+1. A high-quality company page
+    → should return 200
+    → index, follow
+    → correct self-canonical
+    → sitemap eligible
+2. An incomplete/low-value company page
+    → 200
+    → noindex, follow
+    → not in sitemap
+3. A search URL
+    → noindex, follow
+    → not in sitemap
+4. A filter URL
+    → noindex, follow
+    → not in sitemap
+5. A high-quality city/location page
+    → index, follow
+    → correct canonical
+    → sitemap eligible
+6. Sitemap index
+    → valid XML
+7. Individual sitemap
+    → valid XML
+    → only indexable/sitemap-eligible URLs
+8. robots.txt
+    → valid
+    → references the main sitemap
+9. Confirm that sitemap generation does not load the complete database into memory.
+10. Confirm there are no conflicting robots meta tags or canonical tags.
+
+Finally, provide me with a concise implementation report showing:
+
+* files changed
+* SEO decision logic
+* which page types are indexable
+* which page types are noindex
+* sitemap architecture
+* database/performance considerations
+* commands/tests performed
+* any remaining risks or recommendations
+
+Do not make unrelated changes to AddressBay.

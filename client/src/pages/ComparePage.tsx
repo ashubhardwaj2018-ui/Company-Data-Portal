@@ -72,6 +72,7 @@ export default function ComparePage() {
       <Helmet>
         <title>Compare Companies — AddressBay</title>
         <meta name="description" content="Compare up to 3 companies side by side on AddressBay." />
+        <meta name="robots" content="noindex, follow" />
       </Helmet>
       <Navbar />
 

@@ -20,6 +20,7 @@ import { ServiceAside } from "@/components/layout/ServiceAside";
 import { SharePrintBar } from "@/components/companies/SharePrintBar";
 import { DynamicServicesParagraph } from "@/components/companies/DynamicServicesParagraph";
 import { LlpInsightsWidget, LlpFaqSection, SuggestedLlps } from "@/components/llps/LlpExtras";
+import { getLlpSeoStatus } from "@shared/seo";
 
 // ── Suggested companies (from the main directory) ────────────────────────────
 const SUGGESTION_FLAGS: Record<string, string> = {
@@ -203,6 +204,7 @@ export default function LlpDetails() {
       <Helmet>
         <title>{pageTitle}</title>
         <meta name="description" content={pageDesc} />
+        <meta name="robots" content={getLlpSeoStatus(llp).robots} />
         <link rel="canonical" href={canonicalFull} />
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDesc} />

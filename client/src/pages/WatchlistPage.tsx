@@ -34,6 +34,7 @@ export default function WatchlistPage() {
       <Helmet>
         <title>My Watchlist — AddressBay</title>
         <meta name="description" content="Your saved companies on AddressBay." />
+        <meta name="robots" content="noindex, follow" />
       </Helmet>
       <Navbar />
 

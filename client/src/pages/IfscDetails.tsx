@@ -21,6 +21,7 @@ import {
   Landmark, MapPin, Hash, ChevronRight, ArrowLeft, Copy, Check,
   Building2, Globe, ExternalLink, Lightbulb, HelpCircle, CreditCard,
 } from "lucide-react";
+import { getIfscSeoStatus } from "@shared/seo";
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 function CopyButton({ text, label = "Copy IFSC" }: { text: string; label?: string }) {
@@ -338,6 +339,7 @@ export default function IfscDetails() {
       <Helmet>
         <title>{pageTitle}</title>
         <meta name="description" content={pageDesc} />
+        <meta name="robots" content={getIfscSeoStatus(row).robots} />
         <link rel="canonical" href={canonicalFull} />
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDesc} />
