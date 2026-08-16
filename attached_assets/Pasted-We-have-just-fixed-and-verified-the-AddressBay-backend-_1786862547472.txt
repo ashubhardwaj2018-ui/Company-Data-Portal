@@ -1,0 +1,69 @@
+We have just fixed and verified the AddressBay backend authentication on the VPS.
+
+IMPORTANT ARCHITECTURE:
+- Frontend: Hostinger Business Hosting
+- Backend/API: VPS
+- Backend API URL: https://api.addressbay.com
+- Main website: https://www.addressbay.com
+- GitHub repository: Company-Data-Portal
+- Do NOT modify the VPS database, admin password, bcrypt hash, or backend authentication logic.
+
+The VPS backend is confirmed working:
+POST https://api.addressbay.com/api/admin/auth/login
+with:
+email: ashubhardwaj2018@gmail.com
+password: Ivaan@2026
+returns HTTP 200.
+
+GET https://api.addressbay.com/api/admin/auth/me with the returned cookie also returns:
+{"isAdmin":true,"authenticated":true,"email":"ashubhardwaj2018@gmail.com"}
+
+The remaining problem is the frontend hosted at www.addressbay.com, which currently returns Hostinger 503.
+
+YOUR TASK:
+
+1. Inspect the entire frontend API configuration.
+2. Find every place where frontend API requests are constructed.
+3. Ensure production frontend API requests use:
+   https://api.addressbay.com
+4. Do NOT use:
+   - localhost
+   - 127.0.0.1
+   - port 3001
+   - Replit development URLs
+   - relative /api URLs if those would send requests to www.addressbay.com instead of api.addressbay.com
+5. Pay special attention to:
+   - admin login
+   - /api/admin/auth/login
+   - /api/admin/auth/me
+   - logout
+   - admin protected requests
+   - TanStack Query/API clients
+   - environment variables
+   - Vite production environment variables
+6. Keep development configuration working if possible, but production must use:
+   https://api.addressbay.com
+7. Check CORS configuration on the backend and ensure:
+   https://www.addressbay.com
+   is allowed as an origin.
+8. Check whether cookies/authentication require credentials: "include" on frontend requests.
+9. Do NOT expose SESSION_SECRET, DATABASE_URL, ADMIN_INIT_PASS, or any other server secret to Vite/client code.
+10. Run:
+    npm run check
+    npm run build
+11. Inspect the generated dist/public files and verify that the production API URL is actually present where required.
+12. Do not change unrelated functionality.
+13. Do not change the database schema.
+14. Do not change the admin password.
+15. Do not change VPS backend authentication unless absolutely required.
+
+After completing the inspection, give me:
+- exact files changed
+- exact production API URL configuration
+- whether credentials/include is configured correctly
+- CORS status
+- build result
+- exact Hostinger deployment directory/files that need to be uploaded
+- whether the generated dist/public is ready to deploy
+
+Do NOT deploy anything to Hostinger yourself. Prepare the production frontend build and report the exact deployment steps.
