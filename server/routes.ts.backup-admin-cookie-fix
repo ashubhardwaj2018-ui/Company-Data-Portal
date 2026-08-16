@@ -6,7 +6,6 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import bcrypt from "bcryptjs";
-import { createHmac } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -48,49 +47,6 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB max
 });
 
-
-const ADMIN_COOKIE = "addressbay_admin";
-const ADMIN_COOKIE_SECRET =
-  process.env.SESSION_SECRET || "addressbay-vps-session-change-this";
-
-function createAdminToken(email: string) {
-  const payload = Buffer.from(email, "utf8").toString("base64url");
-  const sig = createHmac("sha256", ADMIN_COOKIE_SECRET)
-    .update(payload)
-    .digest("base64url");
-  return `${payload}.${sig}`;
-}
-
-function readAdminToken(req: any): string | null {
-  const header = req.headers?.cookie || "";
-  const match = header.match(
-    new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=([^;]+)`)
-  );
-
-  if (!match) return null;
-
-  const value = decodeURIComponent(match[1]);
-  const parts = value.split(".");
-  if (parts.length !== 2) return null;
-
-  const [payload, sig] = parts;
-
-  const expected = createHmac("sha256", ADMIN_COOKIE_SECRET)
-    .update(payload)
-    .digest("base64url");
-
-  if (sig.length !== expected.length) return null;
-
-  const valid = Buffer.from(sig).equals(Buffer.from(expected));
-  if (!valid) return null;
-
-  try {
-    return Buffer.from(payload, "base64url").toString("utf8");
-  } catch {
-    return null;
-  }
-}
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express,
@@ -108,22 +64,13 @@ export async function registerRoutes(
   // ── Middleware ─────────────────────────────────────────────────────────────
   // requireAdmin: accepts (a) local admin session or (b) Replit OAuth session
   const getAdminEmail = (req: any): string | undefined =>
-    readAdminToken(req) ??
-    (req.user as any)?.claims?.email;
+    (req.session as any)?.adminEmail ?? (req.user as any)?.claims?.email;
 
   const requireAdmin = async (req: any, res: any, next: any) => {
     const email = getAdminEmail(req);
-
-    if (!email) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
+    if (!email) return res.status(401).json({ message: "Unauthorized" });
     const adminOk = await storage.isAdmin(email);
-
-    if (!adminOk) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
+    if (!adminOk) return res.status(403).json({ message: "Forbidden" });
     next();
   };
 
@@ -922,7 +869,7 @@ export async function registerRoutes(
   // ── Local admin auth status ────────────────────────────────────────────────
   app.get("/api/admin/auth/me", async (req, res) => {
     try {
-      const email = readAdminToken(req);
+      const email = (req.session as any)?.adminEmail;
 
       if (!email) {
         return res.status(401).json({
@@ -934,7 +881,7 @@ export async function registerRoutes(
       const isAdmin = await storage.isAdmin(email);
 
       if (!isAdmin) {
-        res.clearCookie(ADMIN_COOKIE, { path: "/" });
+        delete (req.session as any).adminEmail;
 
         return res.status(403).json({
           isAdmin: false,
@@ -979,21 +926,29 @@ export async function registerRoutes(
     const match = await bcrypt.compare(password, hash);
     if (!match) return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = createAdminToken(email);
+    // Create a fresh authenticated session after successful password verification.
+    // This avoids the broken/stale session object that was causing login to return 500.
+    req.session.regenerate((err: any) => {
+      if (err) {
+        console.error("[admin/login] session regenerate failed:", err);
+        return res.status(500).json({ message: "Failed to create login session" });
+      }
 
-    res.cookie(ADMIN_COOKIE, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 1000 * 60 * 60 * 24 * 7,
+      (req.session as any).adminEmail = email;
+
+      req.session.save((saveErr: any) => {
+        if (saveErr) {
+          console.error("[admin/login] session save failed:", saveErr);
+          return res.status(500).json({ message: "Failed to save login session" });
+        }
+
+        return res.json({ success: true, email });
+      });
     });
-
-    return res.json({ success: true, email });
   });
 
-  app.post("/api/admin/logout-local", async (_req, res) => {
-    res.clearCookie(ADMIN_COOKIE, { path: "/" });
+  app.post("/api/admin/logout-local", async (req, res) => {
+    delete (req.session as any).adminEmail;
     res.json({ success: true });
   });
 

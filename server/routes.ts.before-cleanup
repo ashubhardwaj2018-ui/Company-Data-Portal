@@ -992,6 +992,17 @@ export async function registerRoutes(
     return res.json({ success: true, email });
   });
 
+      req.session.save((saveErr: any) => {
+        if (saveErr) {
+          console.error("[admin/login] session save failed:", saveErr);
+          return res.status(500).json({ message: "Failed to save login session" });
+        }
+
+        return res.json({ success: true, email });
+      });
+    });
+  });
+
   app.post("/api/admin/logout-local", async (_req, res) => {
     res.clearCookie(ADMIN_COOKIE, { path: "/" });
     res.json({ success: true });

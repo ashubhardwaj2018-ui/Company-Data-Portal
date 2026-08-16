@@ -1,11 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { startAutoBlogScheduler } from "./aiWriter";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -25,53 +22,6 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
-
-// API health check
-app.get("/api/health", async (_req, res) => {
-  try {
-    await storage.getDirectoryStats();
-
-    res.status(200).json({
-      ok: true,
-      db: "connected",
-      service: "addressbay-api",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Health check failed:", error);
-
-    res.status(503).json({
-      ok: false,
-      db: "disconnected",
-      service: "addressbay-api",
-    });
-  }
-});
-
-const PgSession = connectPgSimple(session);
-
-app.set("trust proxy", 1);
-
-const sessionMiddleware = session({
-  store: new PgSession({
-    conString: process.env.DATABASE_URL,
-    tableName: "user_sessions",
-    createTableIfMissing: true,
-  }),
-  secret: process.env.SESSION_SECRET || "addressbay-vps-session-change-this",
-  resave: false,
-  saveUninitialized: false,
-  proxy: true,
-  cookie: {
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  },
-});
-
-app.use(sessionMiddleware);
-
 
 // Serve admin-uploaded assets (service files, etc.)
 app.use("/uploads", express.static("public/uploads"));
@@ -115,6 +65,7 @@ app.use((req, res, next) => {
 
 (async () => {
   // Mark any import jobs that were PROCESSING when the server last died as FAILED
+  const { storage } = await import("./storage");
   await storage.markStaleJobsFailed();
 
   // One-time admin password seed — runs on startup if env vars are present.

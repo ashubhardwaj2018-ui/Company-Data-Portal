@@ -52,25 +52,24 @@ const PgSession = connectPgSimple(session);
 
 app.set("trust proxy", 1);
 
-const sessionMiddleware = session({
-  store: new PgSession({
-    conString: process.env.DATABASE_URL,
-    tableName: "user_sessions",
-    createTableIfMissing: true,
+app.use(
+  session({
+    store: new PgSession({
+      conString: process.env.DATABASE_URL,
+      tableName: "user_sessions",
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || "addressbay-vps-session-change-this",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
   }),
-  secret: process.env.SESSION_SECRET || "addressbay-vps-session-change-this",
-  resave: false,
-  saveUninitialized: false,
-  proxy: true,
-  cookie: {
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  },
-});
-
-app.use(sessionMiddleware);
+);
 
 
 // Serve admin-uploaded assets (service files, etc.)

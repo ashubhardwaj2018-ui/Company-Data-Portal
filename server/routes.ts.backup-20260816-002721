@@ -1,12 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, getSession } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import bcrypt from "bcryptjs";
-import { createHmac } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -48,82 +47,26 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB max
 });
 
-
-const ADMIN_COOKIE = "addressbay_admin";
-const ADMIN_COOKIE_SECRET =
-  process.env.SESSION_SECRET || "addressbay-vps-session-change-this";
-
-function createAdminToken(email: string) {
-  const payload = Buffer.from(email, "utf8").toString("base64url");
-  const sig = createHmac("sha256", ADMIN_COOKIE_SECRET)
-    .update(payload)
-    .digest("base64url");
-  return `${payload}.${sig}`;
-}
-
-function readAdminToken(req: any): string | null {
-  const header = req.headers?.cookie || "";
-  const match = header.match(
-    new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=([^;]+)`)
-  );
-
-  if (!match) return null;
-
-  const value = decodeURIComponent(match[1]);
-  const parts = value.split(".");
-  if (parts.length !== 2) return null;
-
-  const [payload, sig] = parts;
-
-  const expected = createHmac("sha256", ADMIN_COOKIE_SECRET)
-    .update(payload)
-    .digest("base64url");
-
-  if (sig.length !== expected.length) return null;
-
-  const valid = Buffer.from(sig).equals(Buffer.from(expected));
-  if (!valid) return null;
-
-  try {
-    return Buffer.from(payload, "base64url").toString("utf8");
-  } catch {
-    return null;
-  }
-}
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express,
 ): Promise<Server> {
   // Authentication
-  app.set("trust proxy", 1);
-
   if (process.env.REPL_ID) {
     await setupAuth(app);
     registerAuthRoutes(app);
-  } else {
-    app.use(getSession());
   }
 
   // ── Middleware ─────────────────────────────────────────────────────────────
   // requireAdmin: accepts (a) local admin session or (b) Replit OAuth session
   const getAdminEmail = (req: any): string | undefined =>
-    readAdminToken(req) ??
-    (req.user as any)?.claims?.email;
+    (req.session as any)?.adminEmail ?? (req.user as any)?.claims?.email;
 
   const requireAdmin = async (req: any, res: any, next: any) => {
     const email = getAdminEmail(req);
-
-    if (!email) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
+    if (!email) return res.status(401).json({ message: "Unauthorized" });
     const adminOk = await storage.isAdmin(email);
-
-    if (!adminOk) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
+    if (!adminOk) return res.status(403).json({ message: "Forbidden" });
     next();
   };
 
@@ -919,44 +862,6 @@ export async function registerRoutes(
     }
   });
 
-  // ── Local admin auth status ────────────────────────────────────────────────
-  app.get("/api/admin/auth/me", async (req, res) => {
-    try {
-      const email = readAdminToken(req);
-
-      if (!email) {
-        return res.status(401).json({
-          isAdmin: false,
-          authenticated: false,
-        });
-      }
-
-      const isAdmin = await storage.isAdmin(email);
-
-      if (!isAdmin) {
-        res.clearCookie(ADMIN_COOKIE, { path: "/" });
-
-        return res.status(403).json({
-          isAdmin: false,
-          authenticated: false,
-        });
-      }
-
-      return res.json({
-        isAdmin: true,
-        authenticated: true,
-        email,
-      });
-    } catch (error) {
-      console.error("[admin/auth/me]", error);
-
-      return res.status(500).json({
-        isAdmin: false,
-        authenticated: false,
-      });
-    }
-  });
-
   // ── Local admin login / logout ─────────────────────────────────────────────
   app.post("/api/admin/login", async (req, res) => {
     const { email, password } = z
@@ -979,21 +884,12 @@ export async function registerRoutes(
     const match = await bcrypt.compare(password, hash);
     if (!match) return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = createAdminToken(email);
-
-    res.cookie(ADMIN_COOKIE, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 1000 * 60 * 60 * 24 * 7,
-    });
-
-    return res.json({ success: true, email });
+    (req.session as any).adminEmail = email;
+    res.json({ success: true, email });
   });
 
-  app.post("/api/admin/logout-local", async (_req, res) => {
-    res.clearCookie(ADMIN_COOKIE, { path: "/" });
+  app.post("/api/admin/logout-local", async (req, res) => {
+    delete (req.session as any).adminEmail;
     res.json({ success: true });
   });
 
