@@ -1,0 +1,166 @@
+We have synchronized this Replit project with the latest production VPS version from GitHub.
+
+IMPORTANT:
+- The current Git commit is: cabc8af
+- This code came directly from the VPS.
+- Do NOT reset, overwrite, or discard the current code.
+- Do NOT modify the production VPS directly.
+- Work only inside this Replit project.
+- Do NOT expose, print, commit, or modify secrets such as DATABASE_URL, SESSION_SECRET, ADMIN_INIT_PASS, API keys, or other credentials.
+- The .env file must remain untracked and must never be committed to GitHub.
+
+PROJECT:
+AddressBay
+Stack:
+- React 18 + TypeScript + Vite
+- Node.js + Express 5
+- PostgreSQL
+- Drizzle ORM
+- express-session
+- connect-pg-simple
+- Passport / Replit authentication
+- PM2 on production VPS
+- Apache reverse proxy in production
+
+CURRENT PROBLEM:
+The production VPS has been having authentication/admin login problems. We have already made several authentication/session fixes directly on the VPS. The current VPS state was committed and pushed to GitHub as commit cabc8af, and Replit has been reset to exactly that commit.
+
+Your task is to FULLY DIAGNOSE the authentication/admin login problem and fix it properly in this Replit project.
+
+DO NOT GUESS. First inspect the existing implementation and reproduce/test the problem.
+
+Investigate at minimum:
+
+1. server/index.ts
+2. server/routes.ts
+3. server/replit_integrations/auth/
+4. server/storage.ts
+5. server/db.ts
+6. shared/schema.ts
+7. frontend admin/login components
+8. package.json
+9. all session/auth related code
+10. database session/admin tables and their schema
+11. environment-variable handling
+12. production vs Replit authentication differences
+
+AUTHENTICATION ARCHITECTURE:
+The current code appears to use:
+- Replit OAuth when REPL_ID exists
+- PostgreSQL-backed express-session when REPL_ID does not exist
+- a custom addressbay_admin HMAC cookie for local admin authentication
+- connect-pg-simple for user_sessions
+- SESSION_SECRET for signing
+- secure cookies in production
+
+Determine whether this architecture is correct and whether the custom admin cookie and express-session are conflicting or being used inconsistently.
+
+TEST THESE ENDPOINTS/FLOWS:
+- GET /api/health
+- GET /api/admin/auth/me
+- POST /api/admin/auth/login
+- POST /api/admin/auth/logout
+- GET /api/admin/auth/me after login
+- browser login flow
+- session persistence
+- admin authorization
+- cookie creation
+- cookie transmission
+- logout and cookie deletion
+
+Check the actual HTTP status codes and response bodies.
+
+IMPORTANT SECURITY REQUIREMENTS:
+- Never log passwords.
+- Never log DATABASE_URL.
+- Never log SESSION_SECRET.
+- Never log ADMIN_INIT_PASS.
+- Never hard-code production credentials.
+- Never commit .env.
+- Never weaken authentication just to make login work.
+- Do not remove authentication checks.
+- Do not make admin endpoints publicly accessible.
+- Use secure, HttpOnly cookies appropriately.
+- Preserve CSRF/security protections where applicable.
+
+DATABASE:
+Verify the expected PostgreSQL tables and columns needed for:
+- admin authentication
+- user sessions
+- admin users/password hashes
+- any related auth records
+
+Do NOT run destructive database commands.
+Do NOT drop tables.
+Do NOT delete existing production data.
+Do NOT run `drizzle-kit push` against production.
+
+If a schema problem is discovered, explain exactly what migration/change is required rather than destroying or recreating the database.
+
+REPRODUCTION:
+Before changing code, run appropriate checks such as:
+- npm run check
+- npm run build
+- start the application in Replit if possible
+- test the relevant API endpoints
+- inspect server errors
+- inspect browser/network behavior if available
+
+Then identify the ROOT CAUSE.
+
+FIX:
+Implement the smallest robust fix that makes authentication work consistently in both:
+A. Replit development/testing
+B. production VPS behind Apache/reverse proxy
+
+Pay particular attention to:
+- trust proxy
+- secure cookies
+- sameSite
+- cookie path/domain
+- session secret
+- session store
+- PostgreSQL connection
+- session save timing
+- authentication middleware order
+- route registration order
+- Replit OAuth detection
+- custom admin cookie signing/validation
+- login response
+- logout response
+- browser cookie behavior
+- HTTPS/reverse proxy behavior
+
+Do not unnecessarily rewrite the authentication architecture if the existing architecture can be repaired.
+
+After making the fix:
+
+1. Run:
+   npm run check
+
+2. Run:
+   npm run build
+
+3. Test the affected authentication endpoints.
+
+4. Review the final diff carefully.
+
+5. Make sure .env is NOT tracked:
+   git ls-files .env
+   This must return nothing.
+
+6. Make sure there are no secrets in the changed files.
+
+7. Show me:
+   - root cause
+   - files changed
+   - exact fix implemented
+   - tests performed
+   - test results
+   - any production VPS configuration that must be changed separately
+
+IMPORTANT GIT RULE:
+Do NOT push to GitHub automatically.
+Do NOT commit automatically unless I explicitly ask you to.
+
+At the end, leave the working tree with the fix ready for review and provide a concise technical report.
