@@ -26,6 +26,35 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// ── CORS ─────────────────────────────────────────────────────────────────────
+// The production frontend (https://www.addressbay.com on Hostinger) calls this
+// backend (https://api.addressbay.com) cross-origin with cookies, so the exact
+// origin must be echoed back and credentials allowed. Extra origins can be
+// added via CORS_ORIGINS (comma-separated), no secrets involved.
+const allowedOrigins = new Set(
+  [
+    "https://www.addressbay.com",
+    "https://addressbay.com",
+    ...(process.env.CORS_ORIGINS || "").split(",").map((o) => o.trim()),
+  ].filter(Boolean),
+);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    );
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Max-Age", "86400");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 // API health check
 app.get("/api/health", async (_req, res) => {
   try {
