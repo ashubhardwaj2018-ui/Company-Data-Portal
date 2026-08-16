@@ -6,7 +6,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import bcrypt from "bcryptjs";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -50,45 +50,67 @@ const upload = multer({
 
 
 const ADMIN_COOKIE = "addressbay_admin";
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  // Fail closed: without a real secret an attacker could forge admin cookies.
+  throw new Error(
+    "SESSION_SECRET must be set in production (used to sign admin cookies and sessions)",
+  );
+}
 const ADMIN_COOKIE_SECRET =
-  process.env.SESSION_SECRET || "addressbay-vps-session-change-this";
+  process.env.SESSION_SECRET || "addressbay-dev-only-secret";
+const ADMIN_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
-function createAdminToken(email: string) {
-  const payload = Buffer.from(email, "utf8").toString("base64url");
-  const sig = createHmac("sha256", ADMIN_COOKIE_SECRET)
-    .update(payload)
+// Signature covers payload + current password hash, so a password change or
+// ADMIN_INIT_FORCE reset immediately invalidates every outstanding token.
+function signAdminPayload(payload: string, passwordHash: string | null) {
+  return createHmac("sha256", ADMIN_COOKIE_SECRET)
+    .update(`${payload}.${passwordHash ?? ""}`)
     .digest("base64url");
-  return `${payload}.${sig}`;
 }
 
-function readAdminToken(req: any): string | null {
-  const header = req.headers?.cookie || "";
-  const match = header.match(
-    new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=([^;]+)`)
-  );
+function createAdminToken(email: string, passwordHash: string | null) {
+  const payload = Buffer.from(
+    JSON.stringify({ e: email, exp: Date.now() + ADMIN_TOKEN_TTL_MS }),
+    "utf8",
+  ).toString("base64url");
+  return `${payload}.${signAdminPayload(payload, passwordHash)}`;
+}
 
+/** Verifies the admin cookie: signature (constant-time), expiry, and binding
+ *  to the account's current password hash. Returns the email or null. */
+async function verifyAdminToken(req: any): Promise<string | null> {
+  const header = req.headers?.cookie || "";
+  const match = header.match(new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=([^;]+)`));
   if (!match) return null;
 
   const value = decodeURIComponent(match[1]);
   const parts = value.split(".");
   if (parts.length !== 2) return null;
-
   const [payload, sig] = parts;
 
-  const expected = createHmac("sha256", ADMIN_COOKIE_SECRET)
-    .update(payload)
-    .digest("base64url");
-
-  if (sig.length !== expected.length) return null;
-
-  const valid = Buffer.from(sig).equals(Buffer.from(expected));
-  if (!valid) return null;
-
+  let email: string;
+  let exp: number;
   try {
-    return Buffer.from(payload, "base64url").toString("utf8");
+    const decoded = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    );
+    email = decoded.e;
+    exp = decoded.exp;
+    if (typeof email !== "string" || typeof exp !== "number") return null;
   } catch {
     return null;
   }
+
+  const passwordHash = await storage.getAdminPasswordHash(email);
+  const expected = signAdminPayload(payload, passwordHash);
+  const sigBuf = Buffer.from(sig);
+  const expectedBuf = Buffer.from(expected);
+  if (sigBuf.length !== expectedBuf.length) return null;
+  if (!timingSafeEqual(sigBuf, expectedBuf)) return null;
+
+  if (Date.now() > exp) return null;
+
+  return email;
 }
 
 export async function registerRoutes(
@@ -107,12 +129,12 @@ export async function registerRoutes(
 
   // ── Middleware ─────────────────────────────────────────────────────────────
   // requireAdmin: accepts (a) local admin session or (b) Replit OAuth session
-  const getAdminEmail = (req: any): string | undefined =>
-    readAdminToken(req) ??
+  const getAdminEmail = async (req: any): Promise<string | undefined> =>
+    (await verifyAdminToken(req)) ??
     (req.user as any)?.claims?.email;
 
   const requireAdmin = async (req: any, res: any, next: any) => {
-    const email = getAdminEmail(req);
+    const email = await getAdminEmail(req);
 
     if (!email) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -366,7 +388,7 @@ export async function registerRoutes(
       const filePath = (req.file as any).path as string;
       const origName = ((req.file as any).originalname as string) || "";
       const fileSize = ((req.file as any).size as number) || 0;
-      const createdBy = getAdminEmail(req) || "unknown";
+      const createdBy = (await getAdminEmail(req)) || "unknown";
       const ext = origName.toLowerCase().split(".").pop() || "unknown";
       const allowedExt = ["xml", "xlsx", "xls", "csv"];
       if (!allowedExt.includes(ext)) {
@@ -922,7 +944,7 @@ export async function registerRoutes(
   // ── Local admin auth status ────────────────────────────────────────────────
   app.get("/api/admin/auth/me", async (req, res) => {
     try {
-      const email = readAdminToken(req);
+      const email = await verifyAdminToken(req);
 
       if (!email) {
         return res.status(401).json({
@@ -958,7 +980,7 @@ export async function registerRoutes(
   });
 
   // ── Local admin login / logout ─────────────────────────────────────────────
-  app.post("/api/admin/login", async (req, res) => {
+  const adminLoginHandler = async (req: any, res: any) => {
     const { email, password } = z
       .object({
         email: z.string().email(),
@@ -979,7 +1001,7 @@ export async function registerRoutes(
     const match = await bcrypt.compare(password, hash);
     if (!match) return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = createAdminToken(email);
+    const token = createAdminToken(email, hash);
 
     res.cookie(ADMIN_COOKIE, token, {
       httpOnly: true,
@@ -990,12 +1012,16 @@ export async function registerRoutes(
     });
 
     return res.json({ success: true, email });
-  });
+  };
+  app.post("/api/admin/login", adminLoginHandler);
+  app.post("/api/admin/auth/login", adminLoginHandler);
 
-  app.post("/api/admin/logout-local", async (_req, res) => {
+  const adminLogoutHandler = async (_req: any, res: any) => {
     res.clearCookie(ADMIN_COOKIE, { path: "/" });
     res.json({ success: true });
-  });
+  };
+  app.post("/api/admin/logout-local", adminLogoutHandler);
+  app.post("/api/admin/auth/logout", adminLogoutHandler);
 
   // ── Admin change password ──────────────────────────────────────────────────
   app.post("/api/admin/change-password", requireAdmin, async (req, res) => {
@@ -1009,7 +1035,7 @@ export async function registerRoutes(
         })
         .parse(req.body);
 
-      const email = getAdminEmail(req);
+      const email = await getAdminEmail(req);
       if (!email) return res.status(401).json({ message: "Unauthorized" });
 
       const hash = await storage.getAdminPasswordHash(email);
@@ -1032,7 +1058,7 @@ export async function registerRoutes(
 
   // ── Admin Management ───────────────────────────────────────────────────────
   app.get(api.admin.check.path, async (req, res) => {
-    const email = getAdminEmail(req);
+    const email = await getAdminEmail(req);
     if (!email) return res.json({ isAdmin: false });
     const isAdmin = await storage.isAdmin(email);
     res.json({ isAdmin });
@@ -1558,7 +1584,7 @@ export async function registerRoutes(
         return res
           .status(400)
           .json({ message: "status must be applied or dismissed" });
-      const email: string = getAdminEmail(req) || "admin";
+      const email: string = (await getAdminEmail(req)) || "admin";
       const result = await storage.updateSuggestionStatus(id, status, email);
       res.json({ ok: true, ...result });
     } catch (e) {
@@ -1611,7 +1637,7 @@ export async function registerRoutes(
         return res
           .status(400)
           .json({ message: "status must be approved or rejected" });
-      const email: string = getAdminEmail(req) || "admin";
+      const email: string = (await getAdminEmail(req)) || "admin";
       await storage.updateClaimStatus(id, status, email);
       res.json({ ok: true });
     } catch (e) {

@@ -121,6 +121,7 @@ app.use((req, res, next) => {
   // Safe to leave in: once password_hash is set, subsequent starts skip the update.
   const initEmail = process.env.ADMIN_INIT_EMAIL;
   const initPass  = process.env.ADMIN_INIT_PASS;
+  const initForce = process.env.ADMIN_INIT_FORCE === "true";
   if (initEmail && initPass) {
     try {
       const bcrypt = await import("bcryptjs");
@@ -128,8 +129,13 @@ app.use((req, res, next) => {
       if (!existing) {
         const hash = await bcrypt.hash(initPass, 12);
         await storage.setAdminPassword(initEmail, hash);
-        log(`Admin password seeded for ${initEmail}`, "startup");
+        log(`Admin password initialized for ${initEmail}`, "startup");
+      } else if (initForce) {
+        const hash = await bcrypt.hash(initPass, 12);
+        await storage.setAdminPassword(initEmail, hash);
+        log(`Admin password force-reset for ${initEmail}`, "startup");
       }
+      // If a hash exists and ADMIN_INIT_FORCE !== "true", leave it unchanged.
     } catch (e) {
       log(`Admin seed skipped: ${(e as Error).message}`, "startup");
     }

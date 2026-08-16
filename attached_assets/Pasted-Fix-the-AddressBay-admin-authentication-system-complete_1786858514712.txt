@@ -1,0 +1,225 @@
+Fix the AddressBay admin authentication system completely.
+
+IMPORTANT CONTEXT:
+The current code is commit cabc8af, synchronized from the production VPS.
+
+Replit's investigation found:
+- Authentication code is functioning correctly.
+- /api/admin/auth/me works.
+- Login works when a known-good bcrypt password hash is temporarily placed in the database.
+- The production admin password hash is stale/wrong.
+- The startup seeder currently only creates a password when no password_hash exists:
+  if (!existing) { ... }
+- Therefore ADMIN_INIT_PASS cannot repair an existing incorrect password hash.
+- The old "Cannot set properties of undefined (setting 'adminEmail')" problem is already fixed.
+- The current admin authentication uses the signed addressbay_admin HMAC cookie and should NOT be rewritten unnecessarily.
+
+GOAL:
+Make the entire authentication system production-ready so that:
+1. Admin login works reliably.
+2. A stale/wrong admin password hash can be safely repaired.
+3. The system works in Replit and on the production VPS.
+4. We do not expose or store passwords in source code.
+5. We do not destroy or modify unrelated database data.
+6. We do not weaken authentication.
+7. We do not require manual bcrypt hash editing.
+
+IMPLEMENT THE FOLLOWING:
+
+1. ADMIN PASSWORD INITIALIZATION/RESET
+
+Improve the existing startup admin password seeding in server/index.ts.
+
+Behavior:
+
+If ADMIN_INIT_EMAIL and ADMIN_INIT_PASS are NOT set:
+- Do nothing.
+
+If ADMIN_INIT_EMAIL and ADMIN_INIT_PASS ARE set:
+- Look up the admin by email.
+- If no password hash exists, create the bcrypt hash as currently done.
+- If a password hash already exists:
+  - Only replace it when ADMIN_INIT_FORCE=true.
+  - Otherwise leave it unchanged.
+
+Use bcryptjs with cost factor 12.
+
+ADMIN_INIT_FORCE must explicitly equal "true" to force replacement.
+
+Never log:
+- ADMIN_INIT_PASS
+- password hashes
+- DATABASE_URL
+- SESSION_SECRET
+- any other secrets
+
+Log only safe information such as:
+"Admin password initialized for <email>"
+or
+"Admin password force-reset for <email>"
+
+2. IMPORTANT SECURITY REQUIREMENT
+
+The password reset mechanism must NOT reset the password on every restart unless:
+ADMIN_INIT_FORCE=true
+
+After a successful force reset, the system should be designed so the administrator can remove ADMIN_INIT_FORCE and ADMIN_INIT_PASS from the production environment.
+
+Do NOT hard-code any password.
+
+3. ADMIN LOGIN
+
+Verify the existing admin login implementation.
+
+Do not rewrite working authentication unnecessarily.
+
+Verify:
+POST /api/admin/auth/login
+
+Correct behavior:
+- Valid credentials → HTTP 200
+- Invalid credentials → HTTP 401
+- Successful login creates the signed addressbay_admin HttpOnly cookie.
+- Cookie must use appropriate Secure/SameSite settings in production.
+- Password must never be returned to the client.
+- No password hash must be returned to the client.
+
+4. ADMIN SESSION / COOKIE
+
+Verify:
+GET /api/admin/auth/me
+POST /api/admin/auth/logout
+GET /api/admin/check
+
+Ensure:
+- unauthenticated user → 401 / isAdmin false as appropriate
+- authenticated admin → isAdmin true
+- logout invalidates the admin cookie
+- protected admin routes remain protected
+
+Do NOT make admin authentication depend on req.session if the current working implementation intentionally uses the addressbay_admin HMAC cookie.
+
+5. PRODUCTION REVERSE PROXY
+
+Review the existing:
+app.set("trust proxy", 1)
+
+and production cookie configuration.
+
+Ensure the implementation works when:
+Browser → HTTPS → Apache/reverse proxy → Node/Express
+
+Do not disable secure cookies in production.
+
+6. DATABASE
+
+Verify the existing admins table and password_hash usage.
+
+Do NOT:
+- drop tables
+- truncate tables
+- delete users
+- recreate the database
+- run destructive migrations
+- modify unrelated production data
+
+7. REPLIT/VPS ENVIRONMENT DIFFERENCES
+
+The application must work when:
+- REPL_ID exists
+- REPL_ID does not exist
+
+Do not break Replit OAuth functionality.
+
+Do not hard-code environment-specific behavior.
+
+8. TEST EVERYTHING
+
+After implementing the fix:
+
+Run:
+
+npm run check
+
+npm run build
+
+Then start the application and test:
+
+GET /api/health
+
+GET /api/admin/auth/me without authentication
+
+POST /api/admin/auth/login with invalid credentials
+
+POST /api/admin/auth/login with valid credentials using a controlled test password
+
+GET /api/admin/auth/me after login
+
+GET /api/admin/check after login
+
+A protected admin endpoint
+
+POST /api/admin/auth/logout
+
+GET /api/admin/auth/me after logout
+
+Verify cookies and HTTP status codes.
+
+9. PASSWORD TESTING
+
+Do NOT use or reveal the real production admin password.
+
+For testing, use a temporary test password/hash only if necessary.
+
+If you modify a database record for testing, restore it exactly afterward.
+
+Do not destroy any existing production data.
+
+10. SECURITY REVIEW
+
+Search the codebase for:
+- hard-coded passwords
+- hard-coded secrets
+- password logging
+- DATABASE_URL logging
+- SESSION_SECRET logging
+- ADMIN_INIT_PASS logging
+
+Fix any security issue directly related to this authentication system.
+
+Do not make unrelated changes.
+
+11. GIT SAFETY
+
+Do NOT push to GitHub.
+Do NOT deploy to VPS.
+Do NOT commit automatically.
+
+Make only the necessary code changes.
+
+Before finishing verify:
+
+git status
+
+git ls-files .env
+
+The second command MUST return no output.
+
+12. FINAL REPORT
+
+When finished, provide:
+
+A. Root cause
+B. Exact files changed
+C. Exact authentication fix
+D. How the production VPS password can now be safely reset
+E. Tests performed and results
+F. Any environment variables required
+G. Any production deployment steps required
+H. Security considerations
+
+The objective is NOT merely to make the Replit test pass.
+
+The objective is to leave AddressBay with a robust authentication implementation that can be safely deployed to the production VPS and reliably recover from an incorrect/stale admin password hash.
+
+Do not stop after identifying the password mismatch. IMPLEMENT THE FIX AND TEST IT.
