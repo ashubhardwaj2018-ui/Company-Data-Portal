@@ -58,7 +58,7 @@ const sessionMiddleware = session({
     tableName: "user_sessions",
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET || "addressbay-vps-session-change-this",
+  secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,
   proxy: true,
