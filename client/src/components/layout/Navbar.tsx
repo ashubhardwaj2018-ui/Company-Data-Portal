@@ -186,16 +186,7 @@ export function Navbar() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          ) : (
-            <div className="hidden md:flex items-center gap-2">
-              <a href="/api/login" className="text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors px-3 py-1.5">
-                Log in
-              </a>
-              <a href="/api/login" className="text-sm font-semibold bg-gradient-to-r from-violet-600 to-indigo-500 text-white hover:from-orange-500 hover:to-pink-500 px-4 py-1.5 rounded-lg shadow-md shadow-indigo-200 transition-all">
-                Get Started
-              </a>
-            </div>
-          )}
+          ) : null}
 
           {/* Mobile menu toggle */}
           <button
@@ -242,12 +233,6 @@ export function Navbar() {
               <Link href="/blog" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">Blog</Link>
               <Link href="/faq" className="block px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md">FAQ</Link>
             </div>
-            {!isAuthenticated && (
-              <div className="border-t border-slate-100 pt-3 flex gap-2">
-                <a href="/api/login" className="flex-1 text-center text-sm font-medium py-2.5 border border-slate-200 rounded-md text-slate-700 hover:bg-slate-50">Log in</a>
-                <a href="/api/login" className="flex-1 text-center text-sm font-semibold py-2.5 bg-primary text-white rounded-md hover:bg-primary/90">Get Started</a>
-              </div>
-            )}
           </div>
         </div>
       )}

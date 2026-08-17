@@ -28,7 +28,7 @@ async function fetchUser(): Promise<User | null> {
 
 async function logout(): Promise<void> {
   // Local AddressBay admin logout.
-  await fetch("https://api.addressbay.com/api/admin/auth/logout", {
+  await fetch("/api/admin/auth/logout", {
     method: "POST",
     credentials: "include",
   });

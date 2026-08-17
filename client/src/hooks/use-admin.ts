@@ -4,7 +4,7 @@ export function useIsAdmin() {
   return useQuery({
     queryKey: ["/api/admin/auth/me"],
     queryFn: async () => {
-      const res = await fetch("https://api.addressbay.com/api/admin/auth/me", {
+      const res = await fetch("/api/admin/auth/me", {
         credentials: "include",
       });
 
