@@ -22,12 +22,8 @@ import { buildCompanyIntro } from "@/lib/companyIntro";
 import { DynamicServicesParagraph } from "@/components/companies/DynamicServicesParagraph";
 import { ShareBar } from "@/components/layout/ShareBar";
 import { ServiceAside } from "@/components/layout/ServiceAside";
-import { ClaimModal } from "@/components/companies/ClaimModal";
-import { WatchlistButton } from "@/components/companies/WatchlistButton";
-import { SuggestCorrectionModal } from "@/components/companies/SuggestCorrectionModal";
 import { ReviewsSection } from "@/components/companies/ReviewsSection";
 import { SharePrintBar } from "@/components/companies/SharePrintBar";
-import { CompareToggle } from "@/components/companies/CompareToggle";
 import { InsightsWidget } from "@/components/companies/InsightsWidget";
 
 // ── Country code → display name ───────────────────────────────────────────────
@@ -354,26 +350,6 @@ export default function CompanyDetails() {
 
             {/* Action column */}
             <div className="flex flex-wrap lg:flex-col items-start gap-2 lg:items-end shrink-0 ab-company-actions">
-              <div className="flex flex-wrap gap-2">
-                <WatchlistButton companyId={company.id} isLoggedIn={!!user} />
-                <ClaimModal companyId={company.id} companyName={company.name} isLoggedIn={!!user} />
-                <SuggestCorrectionModal
-                  companyId={company.id}
-                  companyName={company.name}
-                  isLoggedIn={!!user}
-                  currentValues={{
-                    email: company.email,
-                    phone: company.phone,
-                    address: company.address,
-                    city: company.city,
-                    state: company.state,
-                    pincode: company.pincode,
-                    status: company.status,
-                    name: company.name,
-                  }}
-                />
-                <CompareToggle company={company} />
-              </div>
               <div className="flex items-center gap-3">
                 <ShareBar
                   title={`${company.name} — Company Details`}
