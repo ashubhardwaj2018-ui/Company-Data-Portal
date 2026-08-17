@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-admin";
 import { Navbar } from "@/components/layout/Navbar";
 import { FileUpload } from "@/components/companies/FileUpload";
@@ -2085,17 +2084,16 @@ export default function AdminDashboard() {
   const search = useSearch();
   const defaultTab = new URLSearchParams(search).get("tab") || "upload";
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { data: adminCheck, isLoading: adminLoading } = useIsAdmin();
 
   useEffect(() => {
-    // Redirect to admin login if neither OAuth-authenticated nor a password-session admin
-    if (!authLoading && !adminLoading && !isAuthenticated && !adminCheck?.isAdmin) {
+    // Redirect to admin login when the local admin session is not valid.
+    if (!adminLoading && !adminCheck?.isAdmin) {
       setLocation("/admin/login");
     }
-  }, [authLoading, adminLoading, isAuthenticated, adminCheck, setLocation]);
+  }, [adminLoading, adminCheck, setLocation]);
 
-  if (authLoading || adminLoading) {
+  if (adminLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
 

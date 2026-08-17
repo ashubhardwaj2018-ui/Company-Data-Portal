@@ -16,7 +16,7 @@ export default function AdminLogin() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/login", {
+      const res = await fetch("https://api.addressbay.com/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -28,7 +28,7 @@ export default function AdminLogin() {
         return;
       }
       // Invalidate admin check cache so dashboard loads correctly
-      await queryClient.invalidateQueries({ queryKey: [api.admin.check.path] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/auth/me"] });
       navigate("/admin");
     } catch {
       setError("Network error — please try again");

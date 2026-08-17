@@ -1,15 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@shared/routes";
 
 export function useIsAdmin() {
   return useQuery({
-    queryKey: [api.admin.check.path],
+    queryKey: ["/api/admin/auth/me"],
     queryFn: async () => {
-      const res = await fetch(api.admin.check.path, { credentials: "include" });
-      if (!res.ok) return { isAdmin: false };
-      return (await res.json()) as { isAdmin: boolean };
+      const res = await fetch("https://api.addressbay.com/api/admin/auth/me", {
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        return { isAdmin: false };
+      }
+
+      return (await res.json()) as {
+        isAdmin: boolean;
+        authenticated?: boolean;
+        email?: string;
+      };
     },
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }
