@@ -40,6 +40,13 @@ export const companies = pgTable("companies", {
   locationType: text("location_type"),       // e.g. Headquarters, Branch
   firmIndividual: text("firm_individual"),   // Firm / Individual
   webAddress: text("web_address"),           // Website URL
+  // ── Australia-specific fields ──────────────────────────────────────────────
+  companyType: text("company_type"),                          // AU: Type (e.g. APTY, APUB)
+  deregistrationDate: date("deregistration_date"),            // AU: Date of Deregistration
+  previousStateOfRegistration: text("previous_state_of_registration"), // AU
+  stateRegistrationNumber: text("state_registration_number"), // AU
+  abn: text("abn"),                                           // AU: Australian Business Number
+  currentName: text("current_name"),                          // AU: Current name
   // ── Phase 8: view tracking ─────────────────────────────────────────────────
   viewCount: integer("view_count").default(0),
   badges: text("badges"),   // Phase 26 — JSON array e.g. ["verified","featured","claimed"]

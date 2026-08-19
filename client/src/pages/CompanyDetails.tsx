@@ -392,7 +392,9 @@ export default function CompanyDetails() {
               ? <IndiaOverviewSection company={company} />
               : company.countryCode === "US"
                 ? <UsaOverviewSection company={company} />
-                : <GlobalOverviewSection company={company} />}
+                : company.countryCode === "AU"
+                  ? <AustraliaOverviewSection company={company} />
+                  : <GlobalOverviewSection company={company} />}
 
             {/* Dynamic services paragraph */}
             <DynamicServicesParagraph company={company} />
@@ -627,6 +629,39 @@ function GlobalOverviewSection({ company }: { company: Company }) {
         <DataRow label="State" value={company.state} />
         <DataRow label="Pincode" value={company.pincode} />
         <DataRow label="Country" value={countryName} />
+      </SectionCard>
+    </>
+  );
+}
+
+function AustraliaOverviewSection({ company }: { company: Company }) {
+  return (
+    <>
+      <SectionCard title="Overview" icon={<Building2 className="h-4 w-4" />}>
+        <DataRow label="Company Name" value={company.name} icon={<Building2 className="h-3.5 w-3.5" />} />
+        <DataRow label="Current Name" value={company.currentName} />
+        <DataRow label="ACN" value={company.registrationNumber} icon={<Hash className="h-3.5 w-3.5" />} />
+        <DataRow label="ABN" value={company.abn} icon={<Hash className="h-3.5 w-3.5" />} />
+        <DataRow label="Type" value={company.companyType} />
+        <DataRow label="Class" value={company.class} />
+        <DataRow label="Sub Class" value={company.subCategory} />
+        <DataRow label="Status" value={company.status} />
+      </SectionCard>
+
+      <SectionCard title="Registration" icon={<FileText className="h-4 w-4" />}>
+        <DataRow
+          label="Date of Registration"
+          value={safeFormatDate(company.incorporationDate, "MMMM d, yyyy")}
+          icon={<Calendar className="h-3.5 w-3.5" />}
+        />
+        <DataRow
+          label="Date of Deregistration"
+          value={safeFormatDate(company.deregistrationDate, "MMMM d, yyyy")}
+          icon={<Calendar className="h-3.5 w-3.5" />}
+        />
+        <DataRow label="Previous State of Registration" value={company.previousStateOfRegistration} />
+        <DataRow label="State Registration Number" value={company.stateRegistrationNumber} />
+        <DataRow label="Source" value={company.source} icon={<Database className="h-3.5 w-3.5" />} />
       </SectionCard>
     </>
   );
