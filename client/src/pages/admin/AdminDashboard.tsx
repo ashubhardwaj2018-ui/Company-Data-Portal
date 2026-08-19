@@ -2014,6 +2014,7 @@ function SitemapTab() {
 
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   if (!data) return <p className="text-sm text-slate-500">Could not load sitemap information.</p>;
+  const sitemapApiUrl = `${new URL(data.sitemapIndex).origin}/api/sitemap`;
 
   return (
     <div className="space-y-6">
@@ -2026,7 +2027,7 @@ function SitemapTab() {
         <CardContent className="flex flex-wrap items-center gap-2">
           <code className="text-xs bg-white px-3 py-2 rounded-lg border border-indigo-100 font-mono text-indigo-800 break-all" data-testid="text-sitemap-index">{data.sitemapIndex}</code>
           <Button size="sm" variant="outline" onClick={() => copy(data.sitemapIndex)} data-testid="button-copy-sitemap-index">Copy</Button>
-          <a href="/sitemap.xml" target="_blank" rel="noreferrer">
+          <a href={data.sitemapIndex} target="_blank" rel="noreferrer">
             <Button size="sm" variant="outline" className="gap-1.5"><ExternalLink className="h-3.5 w-3.5" /> Open</Button>
           </a>
         </CardContent>
@@ -2036,8 +2037,8 @@ function SitemapTab() {
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4 flex flex-wrap items-center gap-2 text-sm">
           <span className="font-semibold text-slate-700">Sitemap API:</span>
-          <code className="text-xs bg-slate-50 px-2.5 py-1.5 rounded-md border font-mono text-slate-700">/api/sitemap</code>
-          <Button size="sm" variant="ghost" onClick={() => copy(`${window.location.origin}/api/sitemap`)}>Copy link</Button>
+          <code className="text-xs bg-slate-50 px-2.5 py-1.5 rounded-md border font-mono text-slate-700">{sitemapApiUrl}</code>
+          <Button size="sm" variant="ghost" onClick={() => copy(sitemapApiUrl)}>Copy link</Button>
           <span className="text-xs text-slate-400">— returns all sitemap files and URL counts as JSON</span>
         </CardContent>
       </Card>
@@ -2060,7 +2061,7 @@ function SitemapTab() {
                 const short = f.replace(/^https?:\/\/[^/]+/, "");
                 return (
                   <div key={f} className="flex items-center gap-2">
-                    <a href={short} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-600 hover:underline truncate flex-1">{short}</a>
+                    <a href={f} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-600 hover:underline truncate flex-1">{short}</a>
                     <button className="text-[11px] font-semibold text-slate-400 hover:text-primary shrink-0" onClick={() => copy(f)}>Copy</button>
                   </div>
                 );
