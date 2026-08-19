@@ -153,6 +153,7 @@ export async function registerRoutes(
   app.get(api.companies.list.path, limits.list, async (req, res) => {
     try {
       const input = api.companies.list.input.parse(req.query);
+      res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
       const { data, total } = await storage.getCompanies(
         input.page,
         input.limit,
@@ -447,6 +448,7 @@ export async function registerRoutes(
   // ── Directory stats ───────────────────────────────────────────────────────
   app.get("/api/directory/stats", async (_req, res) => {
     try {
+      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
       const stats = await storage.getDirectoryStats();
       res.json(stats);
     } catch (e: any) {
@@ -456,6 +458,7 @@ export async function registerRoutes(
 
   app.get("/api/directory/stats/:countryCode", async (req, res) => {
     try {
+      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
       const allowed = ["in", "au", "gb", "sg", "us"];
       const cc = req.params.countryCode.toLowerCase();
       if (!allowed.includes(cc))

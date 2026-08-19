@@ -209,12 +209,24 @@ export class DatabaseStorage implements IStorage {
     sortBy?: string,
   ) {
     const offset = (page - 1) * limit;
+    const canCacheCountryBrowse = Boolean(countryCode)
+      && !search && !alphabet && !country && !state && !status && !city
+      && !industry && !pincode && minCapital == null && maxCapital == null
+      && !incorporatedAfter && !incorporatedBefore && !sortBy;
+    const browseCacheKey = canCacheCountryBrowse
+      ? `company-list:${countryCode!.toUpperCase()}:${page}:${limit}`
+      : undefined;
+    if (browseCacheKey) {
+      const cached = cache.get<{ data: Company[]; total: number }>(browseCacheKey);
+      if (cached) return cached;
+    }
+
     const conditions: any[] = [];
 
     if (search) conditions.push(sql`(${companies.name} ILIKE ${`%${search}%`} OR ${companies.cin} ILIKE ${`%${search}%`} OR ${companies.email} ILIKE ${`%${search}%`})`);
     if (alphabet) {
       if (/^[0-9]$/.test(alphabet)) conditions.push(sql`${companies.name} ~ '^[0-9]'`);
-      else conditions.push(ilike(companies.name, `${alphabet}%`));
+      else conditions.push(sql`LOWER(${companies.name}) LIKE ${`${alphabet.toLowerCase()}%`}`);
     }
     if (countryCode) conditions.push(eq(companies.countryCode, countryCode.toUpperCase()));
     else if (country) conditions.push(ilike(companies.country, country));
@@ -254,9 +266,13 @@ export class DatabaseStorage implements IStorage {
       }
     })();
 
-    const [{ count: total }] = await db.select({ count: count() }).from(companies).where(whereClause);
-    const data = await db.select().from(companies).where(whereClause).limit(limit).offset(offset).orderBy(orderCol);
-    return { data, total };
+    const [[{ count: total }], data] = await Promise.all([
+      db.select({ count: count() }).from(companies).where(whereClause),
+      db.select().from(companies).where(whereClause).limit(limit).offset(offset).orderBy(orderCol),
+    ]);
+    const result = { data, total };
+    if (browseCacheKey) cache.set(browseCacheKey, result, 2 * 60_000);
+    return result;
   }
 
   async searchSuggestions(q: string, countryCode?: string, limit = 8): Promise<{ id: number; name: string; cin: string | null; slug: string | null; countryCode: string | null; state: string | null; city: string | null; status: string | null }[]> {
@@ -289,17 +305,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompany(id: number) {
+    const cacheKey = `company:id:${id}`;
+    const cached = cache.get<Company>(cacheKey);
+    if (cached) return cached;
     const [c] = await db.select().from(companies).where(eq(companies.id, id));
+    if (c) cache.set(cacheKey, c, 5 * 60_000);
     return c;
   }
 
   async getCompanyBySlug(countryCode: string, slug: string) {
+    const cacheKey = `company:slug:${countryCode.toUpperCase()}:${slug}`;
+    const cached = cache.get<Company>(cacheKey);
+    if (cached) return cached;
     const { and, eq: deq } = await import("drizzle-orm");
     const [c] = await db.select().from(companies)
       .where(and(
         deq(companies.countryCode, countryCode.toUpperCase()),
         deq(companies.slug, slug),
       ));
+    if (c) cache.set(cacheKey, c, 5 * 60_000);
     return c;
   }
 
@@ -312,24 +336,22 @@ export class DatabaseStorage implements IStorage {
       ? eq(companies.countryCode, countryCode.toUpperCase())
       : undefined;
 
-    const [{ total }] = await db.select({ total: count() }).from(companies).where(whereClause);
-
-    const byState = await db
-      .select({ state: companies.state, count: count() })
-      .from(companies)
-      .where(whereClause)
-      .groupBy(companies.state)
-      .orderBy(desc(count()))
-      .limit(30);
-
-    let byCountry: { countryCode: string | null; count: number }[] = [];
-    if (!countryCode) {
-      byCountry = await db
-        .select({ countryCode: companies.countryCode, count: count() })
+    const [totalRows, byState, byCountry] = await Promise.all([
+      db.select({ total: count() }).from(companies).where(whereClause),
+      db.select({ state: companies.state, count: count() })
         .from(companies)
-        .groupBy(companies.countryCode)
-        .orderBy(desc(count()));
-    }
+        .where(whereClause)
+        .groupBy(companies.state)
+        .orderBy(desc(count()))
+        .limit(30),
+      countryCode
+        ? Promise.resolve([] as { countryCode: string | null; count: number }[])
+        : db.select({ countryCode: companies.countryCode, count: count() })
+          .from(companies)
+          .groupBy(companies.countryCode)
+          .orderBy(desc(count())),
+    ]);
+    const [{ total }] = totalRows;
 
     const result = { total, byState, byCountry };
     cache.set(cacheKey, result, TTL.STATS);
@@ -364,16 +386,25 @@ export class DatabaseStorage implements IStorage {
 
   async createCompany(company: InsertCompany) {
     const [c] = await db.insert(companies).values(company).returning();
+    cache.invalidate("company-list:");
+    cache.invalidate("company:");
+    cache.invalidate("stats:");
     return c;
   }
 
   async updateCompany(id: number, company: Partial<InsertCompany>) {
     const [c] = await db.update(companies).set({ ...company, updatedAt: new Date() }).where(eq(companies.id, id)).returning();
+    cache.invalidate("company-list:");
+    cache.invalidate("company:");
+    cache.invalidate("stats:");
     return c;
   }
 
   async deleteCompany(id: number) {
     await db.delete(companies).where(eq(companies.id, id));
+    cache.invalidate("company-list:");
+    cache.invalidate("company:");
+    cache.invalidate("stats:");
   }
 
   async bulkCreateCompanies(companiesData: InsertCompany[]) {
@@ -382,6 +413,8 @@ export class DatabaseStorage implements IStorage {
     for (let i = 0; i < companiesData.length; i += chunkSize) {
       await db.insert(companies).values(companiesData.slice(i, i + chunkSize)).onConflictDoNothing().execute();
     }
+    cache.invalidate("company-list:");
+    cache.invalidate("stats:");
   }
 
   // ── Blog Posts ─────────────────────────────────────────────────────────────
