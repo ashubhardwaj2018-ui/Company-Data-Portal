@@ -28,20 +28,20 @@ const TEMPLATE_BY_COUNTRY: Record<string, { headers: string[]; rows: string[][] 
     ],
   },
   AU: {
-    headers: ["ACN","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
-    rows: [["123456789","Koala Digital Pty Ltd","Active","Private","Proprietary company","New South Wales","Sydney","2000","hello@koala.com.au","+61 2 9000 0000","1 Market St, Sydney","Australia","2015-03-10"]],
+    headers: ["ACN","Company Name","Current Name","ABN","Type","Class","Sub Class","Status","Date of Registration","Date of Deregistration","Previous State of Registration","State Registration Number","State","City","Address","Pincode","Email","Phone"],
+    rows: [["123456789","Koala Digital Pty Ltd","Koala Digital Pty Ltd","98765432101","APTY","Limited by Shares","Proprietary other","Registered","2015-03-10","","NSW","C0891234X","New South Wales","Sydney","1 Market St, Sydney","2000","hello@koala.com.au","+61 2 9000 0000"]],
   },
   GB: {
-    headers: ["Company Number","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
-    rows: [["09876543","Thames Analytics Ltd","Active","Private","Private limited company","Greater London","London","EC1A 1BB","info@thames.co.uk","+44 20 7000 0000","10 Fleet St, London","United Kingdom","2012-07-01"]],
+    headers: ["Company Number","Name","Company Category","Company Status","Country Of Origin","Incorporation Date","Accounts.AccountCategory","RegAddress.CareOf","RegAddress.POBox","Address","Address Line 2","City","Sub City","Post Code","SICCode.SicText_1","SICCode.SicText_2","SICCode.SicText_3","SICCode.SicText_4","URI"],
+    rows: [["09876543","Thames Analytics Ltd","Private Limited Company","Active","United Kingdom","2012-07-01","Small","","","10 Fleet St","Holborn","London","Camden","EC1A 1BB","62012 - Business and domestic software development","62020 - Information technology consultancy activities","","","http://business.data.gov.uk/id/company/09876543"]],
   },
   SG: {
-    headers: ["UEN","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
-    rows: [["201512345K","Merlion Tech Pte Ltd","Active","Private","Exempt private company","Singapore","Singapore","049315","contact@merlion.sg","+65 6000 0000","1 Raffles Pl","Singapore","2015-06-15"]],
+    headers: ["UEN","Entity Name","Issuance Agency ID","Entity Type Description","Business Constitution Description","Company Type Description","PAF Constitution Description","Entity Status Description","Registration Incorporation Date","Block","Street Name","Level No","Unit No","Building Name","Postal Code","Primary SSIC Code","Primary SSIC Description","Secondary SSIC Code","Secondary SSIC Description"],
+    rows: [["201512345K","Merlion Tech Pte Ltd","ACRA","Local Company","Private Company Limited by Shares","Exempt Private Company","NA","Live Company","2015-06-15","71","ROBINSON ROAD","14","01","ROBINSON 77","068895","62011","Development of software and applications","62021","Information technology consultancy"]],
   },
   US: {
-    headers: ["Registration Number","Name","Status","Class","Category","State","City","Pincode","Email","Phone","Address","Country","Incorporation Date"],
-    rows: [["7654321","Liberty Software Inc","Active","Private","C Corporation","Delaware","Wilmington","19801","info@liberty.io","+1 302 000 0000","1209 Orange St","United States","2018-01-05"]],
+    headers: ["Registration Number","Business Name","Mailing Address","Mailing City","Mailing State","Mailing Zip","Area Code & Ph No","Public Private Co","Location Type","Firm Individual","Web Address","Email"],
+    rows: [["7654321","Liberty Software Inc","1209 Orange St","Wilmington","Delaware","19801","(302) 555-0100","Private","Headquarters","Firm","www.liberty.io","info@liberty.io"]],
   },
 };
 

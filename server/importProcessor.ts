@@ -31,6 +31,30 @@ function g(row: Record<string, string>, keys: string[]): string | undefined {
   return undefined;
 }
 
+/** Normalize any date representation (ISO, Date.toString(), dd/mm/yyyy, Date object) to YYYY-MM-DD */
+function toIsoDate(v: string | undefined): string | undefined {
+  if (!v) return undefined;
+  const s = String(v).trim();
+  if (!s) return undefined;
+  // Already ISO (YYYY-MM-DD, possibly with time suffix)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[0];
+  // dd/mm/yyyy or dd-mm-yyyy
+  const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  // Fallback: anything Date can parse (e.g. "Mon Aug 01 2016 00:00:00 GMT+0000")
+  const t = new Date(s);
+  if (!isNaN(t.getTime())) return t.toISOString().slice(0, 10);
+  return undefined;
+}
+
+function gDate(row: Record<string, string>, keys: string[]): string | undefined {
+  return toIsoDate(g(row, keys));
+}
+
 function gNum(row: Record<string, string>, keys: string[]): number | undefined {
   const v = g(row, keys);
   if (!v) return undefined;
@@ -82,14 +106,82 @@ function mapRecord(
     roc: g(row, ["ROC", "roc", "Registrar of Companies", "ROC_CODE"]),
     country: g(row, ["Country", "country", "COUNTRY"]) ||
       ({ IN: "India", AU: "Australia", GB: "United Kingdom", SG: "Singapore", US: "United States" } as Record<string, string>)[countryCode] || undefined,
-    incorporationDate: g(row, ["Incorporation Date", "incorporation_date", "Date of Incorporation", "DATE_OF_INC"]) || undefined,
-    lastAgmDate: g(row, ["Last AGM Date", "last_agm_date", "LAST_AGM_DATE"]) || undefined,
-    lastBalanceSheetDate: g(row, ["Last Balance Sheet Date", "last_balance_sheet_date", "LAST_BS_DATE"]) || undefined,
+    incorporationDate: gDate(row, ["Incorporation Date", "incorporation_date", "Date of Incorporation", "DATE_OF_INC"]),
+    lastAgmDate: gDate(row, ["Last AGM Date", "last_agm_date", "LAST_AGM_DATE"]),
+    lastBalanceSheetDate: gDate(row, ["Last Balance Sheet Date", "last_balance_sheet_date", "LAST_BS_DATE"]),
     authorizedCapital: gNum(row, ["Authorized Capital", "authorized_capital", "AUTH_CAP", "AUTHORISED_CAP"]),
     paidUpCapital: gNum(row, ["Paid Up Capital", "paid_up_capital", "PAIDUP_CAP"]),
     industry: g(row, ["Industry", "industry", "INDUSTRY", "SIC", "SSIC"]),
     customQna: g(row, ["Custom QnA", "custom_qna"]),
   };
+
+  // ── USA-specific fields ──────────────────────────────────────────────────
+  if (countryCode === "US") {
+    mapped.name = mapped.name || g(row, ["Business Name", "BUSINESS NAME", "business_name"]);
+    mapped.address = mapped.address || g(row, ["Mailing Address", "MAILING ADDRESS", "mailing_address"]);
+    mapped.city = mapped.city || g(row, ["Mailing City", "MAILING CITY", "mailing_city"]);
+    mapped.state = mapped.state || g(row, ["Mailing State", "MAILING STATE", "mailing_state"]);
+    mapped.pincode = mapped.pincode || g(row, ["Mailing Zip", "MAILING ZIP", "mailing_zip", "Zip", "ZIP"]);
+    mapped.phone = mapped.phone || g(row, ["Area Code & Ph No", "AREA CODE & PH NO", "Area Code and Phone", "Phone Number", "PHONE NUMBER"]);
+    mapped.publicPrivate = g(row, ["Public Private Co", "PUBLIC PRIVATE CO", "Public/Private", "Public Private", "PUBLIC PRIVATE", "public_private"]);
+    mapped.locationType = g(row, ["Location Type", "LOCATION TYPE", "location_type"]);
+    mapped.firmIndividual = g(row, ["Firm Individual", "FIRM INDIVIDUAL", "Firm/Individual", "firm_individual"]);
+    mapped.webAddress = g(row, ["Web Address", "WEB ADDRESS", "web_address", "Website", "WEBSITE"]);
+  }
+
+  // ── Australia-specific fields ────────────────────────────────────────────
+  if (countryCode === "AU") {
+    mapped.companyType = g(row, ["Type", "TYPE", "Company Type", "COMPANY TYPE", "company_type"]);
+    mapped.subCategory = mapped.subCategory || g(row, ["Sub Class", "SUB CLASS", "sub_class", "SubClass"]);
+    mapped.incorporationDate = mapped.incorporationDate || gDate(row, ["Date of Registration", "DATE OF REGISTRATION", "date_of_registration"]);
+    mapped.deregistrationDate = gDate(row, ["Date of Deregistration", "DATE OF DEREGISTRATION", "date_of_deregistration"]);
+    mapped.previousStateOfRegistration = g(row, ["Previous State of Registration", "PREVIOUS STATE OF REGISTRATION", "previous_state_of_registration"]);
+    mapped.stateRegistrationNumber = g(row, ["State Registration Number", "STATE REGISTRATION NUMBER", "state_registration_number"]);
+    mapped.abn = g(row, ["ABN", "abn", "Australian Business Number", "AUSTRALIAN BUSINESS NUMBER"]);
+    mapped.currentName = g(row, ["Current Name", "CURRENT NAME", "current_name"]);
+  }
+
+  // ── UK-specific fields (Companies House) ─────────────────────────────────
+  if (countryCode === "GB") {
+    mapped.category = mapped.category || g(row, ["Company Category", "COMPANY CATEGORY", "CompanyCategory"]);
+    mapped.status = mapped.status || g(row, ["Company Status", "COMPANY STATUS"]);
+    mapped.careOf = g(row, ["RegAddress.CareOf", "Care Of", "CARE OF", "care_of", "CareOf"]);
+    mapped.poBox = g(row, ["RegAddress.POBox", "PO Box", "PO BOX", "po_box", "POBox"]);
+    mapped.address = mapped.address || g(row, ["RegAddress.AddressLine1", "Address Line 1", "AddressLine1"]);
+    mapped.addressLine2 = g(row, ["Address Line 2", "ADDRESS LINE 2", "RegAddress.AddressLine2", "AddressLine2", "address_line_2"]);
+    mapped.city = mapped.city || g(row, ["RegAddress.PostTown", "Post Town", "PostTown"]);
+    mapped.subCity = g(row, ["Sub City", "SUB CITY", "sub_city", "RegAddress.County", "County"]);
+    mapped.pincode = mapped.pincode || g(row, ["Post Code", "POST CODE", "RegAddress.PostCode", "PostCode", "post_code"]);
+    mapped.countryOfOrigin = g(row, ["Country Of Origin", "COUNTRY OF ORIGIN", "CountryOfOrigin", "country_of_origin"]);
+    mapped.accountCategory = g(row, ["Accounts.AccountCategory", "Account Category", "ACCOUNT CATEGORY", "AccountCategory", "account_category"]);
+    mapped.sicCode1 = g(row, ["SICCode.SicText_1", "SICCode Sic Text1", "SICCode.SicText1", "SIC Code 1", "sic_code_1"]);
+    mapped.sicCode2 = g(row, ["SICCode.SicText_2", "SICCode.SicText2", "SIC Code 2", "sic_code_2"]);
+    mapped.sicCode3 = g(row, ["SICCode.SicText_3", "SICCode.SicText3", "SIC Code 3", "sic_code_3"]);
+    mapped.sicCode4 = g(row, ["SICCode.SicText_4", "SICCode.SicText4", "SIC Code 4", "sic_code_4"]);
+    mapped.uri = g(row, ["URI", "uri", "Uri"]);
+  }
+
+  // ── Singapore-specific fields (ACRA) ─────────────────────────────────────
+  if (countryCode === "SG") {
+    mapped.name = mapped.name || g(row, ["Entity Name", "ENTITY NAME", "entity_name"]);
+    mapped.status = mapped.status || g(row, ["Entity Status Description", "entity_status_description", "Entity Status", "ENTITY STATUS"]);
+    mapped.incorporationDate = mapped.incorporationDate || gDate(row, ["Registration Incorporation Date", "registration_incorporation_date", "Registration Date", "REGISTRATION DATE"]);
+    mapped.issuanceAgencyId = g(row, ["Issuance Agency ID", "ISSUANCE AGENCY ID", "issuance_agency_id"]);
+    mapped.entityType = g(row, ["Entity Type Description", "entity_type_description", "Entity Type", "ENTITY TYPE"]);
+    mapped.businessConstitution = g(row, ["Business Constitution Description", "business_constitution_description", "Business Constitution", "BUSINESS CONSTITUTION"]);
+    mapped.companyType = g(row, ["Company Type Description", "company_type_description", "Company Type", "COMPANY TYPE"]);
+    mapped.pafConstitution = g(row, ["PAF Constitution Description", "paf_constitution_description", "PAF Constitution", "PAF CONSTITUTION"]);
+    mapped.block = g(row, ["Block", "BLOCK", "block"]);
+    mapped.streetName = g(row, ["Street Name", "STREET NAME", "street_name"]);
+    mapped.levelNo = g(row, ["Level No", "LEVEL NO", "level_no"]);
+    mapped.unitNo = g(row, ["Unit No", "UNIT NO", "unit_no"]);
+    mapped.buildingName = g(row, ["Building Name", "BUILDING NAME", "building_name"]);
+    mapped.pincode = mapped.pincode || g(row, ["Postal Code", "POSTAL CODE", "postal_code"]);
+    mapped.primarySsicCode = g(row, ["Primary SSIC Code", "PRIMARY SSIC CODE", "primary_ssic_code"]);
+    mapped.primarySsicDescription = g(row, ["Primary SSIC Description", "PRIMARY SSIC DESCRIPTION", "primary_ssic_description"]);
+    mapped.secondarySsicCode = g(row, ["Secondary SSIC Code", "SECONDARY SSIC CODE", "secondary_ssic_code"]);
+    mapped.secondarySsicDescription = g(row, ["Secondary SSIC Description", "SECONDARY SSIC DESCRIPTION", "secondary_ssic_description"]);
+  }
 
   if (!mapped.name) return { data: null, errors: ["Missing company name"] };
 
