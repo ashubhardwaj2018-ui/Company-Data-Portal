@@ -29,6 +29,7 @@ import PrivacyPolicy from "@/pages/legal/PrivacyPolicy";
 import TermsOfService from "@/pages/legal/TermsOfService";
 import Disclaimer from "@/pages/legal/Disclaimer";
 import ContactUs from "@/pages/legal/ContactUs";
+import AboutAddressBay from "@/pages/legal/AboutAddressBay";
 import LlpDirectory from "@/pages/LlpDirectory";
 import LlpDetails from "@/pages/LlpDetails";
 import IfscFinder from "@/pages/IfscFinder";
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/terms" component={TermsOfService} />
       <Route path="/disclaimer" component={Disclaimer} />
       <Route path="/contact" component={ContactUs} />
+      <Route path="/about" component={AboutAddressBay} />
       <Route path="/llps" component={LlpDirectory} />
       <Route path="/llps/:id" component={LlpDetails} />
       <Route path="/ifsc" component={IfscFinder} />
