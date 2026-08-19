@@ -390,7 +390,9 @@ export default function CompanyDetails() {
             {/* Country-specific data sections */}
             {company.countryCode === "IN"
               ? <IndiaOverviewSection company={company} />
-              : <GlobalOverviewSection company={company} />}
+              : company.countryCode === "US"
+                ? <UsaOverviewSection company={company} />
+                : <GlobalOverviewSection company={company} />}
 
             {/* Dynamic services paragraph */}
             <DynamicServicesParagraph company={company} />
@@ -566,7 +568,7 @@ function CompanyNotFound() {
   );
 }
 
-function DataRow({ label, value, icon }: { label: string; value?: string | number | null; icon?: React.ReactNode }) {
+function DataRow({ label, value, icon }: { label: string; value?: string | number | React.ReactNode | null; icon?: React.ReactNode }) {
   if (value === undefined || value === null || value === "") return null;
   return (
     <tr className="border-b border-slate-100 last:border-0">
@@ -625,6 +627,41 @@ function GlobalOverviewSection({ company }: { company: Company }) {
         <DataRow label="State" value={company.state} />
         <DataRow label="Pincode" value={company.pincode} />
         <DataRow label="Country" value={countryName} />
+      </SectionCard>
+    </>
+  );
+}
+
+function UsaOverviewSection({ company }: { company: Company }) {
+  return (
+    <>
+      <SectionCard title="Overview" icon={<Building2 className="h-4 w-4" />}>
+        <DataRow label="Business Name" value={company.name} icon={<Building2 className="h-3.5 w-3.5" />} />
+        <DataRow label="Public / Private" value={company.publicPrivate} />
+        <DataRow label="Location Type" value={company.locationType} />
+        <DataRow label="Firm / Individual" value={company.firmIndividual} />
+        <DataRow
+          label="Web Address"
+          value={company.webAddress ? (
+            <a
+              href={/^https?:\/\//i.test(company.webAddress) ? company.webAddress : `http://${company.webAddress}`}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="text-primary hover:underline break-all"
+            >
+              {company.webAddress}
+            </a>
+          ) : undefined}
+        />
+        <DataRow label="Area Code & Ph No" value={company.phone} />
+      </SectionCard>
+
+      <SectionCard title="Mailing Address" icon={<MapPin className="h-4 w-4" />}>
+        <DataRow label="Mailing Address" value={company.address} />
+        <DataRow label="Mailing City" value={company.city} />
+        <DataRow label="Mailing State" value={company.state} />
+        <DataRow label="Mailing Zip" value={company.pincode} />
+        <DataRow label="Country" value="United States" />
       </SectionCard>
     </>
   );

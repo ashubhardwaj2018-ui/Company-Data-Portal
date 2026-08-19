@@ -35,6 +35,11 @@ export const companies = pgTable("companies", {
   lastBalanceSheetDate: date("last_balance_sheet_date"),
   customQna: text("custom_qna"),
   country: text("country").default("India"),                             // Kept for backward compat
+  // ── USA-specific fields ────────────────────────────────────────────────────
+  publicPrivate: text("public_private"),     // Public / Private company
+  locationType: text("location_type"),       // e.g. Headquarters, Branch
+  firmIndividual: text("firm_individual"),   // Firm / Individual
+  webAddress: text("web_address"),           // Website URL
   // ── Phase 8: view tracking ─────────────────────────────────────────────────
   viewCount: integer("view_count").default(0),
   badges: text("badges"),   // Phase 26 — JSON array e.g. ["verified","featured","claimed"]
