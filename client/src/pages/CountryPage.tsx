@@ -7,8 +7,9 @@ import { Footer } from "@/components/layout/Footer";
 import { CompanyCard } from "@/components/companies/CompanyCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { CompanyCardSkeleton } from "@/components/companies/CompanyCardSkeleton";
-import { ArrowLeft, Building2, MapPin, Loader2, ChevronRight, ChevronLeft } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Search, X, ChevronRight, ChevronLeft } from "lucide-react";
 import { useState } from "react";
 import type { Company } from "@shared/schema";
 
@@ -21,6 +22,8 @@ const COUNTRY_META: Record<string, { name: string; flag: string; registrar: stri
   US: { name: "United States",  flag: "🇺🇸", registrar: "Secretary of State (varies by state)",               regLabel: "EIN" },
 };
 
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
 function stateSlug(state: string): string {
   return state.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
@@ -31,6 +34,8 @@ export default function CountryPage() {
   const countryCode = (params?.countryCode || "in").toUpperCase();
   const meta = COUNTRY_META[countryCode];
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [alphabet, setAlphabet] = useState<string | undefined>();
   const LIMIT = 12;
 
   // Directory stats (total + top states)
@@ -51,9 +56,16 @@ export default function CountryPage() {
   const { data, isLoading: companiesLoading } = useQuery<{
     data: Company[]; total: number; page: number; limit: number;
   }>({
-    queryKey: ["/api/companies", { countryCode, page, limit: LIMIT }],
+    queryKey: ["/api/companies", { countryCode, search, alphabet, page, limit: LIMIT }],
     queryFn: async () => {
-      const res = await fetch(`/api/companies?countryCode=${countryCode}&page=${page}&limit=${LIMIT}`);
+      const params = new URLSearchParams({
+        countryCode,
+        page: String(page),
+        limit: String(LIMIT),
+      });
+      if (search.trim()) params.set("search", search.trim());
+      if (alphabet) params.set("alphabet", alphabet);
+      const res = await fetch(`/api/companies?${params}`);
       if (!res.ok) throw new Error("Failed to fetch companies");
       return res.json();
     },
@@ -169,6 +181,68 @@ export default function CountryPage() {
             </h2>
           </div>
 
+           <div className="rounded-2xl border bg-card p-4 md:p-5 mb-6 space-y-4">
+             <div className="relative max-w-xl">
+               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+               <Input
+                 value={search}
+                 onChange={(event) => {
+                   setSearch(event.target.value);
+                   setPage(1);
+                 }}
+                 placeholder={`Search ${meta.name} companies by name`}
+                 aria-label={`Search ${meta.name} companies by name`}
+                 className="pl-10 pr-10"
+               />
+               {search && (
+                 <button
+                   type="button"
+                   onClick={() => {
+                     setSearch("");
+                     setPage(1);
+                   }}
+                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                   aria-label="Clear company search"
+                 >
+                   <X className="h-4 w-4" />
+                 </button>
+               )}
+             </div>
+
+             <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter companies by first letter">
+               <span className="mr-1 text-sm font-medium text-muted-foreground">Browse A–Z:</span>
+               <Button
+                 type="button"
+                 variant={!alphabet ? "default" : "outline"}
+                 size="sm"
+                 onClick={() => {
+                   setAlphabet(undefined);
+                   setPage(1);
+                 }}
+                 className="h-8 px-3"
+               >
+                 All
+               </Button>
+               {ALPHABET.map((letter) => (
+                 <Button
+                   key={letter}
+                   type="button"
+                   variant={alphabet === letter ? "default" : "outline"}
+                   size="sm"
+                   onClick={() => {
+                     setAlphabet(letter);
+                     setPage(1);
+                   }}
+                   className="h-8 w-8 p-0"
+                   aria-label={`Show companies beginning with ${letter}`}
+                   aria-pressed={alphabet === letter}
+                 >
+                   {letter}
+                 </Button>
+               ))}
+             </div>
+           </div>
+
           {companiesLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -178,8 +252,12 @@ export default function CountryPage() {
           ) : data?.data.length === 0 ? (
             <div className="text-center py-20 border rounded-2xl bg-muted/20">
               <Building2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No companies yet for this country.</p>
-              <p className="text-xs text-muted-foreground mt-1">Import data via the admin panel to populate this directory.</p>
+              <p className="text-muted-foreground">
+                {search || alphabet ? "No companies match your filters." : "No companies yet for this country."}
+              </p>
+              {!search && !alphabet && (
+                <p className="text-xs text-muted-foreground mt-1">Import data via the admin panel to populate this directory.</p>
+              )}
             </div>
           ) : (
             <>
