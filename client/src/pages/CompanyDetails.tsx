@@ -396,7 +396,9 @@ export default function CompanyDetails() {
                   ? <AustraliaOverviewSection company={company} />
                   : company.countryCode === "GB"
                     ? <UkOverviewSection company={company} />
-                    : <GlobalOverviewSection company={company} />}
+                    : company.countryCode === "SG"
+                      ? <SingaporeOverviewSection company={company} />
+                      : <GlobalOverviewSection company={company} />}
 
             {/* Dynamic services paragraph */}
             <DynamicServicesParagraph company={company} />
@@ -631,6 +633,52 @@ function GlobalOverviewSection({ company }: { company: Company }) {
         <DataRow label="State" value={company.state} />
         <DataRow label="Pincode" value={company.pincode} />
         <DataRow label="Country" value={countryName} />
+      </SectionCard>
+    </>
+  );
+}
+
+function SingaporeOverviewSection({ company }: { company: Company }) {
+  const hasSsic = company.primarySsicCode || company.primarySsicDescription || company.secondarySsicCode || company.secondarySsicDescription;
+  return (
+    <>
+      <SectionCard title="Overview" icon={<Building2 className="h-4 w-4" />}>
+        <DataRow label="Entity Name" value={company.name} icon={<Building2 className="h-3.5 w-3.5" />} />
+        <DataRow label="UEN" value={company.registrationNumber} icon={<Hash className="h-3.5 w-3.5" />} />
+        <DataRow label="Issuance Agency ID" value={company.issuanceAgencyId} />
+        <DataRow label="Entity Type" value={company.entityType} />
+        <DataRow label="Business Constitution" value={company.businessConstitution} />
+        <DataRow label="Company Type" value={company.companyType} />
+        <DataRow label="PAF Constitution" value={company.pafConstitution} />
+        <DataRow label="Entity Status" value={company.status} />
+      </SectionCard>
+
+      <SectionCard title="Registration" icon={<FileText className="h-4 w-4" />}>
+        <DataRow
+          label="Registration / Incorporation Date"
+          value={safeFormatDate(company.incorporationDate, "MMMM d, yyyy")}
+          icon={<Calendar className="h-3.5 w-3.5" />}
+        />
+        <DataRow label="Source" value={company.source} icon={<Database className="h-3.5 w-3.5" />} />
+      </SectionCard>
+
+      {hasSsic && (
+        <SectionCard title="SSIC Activities" icon={<TrendingUp className="h-4 w-4" />}>
+          <DataRow label="Primary SSIC Code" value={company.primarySsicCode} />
+          <DataRow label="Primary SSIC Description" value={company.primarySsicDescription} />
+          <DataRow label="Secondary SSIC Code" value={company.secondarySsicCode} />
+          <DataRow label="Secondary SSIC Description" value={company.secondarySsicDescription} />
+        </SectionCard>
+      )}
+
+      <SectionCard title="Registered Address" icon={<MapPin className="h-4 w-4" />}>
+        <DataRow label="Block" value={company.block} />
+        <DataRow label="Street Name" value={company.streetName} />
+        <DataRow label="Level No" value={company.levelNo} />
+        <DataRow label="Unit No" value={company.unitNo} />
+        <DataRow label="Building Name" value={company.buildingName} />
+        <DataRow label="Postal Code" value={company.pincode} />
+        <DataRow label="Country" value="Singapore" />
       </SectionCard>
     </>
   );

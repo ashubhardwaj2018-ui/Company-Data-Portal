@@ -59,6 +59,20 @@ export const companies = pgTable("companies", {
   sicCode3: text("sic_code_3"),                  // SICCode.SicText_3
   sicCode4: text("sic_code_4"),                  // SICCode.SicText_4
   uri: text("uri"),                              // Companies House URI
+  // ── Singapore-specific fields (ACRA) ───────────────────────────────────────
+  issuanceAgencyId: text("issuance_agency_id"),
+  entityType: text("entity_type"),                       // Entity type description
+  businessConstitution: text("business_constitution"),   // Business constitution description
+  pafConstitution: text("paf_constitution"),             // PAF constitution description
+  block: text("block"),
+  streetName: text("street_name"),
+  levelNo: text("level_no"),
+  unitNo: text("unit_no"),
+  buildingName: text("building_name"),
+  primarySsicCode: text("primary_ssic_code"),
+  primarySsicDescription: text("primary_ssic_description"),
+  secondarySsicCode: text("secondary_ssic_code"),
+  secondarySsicDescription: text("secondary_ssic_description"),
   // ── Phase 8: view tracking ─────────────────────────────────────────────────
   viewCount: integer("view_count").default(0),
   badges: text("badges"),   // Phase 26 — JSON array e.g. ["verified","featured","claimed"]
