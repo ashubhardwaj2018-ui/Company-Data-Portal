@@ -47,6 +47,18 @@ export const companies = pgTable("companies", {
   stateRegistrationNumber: text("state_registration_number"), // AU
   abn: text("abn"),                                           // AU: Australian Business Number
   currentName: text("current_name"),                          // AU: Current name
+  // ── UK-specific fields (Companies House) ──────────────────────────────────
+  careOf: text("care_of"),                       // RegAddress.CareOf
+  poBox: text("po_box"),                         // RegAddress.POBox
+  addressLine2: text("address_line_2"),          // Address Line 2
+  subCity: text("sub_city"),                     // Sub City
+  countryOfOrigin: text("country_of_origin"),    // Country Of Origin
+  accountCategory: text("account_category"),     // Accounts.AccountCategory
+  sicCode1: text("sic_code_1"),                  // SICCode.SicText_1
+  sicCode2: text("sic_code_2"),                  // SICCode.SicText_2
+  sicCode3: text("sic_code_3"),                  // SICCode.SicText_3
+  sicCode4: text("sic_code_4"),                  // SICCode.SicText_4
+  uri: text("uri"),                              // Companies House URI
   // ── Phase 8: view tracking ─────────────────────────────────────────────────
   viewCount: integer("view_count").default(0),
   badges: text("badges"),   // Phase 26 — JSON array e.g. ["verified","featured","claimed"]

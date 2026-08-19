@@ -394,7 +394,9 @@ export default function CompanyDetails() {
                 ? <UsaOverviewSection company={company} />
                 : company.countryCode === "AU"
                   ? <AustraliaOverviewSection company={company} />
-                  : <GlobalOverviewSection company={company} />}
+                  : company.countryCode === "GB"
+                    ? <UkOverviewSection company={company} />
+                    : <GlobalOverviewSection company={company} />}
 
             {/* Dynamic services paragraph */}
             <DynamicServicesParagraph company={company} />
@@ -629,6 +631,63 @@ function GlobalOverviewSection({ company }: { company: Company }) {
         <DataRow label="State" value={company.state} />
         <DataRow label="Pincode" value={company.pincode} />
         <DataRow label="Country" value={countryName} />
+      </SectionCard>
+    </>
+  );
+}
+
+function UkOverviewSection({ company }: { company: Company }) {
+  const sicCodes = [company.sicCode1, company.sicCode2, company.sicCode3, company.sicCode4].filter(Boolean);
+  return (
+    <>
+      <SectionCard title="Overview" icon={<Building2 className="h-4 w-4" />}>
+        <DataRow label="Name" value={company.name} icon={<Building2 className="h-3.5 w-3.5" />} />
+        <DataRow label="Company Number" value={company.registrationNumber} icon={<Hash className="h-3.5 w-3.5" />} />
+        <DataRow label="Company Category" value={company.category} />
+        <DataRow label="Company Status" value={company.status} />
+        <DataRow label="Country of Origin" value={company.countryOfOrigin} />
+        <DataRow label="Account Category" value={company.accountCategory} />
+        <DataRow
+          label="URI"
+          value={company.uri ? (
+            <a
+              href={/^https?:\/\//i.test(company.uri) ? company.uri : `https://${company.uri}`}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="text-primary hover:underline break-all"
+            >
+              {company.uri}
+            </a>
+          ) : undefined}
+        />
+      </SectionCard>
+
+      <SectionCard title="Registration" icon={<FileText className="h-4 w-4" />}>
+        <DataRow
+          label="Incorporation Date"
+          value={safeFormatDate(company.incorporationDate, "MMMM d, yyyy")}
+          icon={<Calendar className="h-3.5 w-3.5" />}
+        />
+        <DataRow label="Source" value={company.source} icon={<Database className="h-3.5 w-3.5" />} />
+      </SectionCard>
+
+      {sicCodes.length > 0 && (
+        <SectionCard title="Nature of Business (SIC)" icon={<TrendingUp className="h-4 w-4" />}>
+          {sicCodes.map((sic, i) => (
+            <DataRow key={i} label={`SIC Code ${i + 1}`} value={sic} />
+          ))}
+        </SectionCard>
+      )}
+
+      <SectionCard title="Registered Address" icon={<MapPin className="h-4 w-4" />}>
+        <DataRow label="Care Of" value={company.careOf} />
+        <DataRow label="PO Box" value={company.poBox} />
+        <DataRow label="Address" value={company.address} />
+        <DataRow label="Address Line 2" value={company.addressLine2} />
+        <DataRow label="City" value={company.city} />
+        <DataRow label="Sub City" value={company.subCity} />
+        <DataRow label="Post Code" value={company.pincode} />
+        <DataRow label="Country" value={COUNTRY_NAMES[company.countryCode || ""] || company.country || "United Kingdom"} />
       </SectionCard>
     </>
   );
