@@ -572,18 +572,29 @@ export async function registerRoutes(
     if (!pg)
       return res.status(400).json({ message: "Invalid pagination parameters" });
     const { page, limit } = pg;
-    const { search, state, status } = req.query as Record<
+    const { search, state, status, alphabet } = req.query as Record<
       string,
       string | undefined
     >;
+    if (alphabet && !/^[A-Za-z]$/.test(alphabet))
+      return res.status(400).json({ message: "Alphabet must be one letter" });
     const { data, total } = await storage.getLlps(
       page,
       limit,
       search,
       state,
       status,
+      alphabet?.toUpperCase(),
     );
     res.json({ data, total, page, limit });
+  });
+  app.get("/api/llps/stats", async (_req, res) => {
+    try {
+      res.json(await storage.getLlpStats());
+    } catch (e: any) {
+      console.error("[llp stats]", e.message);
+      res.status(500).json({ message: "Failed to load LLP stats" });
+    }
   });
   app.get("/api/llps/:id/related", async (req, res) => {
     const id = Number(req.params.id);

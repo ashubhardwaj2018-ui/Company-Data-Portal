@@ -168,7 +168,8 @@ export interface IStorage {
   listAllUsers(limit?: number): Promise<AuthUser[]>;
 
   // ── Indian LLPs ─────────────────────────────────────────────────────────
-  getLlps(page: number, limit: number, search?: string, state?: string, status?: string): Promise<{ data: Llp[]; total: number }>;
+  getLlps(page: number, limit: number, search?: string, state?: string, status?: string, alphabet?: string): Promise<{ data: Llp[]; total: number }>;
+  getLlpStats(): Promise<{ total: number; byState: { state: string; count: number }[] }>;
   getLlp(id: number): Promise<Llp | undefined>;
   createLlp(llp: InsertLlp): Promise<Llp>;
   updateLlp(id: number, llp: Partial<InsertLlp>): Promise<Llp | undefined>;
@@ -856,7 +857,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ── Indian LLPs ─────────────────────────────────────────────────────────
-  async getLlps(page: number, limit: number, search?: string, state?: string, status?: string) {
+  async getLlps(page: number, limit: number, search?: string, state?: string, status?: string, alphabet?: string) {
     const offset = (page - 1) * limit;
     const conds = [];
     if (search) {
@@ -865,6 +866,7 @@ export class DatabaseStorage implements IStorage {
     }
     if (state) conds.push(eq(llps.state, state));
     if (status) conds.push(eq(llps.status, status));
+    if (alphabet) conds.push(ilike(llps.name, `${alphabet}%`));
     const where = conds.length ? and(...conds) : undefined;
     const [data, [{ value: total }]] = await Promise.all([
       db.select().from(llps).where(where).orderBy(asc(llps.name)).limit(limit).offset(offset),
@@ -872,20 +874,46 @@ export class DatabaseStorage implements IStorage {
     ]);
     return { data, total };
   }
+  async getLlpStats(): Promise<{ total: number; byState: { state: string; count: number }[] }> {
+    const cacheKey = "llp-stats";
+    const cached = cache.get<{ total: number; byState: { state: string; count: number }[] }>(cacheKey);
+    if (cached) return cached;
+
+    const [[{ total }], byStateRows] = await Promise.all([
+      db.select({ total: count() }).from(llps),
+      db.select({ state: llps.state, count: count() })
+        .from(llps)
+        .where(sql`NULLIF(TRIM(${llps.state}), '') IS NOT NULL`)
+        .groupBy(llps.state)
+        .orderBy(desc(count()))
+        .limit(30),
+    ]);
+    const result = {
+      total,
+      byState: byStateRows
+        .filter((row): row is { state: string; count: number } => Boolean(row.state))
+        .map(row => ({ state: row.state, count: row.count })),
+    };
+    cache.set(cacheKey, result, TTL.STATS);
+    return result;
+  }
   async getLlp(id: number) {
     const [row] = await db.select().from(llps).where(eq(llps.id, id));
     return row;
   }
   async createLlp(llp: InsertLlp) {
     const [row] = await db.insert(llps).values(llp).returning();
+    cache.invalidate("llp-stats");
     return row;
   }
   async updateLlp(id: number, llp: Partial<InsertLlp>) {
     const [row] = await db.update(llps).set({ ...llp, updatedAt: new Date() }).where(eq(llps.id, id)).returning();
+    cache.invalidate("llp-stats");
     return row;
   }
   async deleteLlp(id: number) {
     await db.delete(llps).where(eq(llps.id, id));
+    cache.invalidate("llp-stats");
   }
   async getRelatedLlps(excludeId: number, state?: string | null, limit = 6): Promise<Llp[]> {
     const { ne } = await import("drizzle-orm");
@@ -951,6 +979,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
+    cache.invalidate("llp-stats");
     return { imported };
   }
 

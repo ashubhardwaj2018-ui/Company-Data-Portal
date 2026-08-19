@@ -101,15 +101,26 @@ function readUrlParam(key: string) {
   return new URLSearchParams(window.location.search).get(key) ?? undefined;
 }
 
-function useTrending(countryCode?: string) {
+const TRENDING_COUNTRY_LIMITS = [
+  { countryCode: "IN", limit: 6 },
+  { countryCode: "AU", limit: 2 },
+  { countryCode: "GB", limit: 2 },
+  { countryCode: "SG", limit: 2 },
+  { countryCode: "US", limit: 2 },
+] as const;
+
+function useTrending() {
   return useQuery<Company[]>({
-    queryKey: ["/api/companies/trending", countryCode],
+    queryKey: ["/api/companies/trending", "country-mix"],
     queryFn: async () => {
-      const p = new URLSearchParams({ limit: "6" });
-      if (countryCode) p.set("countryCode", countryCode);
-      const res = await fetch(`/api/companies/trending?${p}`);
-      if (!res.ok) return [];
-      return res.json();
+      const countryGroups = await Promise.all(
+        TRENDING_COUNTRY_LIMITS.map(async ({ countryCode, limit }) => {
+          const p = new URLSearchParams({ countryCode, limit: String(limit) });
+          const res = await fetch(`/api/companies/trending?${p}`);
+          return res.ok ? res.json() as Promise<Company[]> : [];
+        }),
+      );
+      return countryGroups.flat();
     },
     staleTime: 5 * 60_000,
   });
@@ -141,8 +152,8 @@ function CountrySelector({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="text-base">{selected?.flag ?? "🌐"}</span>
-        <span>{selected?.name ?? "All"}</span>
+        <span className="text-base">{selected?.flag ?? "🇮🇳"}</span>
+        <span>{selected?.name ?? "Overall"}</span>
         <ChevronDown className="h-3 w-3 text-slate-400 ml-0.5" />
       </button>
       {open && (
@@ -151,7 +162,7 @@ function CountrySelector({
             onClick={() => { onChange(undefined); setOpen(false); }}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-slate-50 transition-colors ${!value ? "text-primary font-semibold" : "text-slate-700"}`}
           >
-            <Globe className="h-4 w-4" /> All Countries
+            <Globe className="h-4 w-4" /> Overall (India)
           </button>
           {COUNTRIES.map(c => (
             <button
@@ -228,7 +239,7 @@ export default function Home() {
   const params: Record<string, any> = { page, limit: 12 };
   if (debouncedSearch) params.search = debouncedSearch;
   if (alphabet) params.alphabet = alphabet;
-  if (selectedCountry) params.countryCode = selectedCountry;
+  params.countryCode = selectedCountry || "IN";
   if (statusFilter) params.status = statusFilter;
   if (advFilters.minCapital) params.minCapital = advFilters.minCapital;
   if (advFilters.maxCapital) params.maxCapital = advFilters.maxCapital;
@@ -253,7 +264,7 @@ export default function Home() {
     staleTime: 30_000,
   });
 
-  const { data: trendingCompanies = [] } = useTrending(selectedCountry);
+  const { data: trendingCompanies = [] } = useTrending();
 
   const { data: servicesList } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -276,19 +287,6 @@ export default function Home() {
     },
     staleTime: 10 * 60_000,
   });
-
-  // Phase 33 — IP Geolocation (silent, once on mount)
-  useEffect(() => {
-    if (selectedCountry) return;
-    const SUPPORTED = ["IN", "AU", "GB", "SG"];
-    fetch("https://ip-api.com/json?fields=countryCode", { signal: AbortSignal.timeout(4000) })
-      .then(r => r.json())
-      .then(d => {
-        if (d?.countryCode && SUPPORTED.includes(d.countryCode)) setSelectedCountry(d.countryCode);
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const activeCountry = COUNTRIES.find(c => c.code === selectedCountry);
   const totalPages = data ? Math.ceil(data.total / data.limit) : 0;
@@ -699,8 +697,8 @@ export default function Home() {
               <TrendingUp className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-bold text-slate-900">Trending Companies</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
-              {trendingCompanies.slice(0, 6).map(company => (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
+              {trendingCompanies.slice(0, 14).map(company => (
                 <CompanyCard key={company.id} company={company} />
               ))}
             </div>
