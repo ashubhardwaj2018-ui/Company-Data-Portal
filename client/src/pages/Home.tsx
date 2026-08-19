@@ -432,7 +432,7 @@ export default function Home() {
         <section className="border-b border-slate-100">
           <div className="container-width py-12">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-slate-900">Browse by Industry</h2>
+               <h2 className="text-lg font-bold text-slate-900">Browse by Industry</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3">
               {INDUSTRIES.map(ind => {

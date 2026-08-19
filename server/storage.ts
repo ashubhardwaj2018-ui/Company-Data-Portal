@@ -23,9 +23,30 @@ import { users, type User as AuthUser } from "@shared/models/auth";
 import { eq, ilike, desc, count, sql, asc, gte, lte, and, inArray, isNull } from "drizzle-orm";
 import { cache, TTL } from "./cache";
 
+// Keep the public industry buckets broad while matching each country's
+// available classification fields.
+const INDUSTRY_CLASSIFICATION_TERMS: Record<string, string[]> = {
+  technology: ["technology", "software", "computer", "programming", "telecommunication"],
+  manufacturing: ["manufactur"],
+  finance: ["finance", "financial", "banking", "insurance", "investment"],
+  healthcare: ["health", "medical", "hospital", "pharmaceutical"],
+  construction: ["construction", "building", "civil engineering"],
+  retail: ["retail", "trading", "wholesale"],
+  education: ["education", "school", "college", "training"],
+  logistics: ["logistics", "transport", "storage", "warehousing", "freight", "postal", "courier"],
+};
+
 export interface IStorage {
   // Companies
-  getCompanies(page: number, limit: number, search?: string, alphabet?: string, country?: string, countryCode?: string, state?: string, status?: string, city?: string): Promise<{ data: Company[]; total: number }>;
+  getCompanies(
+    page: number, limit: number,
+    search?: string, alphabet?: string, country?: string, countryCode?: string,
+    state?: string, status?: string, city?: string,
+    industry?: string, pincode?: string,
+    minCapital?: number, maxCapital?: number,
+    incorporatedAfter?: string, incorporatedBefore?: string,
+    sortBy?: string,
+  ): Promise<{ data: Company[]; total: number }>;
   searchSuggestions(q: string, countryCode?: string, limit?: number): Promise<{ id: number; name: string; cin: string | null; slug: string | null; countryCode: string | null; state: string | null; city: string | null; status: string | null }[]>;
   getCompany(id: number): Promise<Company | undefined>;
   getCompanyBySlug(countryCode: string, slug: string): Promise<Company | undefined>;
@@ -199,7 +220,20 @@ export class DatabaseStorage implements IStorage {
     if (state) conditions.push(ilike(companies.state, state));
     if (status) conditions.push(ilike(companies.status, status));
     if (city) conditions.push(ilike(companies.city, city));
-    if (industry) conditions.push(ilike(companies.industry, `%${industry}%`));
+    if (industry) {
+      const terms = INDUSTRY_CLASSIFICATION_TERMS[industry.trim().toLowerCase()] || [industry.trim()];
+      const classificationFields = [
+        companies.industry,
+        companies.subCategory,
+        companies.sicCode1,
+        companies.primarySsicDescription,
+        companies.secondarySsicDescription,
+      ];
+      const industryConditions = terms.flatMap(term =>
+        classificationFields.map(field => ilike(field, `%${term}%`))
+      );
+      conditions.push(sql`(${sql.join(industryConditions, sql` OR `)})`);
+    }
     if (pincode) conditions.push(eq(companies.pincode, pincode));
     if (minCapital != null) conditions.push(sql`${companies.authorizedCapital} >= ${minCapital}`);
     if (maxCapital != null) conditions.push(sql`${companies.authorizedCapital} <= ${maxCapital}`);
